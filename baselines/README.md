@@ -12,3 +12,6 @@ three output sizes, Logo, 唯品图, and their combined configuration.
 
 `v2.6/clean-34375bd/model-probe.json` records that the configured Pose and
 Segmentation model files are discoverable; it is not a model-output baseline.
+
+`v2.6/clean-34375bd/model-enabled-1440/baseline.json` records the first real
+Pose/Segmentation output baseline using the four model fixtures.
