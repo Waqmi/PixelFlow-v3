@@ -88,6 +88,26 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertTrue(second["incremental_skipped"])
             self.assertEqual(second["failures"], [])
 
+    def test_adapter_skips_excluded_model_source(self) -> None:
+        source_root = Path(__file__).resolve().parents[3] / "05_测试素材与输出/冲锋裤主图"
+        source = source_root / "FRPN015-1 男 暗夜黑/5B3A7456.jpg"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = V26EngineAdapter().run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=Path(temp_dir),
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=False,
+                    source_type_overrides={str(source): "model"},
+                    excluded_model_sources={str(source)},
+                    source_filter={str(source)},
+                )
+            )
+            self.assertEqual(result["main_images"], 0)
+            self.assertEqual(result["model_images"], 0)
+            self.assertEqual(result["failures"], [])
+
     def test_adapter_imports_v26_engine_without_qt(self) -> None:
         adapter = V26EngineAdapter()
         generate_images, resource_root = adapter._load_engine()
