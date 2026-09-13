@@ -33,6 +33,7 @@
 - [x] Worker 可选生成参数回归（Logo、文件夹品类、卖点图、失败重试、增量 manifest、模特跳过）
 - [x] Vue UI 壳、素材确认状态和 Worker JSONL 客户端已建立
 - [x] Tauri Host 最小桥接已建立并通过 macOS `cargo check` / release 构建
+- [x] macOS arm64 `.app/.dmg` 已完成一次资源映射回归（内置 `pixelflow-worker`）
 
 当前自动化回归：`worker/tests` 共 27 项，全部通过。
 

@@ -6,8 +6,8 @@ The first milestone freezes v2.6 behavior before completing the Vue/Tauri UI mig
 ## Current milestone
 
 This repository contains the phase-one baseline, Worker protocol, Vue desktop
-UI, and a minimal Tauri Host bridge. The release bundle is not enabled yet
-because Python runtime/resource packaging is still pending.
+UI, and a Tauri Host bridge. macOS arm64 app/DMG bundling is now wired to the
+packaged Worker; signing/notarization and Windows packaging remain release work.
 
 - v2.6 feature parity checklist: `docs/v2.6-feature-parity.md`
 - output baseline plan: `docs/v2.6-output-baseline.md`
