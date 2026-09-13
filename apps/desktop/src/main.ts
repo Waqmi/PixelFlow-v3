@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import './styles.css'
+import { installTauriWorkerBridge } from './tauriBridge'
 
-createApp(App).mount('#app')
+void installTauriWorkerBridge().finally(() => createApp(App).mount('#app'))
