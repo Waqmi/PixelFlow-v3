@@ -11,7 +11,7 @@ scaffold. The production UI is intentionally not started yet.
 - v2.6 feature parity checklist: `docs/v2.6-feature-parity.md`
 - output baseline plan: `docs/v2.6-output-baseline.md`
 - architecture decisions: `docs/architecture.md`
-- Worker protocol draft: `docs/worker-protocol.md`
+- Worker protocol v1: `docs/worker-protocol.md`
 - phase-one acceptance: `docs/phase1-acceptance.md`
 - fixed fixture manifest: `fixtures/manifest.json`
 

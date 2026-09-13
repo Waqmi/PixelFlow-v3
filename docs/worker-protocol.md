@@ -1,6 +1,6 @@
-# PixelFlow Worker 协议草案
+# PixelFlow Worker 协议 v1
 
-协议版本：`1`
+协议版本：`1`（已冻结；不兼容变化必须升级版本）
 
 前端/Tauri 不直接调用 Python 内部函数。双方通过 stdin/stdout 交换一行
 一个 JSON 对象（JSON Lines）。日志写 stderr，避免污染协议流。
@@ -23,6 +23,15 @@ retry_failed
 clear_cache
 shutdown
 ```
+
+请求 payload 约定：
+
+- `classify_materials`：`product_root` 必填；可选 `source_filter`、`overrides`、`workers`；
+- `start_generation` / `retry_failed`：使用 `GenerationRequest` 对应字段，至少包含
+  `product_root`、`output_root`、`selected_sizes`；
+- `cancel_generation`：payload 可为空；取消当前唯一运行中的任务；
+- `probe_models`：可选 `model_root`；
+- `clear_cache`、`ping`、`shutdown`：payload 为空对象。
 
 ## 事件
 
@@ -59,6 +68,8 @@ error
 - 图片通过文件路径或缓存键引用；
 - `shutdown` 完成后 Worker 退出；
 - 协议变化必须递增 `protocol`，不能静默改变字段含义。
+- `packages/protocol/schema.json` 是消息 envelope 的机器可读约束；具体 payload
+  字段按本文件约定解释。
 
 ## 当前已实现
 
