@@ -97,7 +97,7 @@ def _classification_request(payload: dict[str, Any]) -> ClassificationRequest:
 
 
 class WorkerRuntime:
-    """Own one asynchronous generation job and its cancellation event."""
+    """Own one asynchronous job and its cancellation event."""
 
     def __init__(
         self,
