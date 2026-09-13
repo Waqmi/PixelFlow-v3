@@ -21,6 +21,7 @@ class GenerationRequest:
     include_logo: bool = True
     include_vip: bool = True
     include_model_images: bool = True
+    max_size_mb: float | None = None
     category_override: str | None = None
     enable_category_template: bool = False
     enable_material_understanding: bool = False
@@ -41,6 +42,8 @@ class GenerationRequest:
             raise ValueError("at least one output size is required")
         if not self.material_confirmation_completed:
             raise ValueError("material confirmation must complete before generation")
+        if self.max_size_mb is not None and self.max_size_mb <= 0:
+            raise ValueError("max_size_mb must be greater than zero")
 
 
 class V26EngineAdapter:
@@ -88,6 +91,7 @@ class V26EngineAdapter:
             "include_logo": request.include_logo,
             "include_vip": request.include_vip,
             "include_model_images": request.include_model_images,
+            "max_size_mb": request.max_size_mb,
             "category_override": request.category_override,
             "enable_category_template": request.enable_category_template,
             "enable_material_understanding": request.enable_material_understanding,

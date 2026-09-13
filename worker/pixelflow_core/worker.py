@@ -59,6 +59,9 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
     source_filter = payload.get("source_filter")
     if source_filter is not None and not isinstance(source_filter, (list, tuple, set)):
         raise ValueError("source_filter must be an array")
+    max_size_mb = payload.get("max_size_mb")
+    if max_size_mb is not None:
+        max_size_mb = float(max_size_mb)
     return GenerationRequest(
         product_root=Path(str(payload.get("product_root", ""))).expanduser(),
         output_root=Path(str(payload.get("output_root", ""))).expanduser(),
@@ -66,6 +69,7 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
         include_logo=bool(payload.get("include_logo", True)),
         include_vip=bool(payload.get("include_vip", True)),
         include_model_images=bool(payload.get("include_model_images", True)),
+        max_size_mb=max_size_mb,
         category_override=payload.get("category_override"),
         enable_category_template=bool(payload.get("enable_category_template", False)),
         enable_material_understanding=bool(payload.get("enable_material_understanding", False)),

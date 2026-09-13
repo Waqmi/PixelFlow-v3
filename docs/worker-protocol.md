@@ -28,7 +28,7 @@ shutdown
 
 - `classify_materials`：`product_root` 必填；可选 `source_filter`、`overrides`、`workers`；
 - `start_generation` / `retry_failed`：使用 `GenerationRequest` 对应字段，至少包含
-  `product_root`、`output_root`、`selected_sizes`；
+  `product_root`、`output_root`、`selected_sizes`；可选 `max_size_mb` 控制单文件大小；
 - `cancel_generation`：payload 可为空；取消当前唯一运行中的任务；
 - `probe_models`：可选 `model_root`；
 - `clear_cache`、`ping`、`shutdown`：payload 为空对象。

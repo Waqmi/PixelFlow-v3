@@ -31,6 +31,17 @@ class EngineAdapterTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 request.validate()
 
+    def test_request_rejects_non_positive_size_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            request = GenerationRequest(
+                product_root=Path(temp_dir),
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                max_size_mb=0,
+            )
+            with self.assertRaises(ValueError):
+                request.validate()
+
     def test_adapter_imports_v26_engine_without_qt(self) -> None:
         adapter = V26EngineAdapter()
         generate_images, resource_root = adapter._load_engine()
