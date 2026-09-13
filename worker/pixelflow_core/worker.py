@@ -130,6 +130,39 @@ class WorkerRuntime:
             thread.join(timeout=max(0.0, timeout))
         return not self.busy
 
+    def probe_models(self, model_root: str) -> dict[str, dict[str, str]]:
+        """Probe optional models without starting inference when none exist."""
+        root = Path(model_root).expanduser()
+        engine_root = self.adapter.v2_root
+        if str(engine_root) not in sys.path:
+            sys.path.insert(0, str(engine_root))
+        from model_process_service import configured_model_candidates
+
+        configured = {
+            purpose: configured_model_candidates(root, purpose)
+            for purpose in ("pose", "segmentation")
+        }
+        if not any(configured.values()):
+            return {
+                purpose: {"state": "未配置", "models": ""}
+                for purpose in configured
+            }
+        from model_process_service import get_model_process_service
+
+        return get_model_process_service().probe(root)
+
+    def clear_cache(self) -> dict[str, int]:
+        engine_root = self.adapter.v2_root
+        if str(engine_root) not in sys.path:
+            sys.path.insert(0, str(engine_root))
+        from generate_main_images import clear_manifest_cache
+        from model_result_cache import clear_model_result_cache
+
+        return {
+            "manifest": clear_manifest_cache(),
+            "model_results": clear_model_result_cache(),
+        }
+
     def _run(self, request_id: str, request: GenerationRequest, cancel_event: threading.Event) -> None:
         def report(completed: int, total: int, phase: str) -> None:
             self._emit(
@@ -201,6 +234,22 @@ def main() -> int:
                     {"action": "shutdown"} if stopped else {"code": "shutdown_timeout"},
                 )
                 should_exit = stopped
+            elif message.type == "probe_models":
+                model_root = str(message.payload.get("model_root", ""))
+                response = _event(
+                    message.request_id,
+                    "done",
+                    {"models": runtime.probe_models(model_root)},
+                )
+            elif message.type == "clear_cache":
+                response = _event(
+                    message.request_id,
+                    "done",
+                    {"cleared": runtime.clear_cache()},
+                )
+            elif message.type == "retry_failed":
+                runtime.start(message.request_id, message.payload)
+                response = _event(message.request_id, "status", {"state": "started", "retry": True})
             else:
                 response, should_exit = handle_message(message)
         except ProtocolError as error:

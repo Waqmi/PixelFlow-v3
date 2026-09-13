@@ -66,4 +66,7 @@ error
 - `cancel_generation`：通过线程安全取消事件停止任务；
 - `progress` / `done` / `cancelled` / `error`：已实现；
 - `shutdown`：等待任务安全结束后退出；
-- `probe_models`、`classify_materials`、`retry_failed`、`clear_cache`：仍待接入真实 Core。
+- `probe_models`：无模型目录时不启动推理服务，有模型时复用 v2.6 探测服务；
+- `retry_failed`：复用生成请求和 `source_filter`；
+- `clear_cache`：清理 manifest 与模型结果缓存；
+- `classify_materials`：仍待从 v2.6 确认流程抽离到 Qt-free Core。

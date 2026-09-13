@@ -122,6 +122,12 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(events[-1][0], "error")
             self.assertEqual(events[-1][1]["code"], "generation_failed")
 
+    def test_probe_without_models_does_not_start_inference(self) -> None:
+        runtime = WorkerRuntime(adapter=V26EngineAdapter())
+        result = runtime.probe_models("/path/that/does/not/exist")
+        self.assertEqual(result["pose"]["state"], "未配置")
+        self.assertEqual(result["segmentation"]["state"], "未配置")
+
 
 if __name__ == "__main__":
     unittest.main()
