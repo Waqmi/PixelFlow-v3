@@ -108,6 +108,22 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(result["model_images"], 0)
             self.assertEqual(result["failures"], [])
 
+    def test_runtime_clear_cache_only_removes_private_cache_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict("os.environ", {"HOME": temp_dir}):
+            manifest_dir = Path(temp_dir) / "Library/Caches/PixelFlow/manifests"
+            model_dir = Path(temp_dir) / "Library/Caches/PixelFlow/model-results"
+            manifest_dir.mkdir(parents=True)
+            model_dir.mkdir(parents=True)
+            (manifest_dir / "manifest.json").write_text("{}", encoding="utf-8")
+            (model_dir / "model.json").write_text("{}", encoding="utf-8")
+            output_file = Path(temp_dir) / "user-output.jpg"
+            output_file.write_bytes(b"keep")
+
+            cleared = WorkerRuntime(adapter=V26EngineAdapter()).clear_cache()
+
+            self.assertEqual(cleared, {"manifest": 1, "model_results": 1})
+            self.assertTrue(output_file.exists())
+
     def test_adapter_imports_v26_engine_without_qt(self) -> None:
         adapter = V26EngineAdapter()
         generate_images, resource_root = adapter._load_engine()
