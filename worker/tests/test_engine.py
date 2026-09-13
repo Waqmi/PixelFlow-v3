@@ -4,6 +4,8 @@ import tempfile
 import threading
 import time
 import unittest
+import shutil
+from unittest.mock import patch
 from pathlib import Path
 
 from pixelflow_core.engine import GenerationRequest, V26EngineAdapter
@@ -63,6 +65,28 @@ class EngineAdapterTests(unittest.TestCase):
     def test_generation_payload_rejects_string_selling_points(self) -> None:
         with self.assertRaises(ValueError):
             _generation_request({"selected_sizes": ["1440x1440"], "selling_points": "防风"})
+
+    def test_adapter_reuses_unchanged_output_manifest(self) -> None:
+        source_root = Path(__file__).resolve().parents[3] / "05_测试素材与输出/冲锋裤主图"
+        source = source_root / "FRPN015-1 男 暗夜黑/5B3A7456.jpg"
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict("os.environ", {"HOME": temp_dir}):
+            product_root = Path(temp_dir) / "product"
+            product_root.joinpath("样本").mkdir(parents=True)
+            shutil.copy2(source, product_root / "样本" / "sample.jpg")
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+            )
+            adapter = V26EngineAdapter()
+            first = adapter.run(request)
+            second = adapter.run(request)
+            self.assertEqual(first["incremental_reused"], 0)
+            self.assertTrue(second["incremental_skipped"])
+            self.assertEqual(second["failures"], [])
 
     def test_adapter_imports_v26_engine_without_qt(self) -> None:
         adapter = V26EngineAdapter()
