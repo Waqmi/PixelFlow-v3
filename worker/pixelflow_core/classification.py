@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -84,6 +85,9 @@ class V26ClassifierAdapter:
 
     @staticmethod
     def _default_v2_root() -> Path:
+        configured = os.environ.get("PIXELFLOW_V2_ROOT")
+        if configured:
+            return Path(configured).expanduser()
         return Path(__file__).resolve().parents[3] / "PixelFlow-App-v2.0"
 
     def _load_classifier(self):

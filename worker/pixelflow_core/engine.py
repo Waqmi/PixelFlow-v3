@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,6 +65,9 @@ class V26EngineAdapter:
 
     @staticmethod
     def _default_v2_root() -> Path:
+        configured = os.environ.get("PIXELFLOW_V2_ROOT")
+        if configured:
+            return Path(configured).expanduser()
         # core.py -> pixelflow_core -> worker -> v3 -> workspace root
         return Path(__file__).resolve().parents[3] / "PixelFlow-App-v2.0"
 
@@ -75,11 +79,14 @@ class V26EngineAdapter:
         root_text = str(self.v2_root)
         if root_text not in sys.path:
             sys.path.insert(0, root_text)
-        from generate_main_images import RESOURCE_ROOT, generate_images
+        import generate_main_images as module
 
-        self._generate_images = generate_images
-        self._resource_root = RESOURCE_ROOT
-        return generate_images, RESOURCE_ROOT
+        configured_resource = os.environ.get("PIXELFLOW_RESOURCE_ROOT")
+        if configured_resource:
+            module.RESOURCE_ROOT = Path(configured_resource).expanduser()
+        self._generate_images = module.generate_images
+        self._resource_root = module.RESOURCE_ROOT
+        return module.generate_images, module.RESOURCE_ROOT
 
     def run(
         self,
