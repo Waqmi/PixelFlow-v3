@@ -9,4 +9,4 @@ npm install
 npm run dev
 ```
 
-Tauri Host 和 Worker 通道尚未接入；页面中的任务状态目前只验证交互状态，不执行真实生成。
+页面通过 `window.__PIXELFLOW_WORKER__` 接收 Tauri 注入的 JSONL bridge；当前环境没有 Tauri Host 时会明确显示“Worker 未连接”，不会伪造生成结果。

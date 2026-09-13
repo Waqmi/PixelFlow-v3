@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { windowWorkerBridge, WorkerClient } from './workerClient'
+import type { WorkerMessage } from './workerProtocol'
 
 type Theme = 'system' | 'light' | 'dark'
 
@@ -13,17 +15,49 @@ const selectedSizes = ref(['1440x1440'])
 const includeLogo = ref(true)
 const includeVip = ref(true)
 const isRunning = ref(false)
+const progress = ref(0)
+const workerConnected = ref(false)
 const status = ref('准备就绪')
+let worker: WorkerClient | undefined
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
-const progress = computed(() => (isRunning.value ? 18 : 0))
 
 onMounted(() => {
   const media = window.matchMedia('(prefers-color-scheme: dark)')
   const update = () => { systemDark.value = media.matches }
   update()
   media.addEventListener('change', update)
+
+  const bridge = windowWorkerBridge()
+  if (bridge) {
+    worker = new WorkerClient(bridge, handleWorkerMessage)
+    workerConnected.value = worker.connected
+  }
 })
+
+onBeforeUnmount(() => worker?.dispose())
+
+function handleWorkerMessage(message: WorkerMessage) {
+  const payload = message.payload as Record<string, unknown>
+  if (message.type === 'status' && payload.state === 'started') {
+    isRunning.value = true
+    status.value = '任务已开始'
+  } else if (message.type === 'progress') {
+    const total = Number(payload.total || 0)
+    progress.value = total ? Math.round((Number(payload.completed || 0) / total) * 100) : 0
+    status.value = String(payload.phase || '处理中')
+  } else if (message.type === 'done') {
+    isRunning.value = false
+    progress.value = 100
+    status.value = '生成完成'
+  } else if (message.type === 'cancelled') {
+    isRunning.value = false
+    status.value = '任务已取消'
+  } else if (message.type === 'error') {
+    isRunning.value = false
+    status.value = String(payload.message || 'Worker 执行失败')
+  }
+}
 
 function toggleSize(size: string) {
   selectedSizes.value = selectedSizes.value.includes(size)
@@ -36,8 +70,18 @@ function startGeneration() {
     status.value = '请先补全输入目录、输出目录和尺寸'
     return
   }
-  isRunning.value = true
-  status.value = '已准备任务，等待 Worker 接入'
+  if (!worker) {
+    status.value = 'Worker 未连接，暂不能生成'
+    return
+  }
+  progress.value = 0
+  worker.request('start_generation', {
+    product_root: inputRoot.value,
+    output_root: outputRoot.value,
+    selected_sizes: selectedSizes.value,
+    include_logo: includeLogo.value,
+    include_vip: includeVip.value,
+  })
 }
 </script>
 
@@ -52,7 +96,7 @@ function startGeneration() {
         </div>
       </div>
       <div class="topbar-actions">
-        <span class="connection-pill"><i /> Worker 未连接</span>
+        <span class="connection-pill"><i :class="{ connected: workerConnected }" /> {{ workerConnected ? 'Worker 已连接' : 'Worker 未连接' }}</span>
         <button class="icon-button" aria-label="切换夜间模式" @click="theme = darkMode ? 'light' : 'dark'">
           {{ darkMode ? '☼' : '☾' }}
         </button>
