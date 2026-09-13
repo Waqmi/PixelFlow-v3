@@ -1,0 +1,17 @@
+{
+  "probe_id": "v2.6-clean-34375bd-models",
+  "v2_commit": "34375bdc70e248fbdc21153538e1a203ecbef3e2",
+  "model_root": "../PixelFlow-App-v2.0/models",
+  "protocol": 1,
+  "models": {
+    "pose": {
+      "state": "已就绪",
+      "model": "yolo11n-pose.onnx"
+    },
+    "segmentation": {
+      "state": "已就绪",
+      "model": "yolo11n-seg.onnx"
+    }
+  },
+  "note": "仅记录模型探测；未将模型推理输出宣称为完整基线。"
+}

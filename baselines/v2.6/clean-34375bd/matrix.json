@@ -1,0 +1,93 @@
+{
+  "matrix_id": "v2.6-clean-34375bd-no-model-core-options",
+  "generated_at_utc": "2026-09-13T05:56:56.906071+00:00",
+  "v2_commit": "34375bdc70e248fbdc21153538e1a203ecbef3e2",
+  "v2_worktree_dirty": false,
+  "input_count": 16,
+  "results": [
+    {
+      "id": "1440-no-logo-no-vip",
+      "selected_sizes": ["1440x1440"],
+      "include_logo": false,
+      "include_vip": false,
+      "sources": 16,
+      "main_images": 16,
+      "transparent_images": 8,
+      "vip_images": 0,
+      "file_count": 24,
+      "validation_passed": 24,
+      "audit_checked_outputs": 24,
+      "failures": []
+    },
+    {
+      "id": "1440-logo-no-vip",
+      "selected_sizes": ["1440x1440"],
+      "include_logo": true,
+      "include_vip": false,
+      "sources": 16,
+      "main_images": 32,
+      "transparent_images": 8,
+      "vip_images": 0,
+      "file_count": 40,
+      "validation_passed": 40,
+      "audit_checked_outputs": 40,
+      "failures": []
+    },
+    {
+      "id": "1440-no-logo-vip",
+      "selected_sizes": ["1440x1440"],
+      "include_logo": false,
+      "include_vip": true,
+      "sources": 16,
+      "main_images": 16,
+      "transparent_images": 8,
+      "vip_images": 16,
+      "file_count": 40,
+      "validation_passed": 40,
+      "audit_checked_outputs": 40,
+      "failures": []
+    },
+    {
+      "id": "1440x1920-no-logo-no-vip",
+      "selected_sizes": ["1440x1920"],
+      "include_logo": false,
+      "include_vip": false,
+      "sources": 16,
+      "main_images": 16,
+      "transparent_images": 8,
+      "vip_images": 0,
+      "file_count": 24,
+      "validation_passed": 24,
+      "audit_checked_outputs": 24,
+      "failures": []
+    },
+    {
+      "id": "1125x1500-no-logo-no-vip",
+      "selected_sizes": ["1125x1500"],
+      "include_logo": false,
+      "include_vip": false,
+      "sources": 16,
+      "main_images": 16,
+      "transparent_images": 8,
+      "vip_images": 0,
+      "file_count": 24,
+      "validation_passed": 24,
+      "audit_checked_outputs": 24,
+      "failures": []
+    },
+    {
+      "id": "all-sizes-logo-vip",
+      "selected_sizes": ["1440x1440", "1440x1920", "1125x1500"],
+      "include_logo": true,
+      "include_vip": true,
+      "sources": 16,
+      "main_images": 96,
+      "transparent_images": 8,
+      "vip_images": 16,
+      "file_count": 120,
+      "validation_passed": 120,
+      "audit_checked_outputs": 120,
+      "failures": []
+    }
+  ]
+}
