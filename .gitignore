@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .venv/
 node_modules/
+apps/desktop/src-tauri/gen/
 dist/
 build/
 .DS_Store
