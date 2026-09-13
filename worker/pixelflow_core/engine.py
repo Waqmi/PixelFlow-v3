@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,27 +82,33 @@ class V26EngineAdapter:
     ) -> dict[str, object]:
         request.validate()
         generate_images, resource_root = self._load_engine()
-        return generate_images(
-            request.product_root,
-            request.output_root,
-            resource_root=resource_root,
-            selected_sizes=request.selected_sizes,
-            include_logo=request.include_logo,
-            include_vip=request.include_vip,
-            include_model_images=request.include_model_images,
-            category_override=request.category_override,
-            enable_category_template=request.enable_category_template,
-            enable_material_understanding=request.enable_material_understanding,
-            source_type_overrides=request.source_type_overrides,
-            source_metadata_overrides=request.source_metadata_overrides,
-            source_scale_adjustments=request.source_scale_adjustments,
-            excluded_model_sources=request.excluded_model_sources,
-            material_confirmation_completed=request.material_confirmation_completed,
-            naming_mode=request.naming_mode,
-            local_model_enabled=request.local_model_enabled,
-            local_model_path=request.local_model_path,
-            cancel_event=cancel_event,
-            source_filter=request.source_filter,
-            progress=progress,
-        )
-
+        options = {
+            "resource_root": resource_root,
+            "selected_sizes": request.selected_sizes,
+            "include_logo": request.include_logo,
+            "include_vip": request.include_vip,
+            "include_model_images": request.include_model_images,
+            "category_override": request.category_override,
+            "enable_category_template": request.enable_category_template,
+            "enable_material_understanding": request.enable_material_understanding,
+            "source_type_overrides": request.source_type_overrides,
+            "source_metadata_overrides": request.source_metadata_overrides,
+            "source_scale_adjustments": request.source_scale_adjustments,
+            "excluded_model_sources": request.excluded_model_sources,
+            "material_confirmation_completed": request.material_confirmation_completed,
+            "naming_mode": request.naming_mode,
+            "local_model_enabled": request.local_model_enabled,
+            "local_model_path": request.local_model_path,
+            "cancel_event": cancel_event,
+            "source_filter": request.source_filter,
+            "progress": progress,
+        }
+        parameters = inspect.signature(generate_images).parameters
+        if not any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        ):
+            # ponytail: keep the bridge compatible with pinned v2 references;
+            # remove filtering after the renderer belongs to the v3 Core.
+            options = {key: value for key, value in options.items() if key in parameters}
+        return generate_images(request.product_root, request.output_root, **options)

@@ -4,6 +4,8 @@
 
 v3 Worker 已通过 `V26EngineAdapter` 调用 v2.6 的 `generate_images`。这是
 过渡层，不复制或重写图像算法，先保证新协议能够复用已验证的输出逻辑。
+Adapter 会按 `generate_images` 的函数签名过滤 v2.6 后续新增参数，因此可以
+对照记录中的旧提交运行；这只是迁移兼容层，不改变 v2.6 的算法行为。
 
 ```text
 v3 GenerationRequest
