@@ -23,7 +23,10 @@
     "security": { "csp": null }
   },
   "bundle": {
-    "active": false,
-    "targets": "all"
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../../../worker/dist/pixelflow-worker": "pixelflow-worker"
+    }
   }
 }

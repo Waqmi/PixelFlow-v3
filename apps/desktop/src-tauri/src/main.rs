@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
@@ -34,10 +35,26 @@ fn worker_dir() -> PathBuf {
 }
 
 fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
-    let python = std::env::var_os("PIXELFLOW_PYTHON").unwrap_or_else(|| "python3".into());
-    let mut child = Command::new(python)
-        .args(["-m", "pixelflow_core.worker"])
-        .current_dir(worker_dir())
+    let bundled_worker = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|root| root.join("pixelflow-worker"))
+        .filter(|path| path.is_file());
+    let (program, args, working_dir) = match bundled_worker {
+        Some(path) => (path.into_os_string(), Vec::<OsString>::new(), None),
+        None => (
+            std::env::var_os("PIXELFLOW_PYTHON").unwrap_or_else(|| "python3".into()),
+            vec![OsString::from("-m"), OsString::from("pixelflow_core.worker")],
+            Some(worker_dir()),
+        ),
+    };
+    let mut command = Command::new(program);
+    command.args(args);
+    if let Some(directory) = working_dir {
+        command.current_dir(directory);
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
