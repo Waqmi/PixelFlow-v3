@@ -33,6 +33,14 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual(len(progress), 16)
         self.assertIn("main_product", {decision.source_type for decision in decisions})
 
+    def test_existing_generated_output_is_not_reclassified(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
+        decisions = V26ClassifierAdapter().classify(ClassificationRequest(source_root))
+
+        self.assertEqual(len(decisions), 36)
+        self.assertTrue(all("/成品主图/" not in decision.source for decision in decisions))
+
     def test_invalid_product_root_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             V26ClassifierAdapter().classify(
@@ -93,4 +101,3 @@ class ClassificationRuntimeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

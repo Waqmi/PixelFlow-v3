@@ -32,4 +32,5 @@ v2.6 generate_images
 
 `worker/pixelflow_core/classification.py` 通过小型 Adapter 复用 v2.6 的
 `RuleSourceTypeClassifier`，不导入 Qt。当前只迁移规则分类和进度回调；Pose/Seg
-增强、分类确认页和人工修改数据结构仍由后续 Worker/UI 阶段负责。
+增强、分类确认页和人工修改数据结构仍由后续 Worker/UI 阶段负责。素材扫描会
+跳过输入目录中可识别的历史生成目录，避免成品被再次当作输入素材。

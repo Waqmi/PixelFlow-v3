@@ -7,6 +7,7 @@ from typing import Callable
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+GENERATED_OUTPUT_MARKERS = {"唯品专享1440", "卖点图", "1440x1440", "1440x1920", "1125x1500"}
 ClassificationProgress = Callable[[int, int, Path, "ClassificationDecision"], None]
 
 
@@ -35,11 +36,36 @@ class ClassificationDecision:
 
 
 def _material_sources(product_root: Path) -> list[Path]:
-    sources = [
-        path
-        for path in product_root.rglob("*")
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-    ]
+    sources: list[Path] = []
+
+    def looks_like_generated_output(directory: Path) -> bool:
+        if directory.name not in {"成品主图", "产品主图", "模特图"}:
+            return False
+        try:
+            child_names = {
+                entry.name for entry in directory.rglob("*") if entry.is_dir()
+            }
+        except OSError:
+            return False
+        return bool(child_names & GENERATED_OUTPUT_MARKERS)
+
+    def collect(directory: Path) -> None:
+        if directory != product_root and looks_like_generated_output(directory):
+            return
+        try:
+            entries = tuple(sorted(directory.iterdir(), key=lambda path: path.name))
+        except OSError:
+            return
+        sources.extend(
+            entry
+            for entry in entries
+            if entry.is_file() and entry.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        for entry in entries:
+            if entry.is_dir() and not entry.is_symlink() and not entry.name.startswith("."):
+                collect(entry)
+
+    collect(product_root)
     return sorted(sources, key=lambda path: str(path))
 
 
