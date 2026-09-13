@@ -1,12 +1,13 @@
 # PixelFlow v3 beta
 
 PixelFlow v3 beta is a clean architecture rewrite of the v2.6 desktop app.
-The first milestone freezes v2.6 behavior before any Vue/Tauri UI migration.
+The first milestone freezes v2.6 behavior before completing the Vue/Tauri UI migration.
 
 ## Current milestone
 
-This repository currently contains the phase-one baseline and Worker protocol
-scaffold. The production UI is intentionally not started yet.
+This repository contains the phase-one baseline, Worker protocol, Vue desktop
+UI, and a minimal Tauri Host bridge. The release bundle is not enabled yet
+because Python runtime/resource packaging is still pending.
 
 - v2.6 feature parity checklist: `docs/v2.6-feature-parity.md`
 - output baseline plan: `docs/v2.6-output-baseline.md`
@@ -15,6 +16,7 @@ scaffold. The production UI is intentionally not started yet.
 - phase-one acceptance: `docs/phase1-acceptance.md`
 - fixed fixture manifest: `fixtures/manifest.json`
 - model fixture manifest: `fixtures/model-manifest.json`
+- desktop app: `apps/desktop`
 
 ## Planned architecture
 
@@ -29,7 +31,23 @@ Tauri 2 + Vue 3 + TypeScript
 ```
 
 The v2.6 source remains in `../PixelFlow-App-v2.0` and is not modified by
-this scaffold.
+this rewrite.
+
+前端开发：
+
+```bash
+cd apps/desktop
+npm run build
+```
+
+Tauri Host 验证：
+
+```bash
+cd apps/desktop
+CARGO_HOME=/private/tmp/pixelflow-cargo-home \
+CARGO_TARGET_DIR=/private/tmp/pixelflow-cargo-target \
+CARGO_NET_OFFLINE=true npm run tauri:build
+```
 
 ## Phase-one self-check
 
