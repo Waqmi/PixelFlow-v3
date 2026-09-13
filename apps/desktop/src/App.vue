@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { windowWorkerBridge, WorkerClient } from './workerClient'
 import type { WorkerMessage } from './workerProtocol'
 
@@ -36,14 +36,20 @@ const classificationRequestId = ref<string>()
 let worker: WorkerClient | undefined
 let progressTarget = 0
 let progressFrame = 0
+let systemMedia: MediaQueryList | undefined
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 
 onMounted(() => {
-  const media = window.matchMedia('(prefers-color-scheme: dark)')
-  const update = () => { systemDark.value = media.matches }
-  update()
-  media.addEventListener('change', update)
+  try {
+    theme.value = (localStorage.getItem('pixelflow.theme') as Theme) || 'system'
+    reducedMotion.value = localStorage.getItem('pixelflow.reduced-motion') === 'true'
+  } catch {
+    // Storage is optional in embedded webviews.
+  }
+  systemMedia = window.matchMedia('(prefers-color-scheme: dark)')
+  updateSystemTheme()
+  systemMedia.addEventListener('change', updateSystemTheme)
 
   const bridge = windowWorkerBridge()
   if (bridge) {
@@ -54,6 +60,19 @@ onMounted(() => {
 
 onBeforeUnmount(() => worker?.dispose())
 onBeforeUnmount(() => cancelAnimationFrame(progressFrame))
+onBeforeUnmount(() => systemMedia?.removeEventListener('change', updateSystemTheme))
+
+function updateSystemTheme() {
+  systemDark.value = systemMedia?.matches ?? false
+}
+
+watch(theme, (value) => {
+  try { localStorage.setItem('pixelflow.theme', value) } catch { /* optional */ }
+})
+
+watch(reducedMotion, (value) => {
+  try { localStorage.setItem('pixelflow.reduced-motion', String(value)) } catch { /* optional */ }
+})
 
 function setProgress(value: number, immediate = false) {
   progressTarget = Math.max(0, Math.min(100, value))
