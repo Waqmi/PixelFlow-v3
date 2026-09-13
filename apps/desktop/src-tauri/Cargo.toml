@@ -1,0 +1,12 @@
+[package]
+name = "pixelflow-desktop"
+version = "3.0.0-beta.1"
+description = "PixelFlow v3 beta desktop host"
+authors = ["PixelFlow"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
