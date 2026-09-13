@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source_root": "../05_测试素材与输出/冲锋裤主图",
+  "fixtures": [
+    {"id": "pants-m-01", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7454.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-02", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7455.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-03", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7456.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-04", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7464.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-05", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7469.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-06", "relative_path": "FRPN015-1 男 暗夜黑/5B3A7470.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-07", "relative_path": "FRPN015-1 男 暗夜黑/5B3A74731.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-m-08", "relative_path": "FRPN015-1 男 暗夜黑/5B3A74733.png", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-01", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7454.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-02", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7455.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-03", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7456.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-04", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7464.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-05", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7469.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-06", "relative_path": "FRPN016-1 女 暗夜黑/5B3A7470.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-07", "relative_path": "FRPN016-1 女 暗夜黑/5B3A74731.jpg", "expected_role": "needs_v2_baseline"},
+    {"id": "pants-f-08", "relative_path": "FRPN016-1 女 暗夜黑/5B3A74734.png", "expected_role": "needs_v2_baseline"}
+  ]
+}
