@@ -22,13 +22,17 @@ class GenerationRequest:
     include_vip: bool = True
     include_model_images: bool = True
     max_size_mb: float | None = None
+    logo_overrides: dict[str, str] = field(default_factory=dict)
     category_override: str | None = None
     enable_category_template: bool = False
+    folder_category_overrides: dict[str, str] = field(default_factory=dict)
     enable_material_understanding: bool = False
     source_type_overrides: dict[str, str] = field(default_factory=dict)
     source_metadata_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
     source_scale_adjustments: dict[str, float] = field(default_factory=dict)
     excluded_model_sources: set[str] = field(default_factory=set)
+    include_selling_point_images: bool = False
+    selling_points: tuple[str, ...] = ()
     source_filter: set[str] | None = None
     naming_mode: str = "short"
     local_model_enabled: bool = False
@@ -92,13 +96,19 @@ class V26EngineAdapter:
             "include_vip": request.include_vip,
             "include_model_images": request.include_model_images,
             "max_size_mb": request.max_size_mb,
+            "logo_overrides": {
+                key: Path(value) for key, value in request.logo_overrides.items()
+            },
             "category_override": request.category_override,
             "enable_category_template": request.enable_category_template,
+            "folder_category_overrides": request.folder_category_overrides,
             "enable_material_understanding": request.enable_material_understanding,
             "source_type_overrides": request.source_type_overrides,
             "source_metadata_overrides": request.source_metadata_overrides,
             "source_scale_adjustments": request.source_scale_adjustments,
             "excluded_model_sources": request.excluded_model_sources,
+            "include_selling_point_images": request.include_selling_point_images,
+            "selling_points": request.selling_points,
             "material_confirmation_completed": request.material_confirmation_completed,
             "naming_mode": request.naming_mode,
             "local_model_enabled": request.local_model_enabled,

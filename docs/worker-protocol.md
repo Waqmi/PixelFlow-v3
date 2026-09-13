@@ -28,7 +28,9 @@ shutdown
 
 - `classify_materials`：`product_root` 必填；可选 `source_filter`、`overrides`、`workers`；
 - `start_generation` / `retry_failed`：使用 `GenerationRequest` 对应字段，至少包含
-  `product_root`、`output_root`、`selected_sizes`；可选 `max_size_mb` 控制单文件大小；
+  `product_root`、`output_root`、`selected_sizes`；可选 `max_size_mb` 控制单文件大小、
+  `logo_overrides` 替换 Logo 资源、`folder_category_overrides` 覆盖文件夹品类、
+  `include_selling_point_images` 与 `selling_points` 生成卖点图；
 - `cancel_generation`：payload 可为空；取消当前唯一运行中的任务；
 - `probe_models`：可选 `model_root`；
 - `clear_cache`、`ping`、`shutdown`：payload 为空对象。
@@ -83,3 +85,4 @@ error
 - `classify_materials`：已接入 v2.6 规则分类；请求体使用 `product_root`、可选
   `source_filter`、`overrides` 和 `workers`，异步返回分类进度及最终 `decisions`。
   Pose/Seg 增强和人工确认页仍待迁移。
+- `start_generation` / `retry_failed`：已透传 Logo 覆盖、文件夹品类覆盖和卖点图参数。

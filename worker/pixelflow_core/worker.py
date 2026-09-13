@@ -56,6 +56,9 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
     selected_sizes = payload.get("selected_sizes", [])
     if not isinstance(selected_sizes, (list, tuple)):
         raise ValueError("selected_sizes must be an array")
+    selling_points = payload.get("selling_points", [])
+    if not isinstance(selling_points, (list, tuple)):
+        raise ValueError("selling_points must be an array")
     source_filter = payload.get("source_filter")
     if source_filter is not None and not isinstance(source_filter, (list, tuple, set)):
         raise ValueError("source_filter must be an array")
@@ -70,13 +73,19 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
         include_vip=bool(payload.get("include_vip", True)),
         include_model_images=bool(payload.get("include_model_images", True)),
         max_size_mb=max_size_mb,
+        logo_overrides={str(key): str(value) for key, value in paths_map("logo_overrides").items()},
         category_override=payload.get("category_override"),
         enable_category_template=bool(payload.get("enable_category_template", False)),
+        folder_category_overrides={
+            str(key): str(value) for key, value in paths_map("folder_category_overrides").items()
+        },
         enable_material_understanding=bool(payload.get("enable_material_understanding", False)),
         source_type_overrides={str(key): str(value) for key, value in paths_map("source_type_overrides").items()},
         source_metadata_overrides=paths_map("source_metadata_overrides"),
         source_scale_adjustments={str(key): float(value) for key, value in paths_map("source_scale_adjustments").items()},
         excluded_model_sources={str(item) for item in payload.get("excluded_model_sources", [])},
+        include_selling_point_images=bool(payload.get("include_selling_point_images", False)),
+        selling_points=tuple(str(item) for item in selling_points),
         source_filter={str(item) for item in source_filter} if source_filter is not None else None,
         naming_mode=str(payload.get("naming_mode", "short")),
         local_model_enabled=bool(payload.get("local_model_enabled", False)),

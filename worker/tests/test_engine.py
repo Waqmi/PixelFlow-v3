@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from pixelflow_core.engine import GenerationRequest, V26EngineAdapter
-from pixelflow_core.worker import WorkerRuntime
+from pixelflow_core.worker import WorkerRuntime, _generation_request
 
 
 class EngineAdapterTests(unittest.TestCase):
@@ -41,6 +41,28 @@ class EngineAdapterTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 request.validate()
+
+    def test_generation_payload_keeps_v26_optional_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            request = _generation_request(
+                {
+                    "product_root": temp_dir,
+                    "output_root": str(Path(temp_dir) / "output"),
+                    "selected_sizes": ["1440x1440"],
+                    "logo_overrides": {"logo": "/tmp/logo.png"},
+                    "folder_category_overrides": {"黑色": "long_pants"},
+                    "include_selling_point_images": True,
+                    "selling_points": ["防风", "显瘦"],
+                }
+            )
+            self.assertEqual(request.logo_overrides["logo"], "/tmp/logo.png")
+            self.assertEqual(request.folder_category_overrides["黑色"], "long_pants")
+            self.assertTrue(request.include_selling_point_images)
+            self.assertEqual(request.selling_points, ("防风", "显瘦"))
+
+    def test_generation_payload_rejects_string_selling_points(self) -> None:
+        with self.assertRaises(ValueError):
+            _generation_request({"selected_sizes": ["1440x1440"], "selling_points": "防风"})
 
     def test_adapter_imports_v26_engine_without_qt(self) -> None:
         adapter = V26EngineAdapter()
