@@ -64,3 +64,13 @@ python3 -m unittest tests/test_contracts.py
 cd worker
 ../../PixelFlow-App-v2.0/.venv/bin/python -m pixelflow_core.worker
 ```
+
+生成 macOS 当前架构的独立 Worker：
+
+```bash
+cd worker
+../../PixelFlow-App-v2.0/.venv/bin/python build_worker.py
+```
+
+输出位于 `worker/dist/pixelflow-worker`（构建目录已忽略）。该 Worker 已内置
+v2.6 Python 模块和 `resources`，Pose/Seg 模型仍通过外部目录配置。
