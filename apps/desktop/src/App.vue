@@ -15,6 +15,7 @@ const selectedSizes = ref(['1440x1440'])
 const includeLogo = ref(true)
 const includeVip = ref(true)
 const isRunning = ref(false)
+const isCancelling = ref(false)
 const progress = ref(0)
 const workerConnected = ref(false)
 const status = ref('准备就绪')
@@ -31,7 +32,7 @@ onMounted(() => {
   const bridge = windowWorkerBridge()
   if (bridge) {
     worker = new WorkerClient(bridge, handleWorkerMessage)
-    workerConnected.value = worker.connected
+    worker.request('ping', {})
   }
 })
 
@@ -39,8 +40,12 @@ onBeforeUnmount(() => worker?.dispose())
 
 function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>
-  if (message.type === 'status' && payload.state === 'started') {
+  if (message.type === 'ready') {
+    workerConnected.value = true
+    status.value = '准备就绪'
+  } else if (message.type === 'status' && payload.state === 'started') {
     isRunning.value = true
+    isCancelling.value = false
     status.value = '任务已开始'
   } else if (message.type === 'progress') {
     const total = Number(payload.total || 0)
@@ -48,15 +53,25 @@ function handleWorkerMessage(message: WorkerMessage) {
     status.value = String(payload.phase || '处理中')
   } else if (message.type === 'done') {
     isRunning.value = false
+    isCancelling.value = false
     progress.value = 100
     status.value = '生成完成'
   } else if (message.type === 'cancelled') {
     isRunning.value = false
+    isCancelling.value = false
     status.value = '任务已取消'
   } else if (message.type === 'error') {
     isRunning.value = false
+    isCancelling.value = false
     status.value = String(payload.message || 'Worker 执行失败')
   }
+}
+
+function cancelGeneration() {
+  if (!worker || !isRunning.value || isCancelling.value) return
+  isCancelling.value = true
+  status.value = '正在取消…'
+  worker.request('cancel_generation', {})
 }
 
 function toggleSize(size: string) {
@@ -142,7 +157,10 @@ function startGeneration() {
           <div class="section-heading"><div><p class="eyebrow">02 · RUN</p><h2>任务状态</h2></div><span class="status-text">{{ status }}</span></div>
           <div class="progress-track"><span :style="{ width: `${progress}%` }" /></div>
           <div class="progress-meta"><span>{{ isRunning ? '初始化 Worker' : '等待开始' }}</span><span>{{ progress }}%</span></div>
-          <button class="primary-button" :disabled="isRunning" @click="startGeneration"><span>{{ isRunning ? '任务已准备' : '开始生成' }}</span><b>→</b></button>
+          <div class="run-actions">
+            <button class="primary-button" :disabled="isRunning" @click="startGeneration"><span>{{ isRunning ? '任务已准备' : '开始生成' }}</span><b>→</b></button>
+            <button v-if="isRunning" class="cancel-button" :disabled="isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '取消任务' }}</button>
+          </div>
         </section>
       </div>
 
