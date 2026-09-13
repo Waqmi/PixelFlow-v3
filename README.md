@@ -38,3 +38,10 @@ python3 -m unittest tests/test_contracts.py
 # 需要 v2.6 依赖环境时：
 ../../PixelFlow-App-v2.0/.venv/bin/python -m unittest tests/test_engine.py
 ```
+
+真实 Worker 运行示例：
+
+```bash
+cd worker
+../../PixelFlow-App-v2.0/.venv/bin/python -m pixelflow_core.worker
+```

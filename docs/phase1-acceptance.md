@@ -24,6 +24,7 @@
 - [x] 确定模型目录、缓存和目标平台策略
 - [x] 建立无 Qt 的 Python Core 协议数据结构
 - [x] 通过 Adapter 接入 v2.6 实际图像处理逻辑
+- [x] Worker 已具备 start/progress/done/cancel/error 生命周期骨架
 - [ ] 补齐细节图/模特图/模特细节图素材并完成覆盖性基线
 - [ ] 完成 Worker 全链路测试
 

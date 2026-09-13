@@ -32,6 +32,11 @@ shutdown
 {"protocol":1,"request_id":"req-001","type":"done","payload":{"outputs":[]}}
 ```
 
+`start_generation` 会立即返回 `status: started`，任务在 Worker 线程中执行；
+后续 `progress`、`done`、`cancelled` 或 `error` 事件继续使用同一个
+`request_id`。`shutdown` 会先请求正在运行的任务取消，等待 Worker 线程退出，
+再返回 `done`，避免留下孤儿任务。
+
 事件类型：
 
 ```text
@@ -55,3 +60,10 @@ error
 - `shutdown` 完成后 Worker 退出；
 - 协议变化必须递增 `protocol`，不能静默改变字段含义。
 
+## 当前已实现
+
+- `start_generation`：已接入 v2.6 Engine Adapter；
+- `cancel_generation`：通过线程安全取消事件停止任务；
+- `progress` / `done` / `cancelled` / `error`：已实现；
+- `shutdown`：等待任务安全结束后退出；
+- `probe_models`、`classify_materials`、`retry_failed`、`clear_cache`：仍待接入真实 Core。
