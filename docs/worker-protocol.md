@@ -69,4 +69,6 @@ error
 - `probe_models`：无模型目录时不启动推理服务，有模型时复用 v2.6 探测服务；
 - `retry_failed`：复用生成请求和 `source_filter`；
 - `clear_cache`：清理 manifest 与模型结果缓存；
-- `classify_materials`：仍待从 v2.6 确认流程抽离到 Qt-free Core。
+- `classify_materials`：已接入 v2.6 规则分类；请求体使用 `product_root`、可选
+  `source_filter`、`overrides` 和 `workers`，异步返回分类进度及最终 `decisions`。
+  Pose/Seg 增强和人工确认页仍待迁移。

@@ -27,3 +27,9 @@ v2.6 generate_images
 6. 用同一份基线逐项对比，最后删除 Adapter。
 
 每一步都必须保留 v2.6 基线回归，不允许先改算法再迁移。
+
+## 当前分类边界
+
+`worker/pixelflow_core/classification.py` 通过小型 Adapter 复用 v2.6 的
+`RuleSourceTypeClassifier`，不导入 Qt。当前只迁移规则分类和进度回调；Pose/Seg
+增强、分类确认页和人工修改数据结构仍由后续 Worker/UI 阶段负责。

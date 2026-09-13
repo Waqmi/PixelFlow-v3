@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import sys
 import threading
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 from .contracts import Message, ProtocolError, PROTOCOL_VERSION
+from .classification import ClassificationDecision, ClassificationRequest, V26ClassifierAdapter
 from .engine import GenerationRequest, V26EngineAdapter
 
 
@@ -27,6 +29,8 @@ def _event(request_id: str, event_type: str, payload: dict) -> str:
 
 
 def _json_safe(value: Any) -> Any:
+    if is_dataclass(value):
+        return _json_safe(asdict(value))
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, set):
@@ -77,15 +81,32 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
     )
 
 
+def _classification_request(payload: dict[str, Any]) -> ClassificationRequest:
+    source_filter = payload.get("source_filter")
+    if source_filter is not None and not isinstance(source_filter, (list, tuple, set)):
+        raise ValueError("source_filter must be an array")
+    overrides = payload.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise ValueError("overrides must be an object")
+    return ClassificationRequest(
+        product_root=Path(str(payload.get("product_root", ""))).expanduser(),
+        source_filter={str(item) for item in source_filter} if source_filter is not None else None,
+        overrides={str(key): str(value) for key, value in overrides.items()},
+        workers=int(payload.get("workers", 1) or 1),
+    )
+
+
 class WorkerRuntime:
     """Own one asynchronous generation job and its cancellation event."""
 
     def __init__(
         self,
         adapter: V26EngineAdapter | None = None,
+        classifier: V26ClassifierAdapter | None = None,
         emit: Callable[[str, str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.adapter = adapter or V26EngineAdapter()
+        self.classifier = classifier or V26ClassifierAdapter(getattr(self.adapter, "v2_root", None))
         self._emit = emit or (lambda _request_id, _event_type, _payload: None)
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -109,6 +130,22 @@ class WorkerRuntime:
                 args=(request_id, request, self._cancel_event),
                 daemon=True,
                 name="pixelflow-generation",
+            )
+            self._thread.start()
+
+    def start_classification(self, request_id: str, payload: dict[str, Any]) -> None:
+        with self._lock:
+            if self.busy:
+                raise RuntimeError("a job is already running")
+            request = _classification_request(payload)
+            request.validate()
+            self._request_id = request_id
+            self._cancel_event = threading.Event()
+            self._thread = threading.Thread(
+                target=self._run_classification,
+                args=(request_id, request, self._cancel_event),
+                daemon=True,
+                name="pixelflow-classification",
             )
             self._thread.start()
 
@@ -183,6 +220,51 @@ class WorkerRuntime:
                 self._cancel_event = None
                 self._request_id = ""
 
+    def _run_classification(
+        self,
+        request_id: str,
+        request: ClassificationRequest,
+        cancel_event: threading.Event,
+    ) -> None:
+        class ClassificationCancelled(Exception):
+            pass
+
+        def report(
+            completed: int,
+            total: int,
+            source: Path,
+            decision: ClassificationDecision,
+        ) -> None:
+            if cancel_event.is_set():
+                raise ClassificationCancelled()
+            self._emit(
+                request_id,
+                "progress",
+                {
+                    "completed": completed,
+                    "total": total,
+                    "phase": "分类",
+                    "source": source,
+                    "decision": decision,
+                },
+            )
+
+        try:
+            decisions = self.classifier.classify(request, progress=report)
+            if cancel_event.is_set():
+                self._emit(request_id, "cancelled", {"phase": "分类"})
+            else:
+                self._emit(request_id, "done", {"result": {"decisions": decisions}})
+        except ClassificationCancelled:
+            self._emit(request_id, "cancelled", {"phase": "分类"})
+        except Exception as error:  # worker boundary must report failures, not die silently
+            self._emit(request_id, "error", {"code": "classification_failed", "message": str(error)})
+        finally:
+            with self._lock:
+                self._thread = None
+                self._cancel_event = None
+                self._request_id = ""
+
 
 def handle_message(message: Message) -> tuple[str, bool]:
     """Handle synchronous protocol commands kept for small clients/tests."""
@@ -219,6 +301,9 @@ def main() -> int:
             if message.type == "start_generation":
                 runtime.start(message.request_id, message.payload)
                 response = _event(message.request_id, "status", {"state": "started"})
+            elif message.type == "classify_materials":
+                runtime.start_classification(message.request_id, message.payload)
+                response = _event(message.request_id, "status", {"state": "started", "phase": "分类"})
             elif message.type == "cancel_generation":
                 cancelled = runtime.cancel(message.request_id)
                 response = _event(

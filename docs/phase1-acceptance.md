@@ -26,8 +26,9 @@
 - [x] 通过 Adapter 接入 v2.6 实际图像处理逻辑
 - [x] Worker 已具备 start/progress/done/cancel/error 生命周期骨架
 - [x] Worker 已接入模型探测、失败重试入口和缓存清理入口
+- [x] Worker 已接入 Qt-free 规则分类和分类进度事件
 - [ ] 补齐细节图/模特图/模特细节图素材并完成覆盖性基线
-- [ ] 完成 Worker 全链路测试
+- [ ] 完成 Worker 全链路测试（生成、分类真实子进程仍需统一回归）
 
 ## 进入 Vue UI 的门槛
 
