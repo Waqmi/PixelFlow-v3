@@ -1,0 +1,161 @@
+{
+  "baseline_id": "v2.6-no-model-no-logo-1440",
+  "generated_at_utc": "2026-09-13T02:35:54.862068+00:00",
+  "v2_root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0",
+  "v2_commit": "34375bdc70e248fbdc21153538e1a203ecbef3e2",
+  "v2_worktree_dirty": true,
+  "input_count": 16,
+  "options": {
+    "selected_sizes": [
+      "1440x1440"
+    ],
+    "include_logo": false,
+    "include_vip": false,
+    "include_model_images": false,
+    "category_override": "long_pants",
+    "models": "disabled"
+  },
+  "result_summary": {
+    "sources": 16,
+    "main_images": 16,
+    "model_images": 0,
+    "selling_point_images": 0,
+    "ai_assist": false,
+    "transparent_images": 8,
+    "vip_images": 0,
+    "render_workers": 3,
+    "local_model_used": false,
+    "segmentation_used": 0,
+    "segmentation_candidates": 0,
+    "segmentation_ratio": 0.0,
+    "cancelled": false,
+    "retried_only": true,
+    "incremental_reused": 0,
+    "stale_outputs_removed": 0,
+    "category": "long_pants",
+    "category_source": "manual",
+    "category_confidence": 1.0
+  },
+  "outputs": [
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_01.jpg",
+      "sha256": "8754640b778ce160481de7b9eb0b63e7a7d600378864bd851c08966d67117c2b",
+      "bytes": 374211
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_02.jpg",
+      "sha256": "deaea11bd383cea6f43586fb2fc212fe3c836c4ea86184cfa941639f513e2cbb",
+      "bytes": 362383
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_03.jpg",
+      "sha256": "2756190fbca144a3c69ed42fcccf7f1101f8660d5fda0f0d3482663f099885a3",
+      "bytes": 584033
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_07.jpg",
+      "sha256": "620ba9469b117b80fa6e2cd1e0f03c0e1ee05b50071a34cdcebd0b8ad0c70835",
+      "bytes": 423922
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_11.jpg",
+      "sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "bytes": 765963
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_12.jpg",
+      "sha256": "4aca774d54222e66cf29e739b2136d56bdb79b039a3d38853877385ed720f1be",
+      "bytes": 702752
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_15.jpg",
+      "sha256": "2162d1b87abd3cdaf99b6c181c098921da3ad783908c8e075207b0c30851304d",
+      "bytes": 119264
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_18.jpg",
+      "sha256": "4a541a721e24d1a1998042814c7ec9cd7d410c214b541acc289eb16c0c6adcc9",
+      "bytes": 117314
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+      "sha256": "c33f5e50d694096c80f8c3d73a44f625ec573973b4b99949fa3718f79e2344ac",
+      "bytes": 373366
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_02.jpg",
+      "sha256": "90b3d2fd9edbbf4adee5a640309a26f5e7ea2ff518e736ebabc68a9551df980a",
+      "bytes": 377308
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_03.jpg",
+      "sha256": "222b0500b538ed9e584847eee1aaba3505de002f8a32bc93215767f999b76d9b",
+      "bytes": 606045
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_07.jpg",
+      "sha256": "3f846d3636eff46d59c5abd5ab8f819319ca2c63a724cf0ee20da386e71be14d",
+      "bytes": 424393
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_11.jpg",
+      "sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "bytes": 765963
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_12.jpg",
+      "sha256": "7827b15306b2bacec186da27d275b2d909377a373b2887ac6e3fbf8902e1e8c5",
+      "bytes": 702833
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_15.jpg",
+      "sha256": "68969d39822f7c1ea4ac3226549c0a0d56fbdc3168f88626fd290311e185b3d9",
+      "bytes": 119963
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_18.jpg",
+      "sha256": "a6a71dfbae3fe125d7c7d48fd83474b4ea34b732b09938994d42500aada05265",
+      "bytes": 121949
+    },
+    {
+      "path": "透明产品图/1440x1440/女_暗夜黑_18_透明.png",
+      "sha256": "d39e4dbc64d2aa6515264719ba2f5cfc6059d7bb939e15537169dfeefc4acfa8",
+      "bytes": 326184
+    },
+    {
+      "path": "透明产品图/1440x1440/男_暗夜黑_18_透明.png",
+      "sha256": "fb603953e99d03b705a05d6d9b6c7167b164d77ad04de7560c1a32f6312026dc",
+      "bytes": 340856
+    },
+    {
+      "path": "透明产品图/1440x1920/女_暗夜黑_18_透明.png",
+      "sha256": "efbaea52e0a54ff979e0136b84a51a6f93d286b6b2e4f12120fe171d69793bc5",
+      "bytes": 534819
+    },
+    {
+      "path": "透明产品图/1440x1920/男_暗夜黑_18_透明.png",
+      "sha256": "a600b2953f1da8a45058456fe356f8f04ce0b572c5e49ac4c427ae4271b064f9",
+      "bytes": 565231
+    },
+    {
+      "path": "透明产品图/1440x2160/女_暗夜黑_18_透明.png",
+      "sha256": "d6e04210e70566f854e4a52caf4a562b486ce41424f3b4c46362ed93e8e84bf1",
+      "bytes": 664725
+    },
+    {
+      "path": "透明产品图/1440x2160/男_暗夜黑_18_透明.png",
+      "sha256": "8a136c1a2e1fcf523cad15677837a34da8e0d8f18e8b4d3477e1c8eb84222261",
+      "bytes": 704763
+    },
+    {
+      "path": "透明产品图/800x800/女_暗夜黑_18_透明.png",
+      "sha256": "acb3c7f3db1f27f91de961bbd1f076b92d433eba2773bbd20b6f168076fa1b1b",
+      "bytes": 101532
+    },
+    {
+      "path": "透明产品图/800x800/男_暗夜黑_18_透明.png",
+      "sha256": "c102c6c49c67b802583942cc7194bd0028fc5aa018f48e503bf72b7bf7b929e6",
+      "bytes": 104545
+    }
+  ]
+}

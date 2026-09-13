@@ -11,4 +11,6 @@ coverage.xml
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
-
+baselines/**/*.png
+baselines/**/*.jpg
+baselines/**/*.jpeg
