@@ -20,6 +20,8 @@ const progress = ref(0)
 const workerConnected = ref(false)
 const status = ref('准备就绪')
 let worker: WorkerClient | undefined
+let progressTarget = 0
+let progressFrame = 0
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 
@@ -37,6 +39,27 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => worker?.dispose())
+onBeforeUnmount(() => cancelAnimationFrame(progressFrame))
+
+function setProgress(value: number, immediate = false) {
+  progressTarget = Math.max(0, Math.min(100, value))
+  if (immediate || reducedMotion.value) {
+    progress.value = progressTarget
+    cancelAnimationFrame(progressFrame)
+    return
+  }
+  cancelAnimationFrame(progressFrame)
+  const tick = () => {
+    progress.value += (progressTarget - progress.value) * 0.24
+    if (Math.abs(progressTarget - progress.value) < 0.2) {
+      progress.value = progressTarget
+      progressFrame = 0
+      return
+    }
+    progressFrame = requestAnimationFrame(tick)
+  }
+  progressFrame = requestAnimationFrame(tick)
+}
 
 function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>
@@ -49,12 +72,12 @@ function handleWorkerMessage(message: WorkerMessage) {
     status.value = '任务已开始'
   } else if (message.type === 'progress') {
     const total = Number(payload.total || 0)
-    progress.value = total ? Math.round((Number(payload.completed || 0) / total) * 100) : 0
+    setProgress(total ? Math.round((Number(payload.completed || 0) / total) * 100) : 0)
     status.value = String(payload.phase || '处理中')
   } else if (message.type === 'done') {
     isRunning.value = false
     isCancelling.value = false
-    progress.value = 100
+    setProgress(100, true)
     status.value = '生成完成'
   } else if (message.type === 'cancelled') {
     isRunning.value = false
@@ -89,7 +112,7 @@ function startGeneration() {
     status.value = 'Worker 未连接，暂不能生成'
     return
   }
-  progress.value = 0
+  setProgress(0, true)
   worker.request('start_generation', {
     product_root: inputRoot.value,
     output_root: outputRoot.value,
