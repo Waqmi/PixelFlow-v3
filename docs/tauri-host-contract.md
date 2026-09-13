@@ -23,6 +23,6 @@ Worker。Host 不解释业务 payload，只负责进程生命周期和 JSONL 转
 ## 生命周期
 
 - Host 启动时创建一个 Python Worker 进程；
-- Worker 退出或 stdout 关闭后，Host 继续运行但 bridge 标记为断开；
+- Worker 退出或 stdout 关闭后，Host 继续运行；后续任务由 `worker_send` 返回写入错误；
 - Tauri 窗口退出前发送 `shutdown`，等待 Worker 完成后再释放进程；
 - Worker 可执行文件、工作目录和 Python 运行时路径由 Host 配置决定，Vue 不感知。
