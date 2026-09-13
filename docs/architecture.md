@@ -40,3 +40,4 @@ macOS Intel/Catalina 不进入 v3 beta 第一轮，待主流程稳定后单独�
 Tauri 与 Python Worker 使用版本化 JSON Lines。暂不引入 FastAPI，避免本地
 端口、服务发现和孤儿进程问题。
 
+Host/Vue 的最小转发契约见 [`tauri-host-contract.md`](tauri-host-contract.md)。
