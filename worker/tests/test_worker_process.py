@@ -155,6 +155,61 @@ class WorkerProcessTests(unittest.TestCase):
             self.assertTrue(result["retried_only"])
             self.assertFalse(result["failures"])
 
+    def test_generation_process_cancel_keeps_worker_alive(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
+        manifest = json.loads((root / "fixtures/manifest.json").read_text(encoding="utf-8"))
+        sources = [str(source_root / item["relative_path"]) for item in manifest["fixtures"]]
+        with tempfile.TemporaryDirectory() as output_dir:
+            process = subprocess.Popen(
+                [sys.executable, "-m", "pixelflow_core.worker"],
+                cwd=Path(__file__).resolve().parents[1],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            assert process.stdin is not None
+            assert process.stdout is not None
+            start = {
+                "protocol": 1,
+                "request_id": "cancel-process",
+                "type": "start_generation",
+                "payload": {
+                    "product_root": str(source_root),
+                    "output_root": output_dir,
+                    "selected_sizes": ["1440x1440", "1440x1920", "1125x1500"],
+                    "include_logo": False,
+                    "include_vip": False,
+                    "include_model_images": False,
+                    "source_filter": sources,
+                },
+            }
+            cancel = {
+                "protocol": 1,
+                "request_id": "cancel-process",
+                "type": "cancel_generation",
+                "payload": {},
+            }
+            shutdown = {"protocol": 1, "request_id": "shutdown", "type": "shutdown", "payload": {}}
+            process.stdin.write(json.dumps(start, ensure_ascii=False) + "\n")
+            process.stdin.write(json.dumps(cancel) + "\n")
+            process.stdin.flush()
+            terminal = None
+            while True:
+                event = json.loads(process.stdout.readline())
+                if event.get("request_id") == "cancel-process" and event.get("type") in {"cancelled", "error"}:
+                    terminal = event
+                    break
+            process.stdin.write(json.dumps(shutdown) + "\n")
+            process.stdin.flush()
+            self.assertEqual(json.loads(process.stdout.readline())["type"], "done")
+            process.stdin.close()
+            process.stdout.close()
+            process.wait(timeout=10)
+
+            self.assertEqual(process.returncode, 0)
+            self.assertEqual(terminal["type"], "cancelled")
+
 
 if __name__ == "__main__":
     unittest.main()
