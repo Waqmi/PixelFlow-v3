@@ -4,6 +4,14 @@ import { windowWorkerBridge, WorkerClient } from './workerClient'
 import type { WorkerMessage } from './workerProtocol'
 
 type Theme = 'system' | 'light' | 'dark'
+type MaterialType = 'main_product' | 'detail' | 'model' | 'model_detail'
+
+interface MaterialDecision {
+  source: string
+  source_type: MaterialType
+  confidence: number
+  reason: string
+}
 
 const theme = ref<Theme>('system')
 const themeOptions: Theme[] = ['system', 'light', 'dark']
@@ -19,6 +27,12 @@ const isCancelling = ref(false)
 const progress = ref(0)
 const workerConnected = ref(false)
 const status = ref('准备就绪')
+const materials = ref<MaterialDecision[]>([])
+const materialConfirmed = ref(false)
+const classificationRunning = ref(false)
+const classificationProgress = ref(0)
+const generationRequestId = ref<string>()
+const classificationRequestId = ref<string>()
 let worker: WorkerClient | undefined
 let progressTarget = 0
 let progressFrame = 0
@@ -66,28 +80,73 @@ function handleWorkerMessage(message: WorkerMessage) {
   if (message.type === 'ready') {
     workerConnected.value = true
     status.value = '准备就绪'
-  } else if (message.type === 'status' && payload.state === 'started') {
+  } else if (message.type === 'status' && message.request_id === classificationRequestId.value) {
+    classificationRunning.value = true
+    status.value = '正在分析素材'
+  } else if (message.type === 'status' && message.request_id === generationRequestId.value && payload.state === 'started') {
     isRunning.value = true
     isCancelling.value = false
     status.value = '任务已开始'
-  } else if (message.type === 'progress') {
+  } else if (message.type === 'progress' && message.request_id === classificationRequestId.value) {
+    const total = Number(payload.total || 0)
+    classificationProgress.value = total ? Math.round((Number(payload.completed || 0) / total) * 100) : 0
+    status.value = '正在分析素材'
+  } else if (message.type === 'done' && message.request_id === classificationRequestId.value) {
+    const result = payload.result as { decisions?: MaterialDecision[] } | undefined
+    materials.value = Array.isArray(result?.decisions) ? result.decisions : []
+    classificationRunning.value = false
+    classificationProgress.value = 100
+    materialConfirmed.value = false
+    status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材'
+  } else if (message.type === 'progress' && message.request_id === generationRequestId.value) {
     const total = Number(payload.total || 0)
     setProgress(total ? Math.round((Number(payload.completed || 0) / total) * 100) : 0)
     status.value = String(payload.phase || '处理中')
-  } else if (message.type === 'done') {
+  } else if (message.type === 'done' && message.request_id === generationRequestId.value) {
     isRunning.value = false
     isCancelling.value = false
     setProgress(100, true)
     status.value = '生成完成'
-  } else if (message.type === 'cancelled') {
+  } else if (message.type === 'cancelled' && message.request_id === generationRequestId.value) {
     isRunning.value = false
     isCancelling.value = false
     status.value = '任务已取消'
   } else if (message.type === 'error') {
     isRunning.value = false
     isCancelling.value = false
+    classificationRunning.value = false
     status.value = String(payload.message || 'Worker 执行失败')
   }
+}
+
+function classifyMaterials() {
+  if (!inputRoot.value) {
+    status.value = '请先填写输入目录'
+    return
+  }
+  if (!worker) {
+    status.value = 'Worker 未连接，暂不能分析素材'
+    return
+  }
+  materials.value = []
+  materialConfirmed.value = false
+  classificationProgress.value = 0
+  classificationRequestId.value = worker.request('classify_materials', { product_root: inputRoot.value })
+}
+
+function setMaterialType(material: MaterialDecision, type: MaterialType) {
+  material.source_type = type
+  materialConfirmed.value = false
+}
+
+function onMaterialTypeChange(material: MaterialDecision, event: Event) {
+  setMaterialType(material, (event.target as HTMLSelectElement).value as MaterialType)
+}
+
+function confirmMaterials() {
+  if (!materials.value.length) return
+  materialConfirmed.value = true
+  status.value = '素材分类已确认，可以生成'
 }
 
 function cancelGeneration() {
@@ -108,17 +167,23 @@ function startGeneration() {
     status.value = '请先补全输入目录、输出目录和尺寸'
     return
   }
+  if (!materialConfirmed.value) {
+    status.value = '请先分析并确认素材分类'
+    return
+  }
   if (!worker) {
     status.value = 'Worker 未连接，暂不能生成'
     return
   }
   setProgress(0, true)
-  worker.request('start_generation', {
+  generationRequestId.value = worker.request('start_generation', {
     product_root: inputRoot.value,
     output_root: outputRoot.value,
     selected_sizes: selectedSizes.value,
     include_logo: includeLogo.value,
     include_vip: includeVip.value,
+    material_confirmation_completed: true,
+    source_type_overrides: Object.fromEntries(materials.value.map((item) => [item.source, item.source_type])),
   })
 }
 </script>
@@ -176,8 +241,33 @@ function startGeneration() {
           </div>
         </section>
 
+        <section class="panel materials-panel panel-enter delay-2">
+          <div class="section-heading">
+            <div><p class="eyebrow">02 · CONFIRM</p><h2>素材确认</h2></div>
+            <button class="outline-button" :disabled="classificationRunning" @click="classifyMaterials">{{ classificationRunning ? '分析中…' : '分析素材' }}</button>
+          </div>
+          <div v-if="classificationRunning" class="classification-progress">
+            <div class="progress-track"><span :style="{ width: `${classificationProgress}%` }" /></div>
+            <span>{{ classificationProgress }}%</span>
+          </div>
+          <div v-else-if="!materials.length" class="empty-materials">分析输入目录后，在这里确认白底图、细节图和模特图。</div>
+          <div v-else class="material-list">
+            <div v-for="material in materials" :key="material.source" class="material-row">
+              <div class="material-icon">{{ material.source_type.startsWith('model') ? '人' : '图' }}</div>
+              <div class="material-name"><strong>{{ material.source.split('/').pop() }}</strong><span>{{ material.reason }}</span></div>
+              <select :value="material.source_type" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)">
+                <option value="main_product">商品主图</option>
+                <option value="detail">细节图</option>
+                <option value="model">模特图</option>
+                <option value="model_detail">模特细节图</option>
+              </select>
+            </div>
+            <button class="confirm-button" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '分类已确认' : '确认分类' }}</button>
+          </div>
+        </section>
+
         <section class="panel progress-panel panel-enter delay-2">
-          <div class="section-heading"><div><p class="eyebrow">02 · RUN</p><h2>任务状态</h2></div><span class="status-text">{{ status }}</span></div>
+          <div class="section-heading"><div><p class="eyebrow">03 · RUN</p><h2>任务状态</h2></div><span class="status-text">{{ status }}</span></div>
           <div class="progress-track"><span :style="{ width: `${progress}%` }" /></div>
           <div class="progress-meta"><span>{{ isRunning ? '初始化 Worker' : '等待开始' }}</span><span>{{ progress }}%</span></div>
           <div class="run-actions">

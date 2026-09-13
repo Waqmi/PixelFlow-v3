@@ -38,7 +38,18 @@ export interface GenerationPayload {
   folder_category_overrides?: Record<string, string>
   include_selling_point_images?: boolean
   selling_points?: string[]
+  material_confirmation_completed?: boolean
+  source_type_overrides?: Record<string, string>
 }
+
+export interface ClassificationPayload {
+  product_root: string
+  source_filter?: string[]
+  overrides?: Record<string, MaterialType>
+  workers?: number
+}
+
+export type MaterialType = 'main_product' | 'detail' | 'model' | 'model_detail'
 
 export function createRequest<T extends object>(
   requestId: string,
