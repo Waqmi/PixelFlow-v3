@@ -15,9 +15,9 @@ V26EngineAdapter
 v2.6 generate_images
 ```
 
-已完成一次 16 张素材的真实 Adapter 烟测：生成 24 个输出文件，与
-`baselines/v2.6/no-model-no-logo-1440/baseline.json` 的文件路径和 SHA-256
-全部一致。
+已完成一次 16 张素材的真实 Adapter 烟测：生成 24 个输出文件，与干净参考提交
+基线 `baselines/v2.6/clean-34375bd/no-model-no-logo-1440/baseline.json` 的文件
+路径、文件大小和 SHA-256 全部一致。旧工作树基线仍保留，但不作为稳定兼容证据。
 
 ## 下一步拆分顺序
 
