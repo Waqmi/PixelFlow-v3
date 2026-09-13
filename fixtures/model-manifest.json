@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "source_root": "../../测试/测试素材5/模特图",
+  "fixtures": [
+    {
+      "id": "model-female-full-01",
+      "relative_path": "2026-8-2Bmai0416.jpg",
+      "expected_role": "model"
+    },
+    {
+      "id": "model-female-detail-01",
+      "relative_path": "2026-8-2Bmai0789.jpg",
+      "expected_role": "model_detail"
+    },
+    {
+      "id": "model-male-full-01",
+      "relative_path": "2026-8-3Bmai3387向上扩图.jpg",
+      "expected_role": "model"
+    },
+    {
+      "id": "model-multi-person-01",
+      "relative_path": "25AW-16.jpg",
+      "expected_role": "model"
+    }
+  ]
+}

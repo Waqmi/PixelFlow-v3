@@ -62,6 +62,21 @@ class ClassificationAdapterTests(unittest.TestCase):
 
         self.assertEqual([decision.source_type for decision in decisions], list(roles))
 
+    def test_model_fixture_manifest_is_available_and_rule_classifies_model(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        manifest = json.loads((root / "fixtures/model-manifest.json").read_text(encoding="utf-8"))
+        source_root = (root / manifest["source_root"]).resolve()
+        sources = [source_root / item["relative_path"] for item in manifest["fixtures"]]
+
+        self.assertTrue(source_root.is_dir())
+        self.assertTrue(all(source.is_file() for source in sources))
+        decisions = V26ClassifierAdapter().classify(
+            ClassificationRequest(source_root, source_filter={str(source) for source in sources})
+        )
+
+        self.assertEqual(len(decisions), 4)
+        self.assertTrue(all(decision.source_type == "model" for decision in decisions))
+
 
 class ClassificationRuntimeTests(unittest.TestCase):
     def test_runtime_emits_classification_progress_and_done(self) -> None:

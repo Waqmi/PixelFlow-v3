@@ -14,6 +14,7 @@ scaffold. The production UI is intentionally not started yet.
 - Worker protocol v1: `docs/worker-protocol.md`
 - phase-one acceptance: `docs/phase1-acceptance.md`
 - fixed fixture manifest: `fixtures/manifest.json`
+- model fixture manifest: `fixtures/model-manifest.json`
 
 ## Planned architecture
 
