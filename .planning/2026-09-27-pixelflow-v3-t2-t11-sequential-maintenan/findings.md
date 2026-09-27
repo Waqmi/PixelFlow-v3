@@ -74,3 +74,20 @@
 - The acceptance runner currently reports Worker tests and artifact hashes, while its desktop UI field is a hardcoded pending string; this is accurate for release gating but does not link the existing T2 audit.
 - Existing shoe evidence is real and persisted (`v3-native-model-evidence.json`, `shoe-composition-evidence.json`); the current checkout lacks the original 20 image fixture, so no new `.app` shoe run should be claimed.
 - The T11 JSON is intentionally active: `real_batch_count=0`, `t3_needs_fix_count=52`, and natural fallback remains unknown.
+
+## Annotation follow-up findings
+- The T2 count discrepancy is in the UI aggregation layer: it omitted `model_images` and did not prefer the Worker validation total. The fix is limited to `App.vue` output summary aggregation.
+- T5 restart policy can be tested without a platform runner by extracting its pure state transition; native process fault injection and dialog plugin packaging still need platform/dependency support.
+- `cargo fmt --check` is not a useful gate for this checkout because existing unrelated formatting differences span the file; the new Rust logic passed targeted tests and `cargo check`.
+
+## T3 needs_fix audit (continued)
+- The 52 baseline differences are not caused by missing files, dimensions, modes, or a tolerance/statistics bug: all 120 outputs are paired, transparent outputs are exact, and differing files have max pixel differences up to 255 with baseline MAE 6.3367 / PSNR 17.70 dB.
+- A minimal candidate in `worker/pixelflow_core/renderer.py` detects light-background foreground touching the source edge and routes that case through the legacy-compatible cover path. It was tested in an ephemeral output tree only; the formal baseline was not rewritten.
+- Candidate compare result: `needs_fix` 52 → 28; product-main differences 48 → 24; VIP differences remain 4; transparent differences remain 0. Candidate MAE/PSNR improved to 2.3226 / 21.87 dB.
+- The remaining 28 are grouped by reproducible code path: 14 `_07` outputs require opaque light-background extension alignment; 14 `_08` outputs require RGBA main-image category-template alignment. They remain `needs_fix` pending a separate renderer change and visual review.
+- Persisted evidence: `baselines/v2.6/v3-recheck-20260927/t3-edge-path-candidate-analysis-20260927.json`.
+
+## T2/T3 corrective verification
+- The 264→252 discrepancy had a concrete Worker cause: VIP reuse used `continue` before PNG transparent reuse/counting. The fix preserves the output tree and reports `main=216`, `transparent=12`, `vip=36`, `incremental_reused=264`, `incremental_skipped=true` on the retained 36-source output.
+- The safe T3 candidate is limited to the light-background edge detector and legacy-compatible cover branch. It reduces 24 files to exact pixel parity while leaving the formal 52-item baseline untouched.
+- An attempted narrow source-filter experiment for RGBA template alignment was invalidated because the fixture's naming/source scope was contaminated; it was reverted and excluded from evidence.

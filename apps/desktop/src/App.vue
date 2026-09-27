@@ -187,12 +187,17 @@ const previewConcurrencyLimit = computed(() => classificationConcurrency.value =
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
 const displayProgress = computed(() => classificationRunning.value ? classificationProgress.value : progress.value)
-const outputSummary = computed(() => ({
-  success: ['main_images', 'transparent_images', 'vip_images', 'selling_point_images'].reduce((sum, key) => sum + Number(lastResult.value[key] || 0), 0),
-  skipped: Number(lastResult.value.skipped_model_sources || 0),
-  failures: Array.isArray(lastResult.value.failures) ? lastResult.value.failures.length : 0,
-  anomalies: Number((lastResult.value.audit as Record<string, unknown> | undefined)?.anomaly_count || 0),
-}))
+const outputSummary = computed(() => {
+  const validation = lastResult.value.validation as { passed?: unknown } | undefined
+  const legacyCount = ['main_images', 'model_images', 'transparent_images', 'vip_images', 'selling_point_images']
+    .reduce((sum, key) => sum + Number(lastResult.value[key] || 0), 0)
+  return {
+    success: Number.isFinite(Number(validation?.passed)) ? Number(validation?.passed) : legacyCount,
+    skipped: Number(lastResult.value.skipped_model_sources || 0),
+    failures: Array.isArray(lastResult.value.failures) ? lastResult.value.failures.length : 0,
+    anomalies: Number((lastResult.value.audit as Record<string, unknown> | undefined)?.anomaly_count || 0),
+  }
+})
 const resultCancelled = computed(() => Boolean(lastResult.value.cancelled))
 const resultWorkers = computed(() => Number(lastResult.value.render_workers || 1))
 const resultSegUsed = computed(() => Number(lastResult.value.segmentation_used || 0))

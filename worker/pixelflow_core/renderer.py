@@ -274,6 +274,21 @@ def _light_foreground_bbox(image: Image.Image, background: tuple[int, int, int])
     return round(left / width * rgb.width), round(top / height * rgb.height), round(right / width * rgb.width), round(bottom / height * rgb.height)
 
 
+def _light_foreground_touches_edge(image: Image.Image, background: tuple[int, int, int]) -> bool:
+    """Match legacy's safe cover path when light-background products reach an edge."""
+    rgb = image.convert("RGB")
+    scale = min(1.0, 512 / max(rgb.width, rgb.height))
+    preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
+    width, height = preview.size
+    edge_pixels = [preview.getpixel((x, y)) for x in range(width) for y in (0, height - 1)]
+    edge_pixels.extend(preview.getpixel((x, y)) for y in range(1, height - 1) for x in (0, width - 1))
+    foreground = sum(
+        max(abs(channel - base) for channel, base in zip(pixel, background)) > 32
+        for pixel in edge_pixels
+    )
+    return foreground / max(1, len(edge_pixels)) >= 0.03
+
+
 def _mirror_extend(image: Image.Image, target: tuple[int, int], focus_x: float = 0.5, focus_y: float = 0.5) -> Image.Image:
     """Fill a contain canvas with mirrored edge strips.
 
@@ -440,6 +455,8 @@ class Renderer:
             return composed
         image = image.convert("RGB")
         if _is_light_background(image):
+            if _light_foreground_touches_edge(image, background):
+                return _resize_cover(image, target, focus, protected)
             # Keep light product pixels inside the canvas and extend only when
             # a portrait output would otherwise enlarge them too aggressively.
             if target[1] > target[0] or plan is not None:

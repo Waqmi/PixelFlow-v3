@@ -7,10 +7,18 @@ from pathlib import Path
 from PIL import Image
 
 from pixelflow_core.contracts import RenderRequest
-from pixelflow_core.renderer import RenderConfig, Renderer
+from pixelflow_core.renderer import RenderConfig, Renderer, _light_foreground_touches_edge
 
 
 class RendererTests(unittest.TestCase):
+    def test_light_foreground_edge_detection_matches_cover_safety_rule(self) -> None:
+        touching = Image.new("RGB", (100, 100), "white")
+        touching.paste((30, 30, 30), (0, 25, 55, 75))
+        centered = Image.new("RGB", (100, 100), "white")
+        centered.paste((30, 30, 30), (20, 25, 75, 75))
+        self.assertTrue(_light_foreground_touches_edge(touching, (255, 255, 255)))
+        self.assertFalse(_light_foreground_touches_edge(centered, (255, 255, 255)))
+
     def test_renderer_has_no_legacy_runtime_import(self) -> None:
         source = Path(__file__).resolve().parents[1] / "pixelflow_core" / "renderer.py"
         text = source.read_text(encoding="utf-8")

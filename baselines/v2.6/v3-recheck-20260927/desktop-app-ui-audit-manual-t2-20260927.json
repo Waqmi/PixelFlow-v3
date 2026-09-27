@@ -83,7 +83,20 @@
     {
       "id": "T2-INCREMENTAL-COUNT-MISMATCH",
       "severity": "medium",
-      "detail": "首次报告 264 成功输出；第二次显示完整复用但报告 252 成功输出。需核对重复/输出统计口径后再将 JOB-06 标为完全通过。"
+      "detail": "首次报告 264 成功输出；第二次显示完整复用但报告 252 成功输出。需核对重复/输出统计口径后再将 JOB-06 标为完全通过。",
+      "diagnosis": "Worker VIP 输出复用分支在修复前提前 continue，跳过同一 PNG 素材的透明图复用和计数；该差异不是输出文件丢失。",
+      "status": "worker_fixed_host_ui_rerun_pending",
+      "worker_regression_test": "worker.tests.test_engine.EngineAdapterTests.test_v3_reuse_keeps_png_transparent_counts_after_vip_reuse",
+      "post_fix_worker_reproduction": {
+        "source_count": 36,
+        "main_images": 216,
+        "transparent_images": 12,
+        "vip_images": 36,
+        "incremental_reused": 264,
+        "incremental_skipped": true,
+        "reported_outputs": 264,
+        "failures": 0
+      }
     }
   ],
   "process_residue": "CUA app inventory showed PixelFlow-v3-beta not running after close; shell pgrep unavailable in sandbox (sysmon permission error)."

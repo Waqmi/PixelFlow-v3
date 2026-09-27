@@ -76,3 +76,21 @@
 - T10 release gate is blocked by missing signing/notarization credentials and Windows runner; current unsigned arm64 app has only startup/Worker evidence.
 - Final full acceptance report: `baselines/v2.6/acceptance-t2-t11-final-20260927/acceptance.json`.
 - Attempted an ad-hoc onefile/onedir cold-start timing probe; the standalone subprocess did not produce a bounded result and the command timed out while reading stderr. Existing package evidence remains authoritative for startup/runtime checks; no timing claim was added.
+
+### Continued maintenance after annotation review
+- T5 added pure restart-budget helpers and three Rust unit tests covering the 60-second/three-attempt limit, expiry cleanup, shutdown suppression, and task ID preservation. `cargo test --bin pixelflow-desktop` passed 3/3; `cargo check` passed.
+- T2 result summary now prefers `validation.passed` and includes `model_images` in the compatibility fallback count. This aligns the UI's success count with validated output files and addresses the observed 264→252 reporting mismatch without changing rendering.
+- `npm run build`, `npm run protocol:check`, and focused Worker engine/process tests passed (37/37).
+- Dialog plugin migration remains deferred: `tauri-plugin-dialog` is not available in the local Cargo cache and cannot be safely introduced offline.
+
+### T3 needs_fix candidate audit
+- Inspected all 52 persisted differences and compared metric behavior against the documented thresholds; classification is not a counting or tolerance artifact.
+- Added the edge-safe light-background branch in `renderer.py` and reran the full 16-source candidate in `/private/tmp/pixelflow-t3-candidate` without changing the formal baseline.
+- Candidate evidence: 120/120 paired outputs, 0 failures, 28 remaining `needs_fix`; 24 baseline differences became exact matches. The remaining 28 are recorded by cause in `t3-edge-path-candidate-analysis-20260927.json`.
+- Worker tests after the candidate: 91/91 passed. Formal T3 status remains 52 until the candidate is reviewed and the remaining two composition paths are addressed.
+
+### T2/T3 corrective maintenance
+- Worker incremental reuse bug fixed: the VIP reuse branch no longer skips PNG transparent reuse/counting. Regression test covers 4 transparent outputs plus VIP reuse; Worker suite now passes 91/91.
+- The historical T2 UI audit is preserved unchanged as an observation, with diagnosis and post-fix Worker reproduction appended; host-permission UI rerun remains pending.
+- T3 edge-safe renderer candidate persisted without rewriting the formal baseline. Candidate report shows 120/120 paired, 0 failures, needs_fix 28 (down from 52), MAE 2.3226 and PSNR 21.8691. Remaining 28 are explicitly grouped and not reclassified as acceptable.
+- A narrow source-filter experiment for the RGBA path produced contaminated naming/output scope and was reverted; it is not evidence and is not retained.

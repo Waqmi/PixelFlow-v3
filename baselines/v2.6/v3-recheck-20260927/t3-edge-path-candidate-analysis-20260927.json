@@ -1,0 +1,139 @@
+{
+  "schema_version": "v3-t3-candidate-analysis-1",
+  "generated_at_utc": "2026-09-27T11:06:49.347127+00:00",
+  "formal_baseline_report": "baselines/v2.6/v3-current-20260927-report.json",
+  "candidate_compare_report": "baselines/v2.6/v3-t3-candidate-compare-report-20260927.json",
+  "candidate_patch": "worker/pixelflow_core/renderer.py::_light_foreground_touches_edge",
+  "baseline": {
+    "legacy_files": 120,
+    "v3_files": 120,
+    "compared_files": 120,
+    "classification_summary": {
+      "version_difference": 0,
+      "acceptable_implementation_difference": 0,
+      "needs_fix": 52
+    },
+    "pixel_metrics": {
+      "files": 120,
+      "different_files": 52,
+      "max_diff": 255,
+      "mae": 6.336666494652448,
+      "psnr": 17.698542498997334,
+      "psnr_is_infinite": false,
+      "diff_bbox": [
+        0,
+        88,
+        1440,
+        1920
+      ]
+    }
+  },
+  "candidate": {
+    "legacy_files": 120,
+    "v3_files": 120,
+    "compared_files": 120,
+    "classification_summary": {
+      "version_difference": 0,
+      "acceptable_implementation_difference": 0,
+      "needs_fix": 28
+    },
+    "pixel_metrics": {
+      "files": 120,
+      "different_files": 28,
+      "max_diff": 255,
+      "mae": 2.3226358947697388,
+      "psnr": 21.8690570956079,
+      "psnr_is_infinite": false,
+      "diff_bbox": [
+        376,
+        88,
+        957,
+        1680
+      ]
+    }
+  },
+  "fixed_by_candidate": {
+    "count": 24,
+    "paths": [
+      "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_01.jpg",
+      "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_02.jpg",
+      "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_04.jpg",
+      "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_01.jpg",
+      "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_02.jpg",
+      "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_04.jpg",
+      "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_01.jpg",
+      "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_02.jpg",
+      "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_04.jpg",
+      "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_01.jpg",
+      "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_02.jpg",
+      "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_04.jpg",
+      "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_01.jpg",
+      "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_02.jpg",
+      "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_04.jpg",
+      "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_01.jpg",
+      "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_02.jpg",
+      "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_04.jpg",
+      "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_01.jpg",
+      "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_02.jpg",
+      "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_04.jpg",
+      "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_01.jpg",
+      "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_02.jpg",
+      "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_04.jpg"
+    ]
+  },
+  "remaining_needs_fix": {
+    "count": 28,
+    "by_cause": {
+      "opaque_light_background_extension": {
+        "count": 14,
+        "paths": [
+          "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_07.jpg",
+          "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_07.jpg",
+          "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_07.jpg",
+          "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_07.jpg",
+          "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_07.jpg",
+          "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_07.jpg",
+          "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_07.jpg",
+          "唯品专享1440/无Logo/女_暗夜黑_07.jpg",
+          "唯品专享1440/无Logo/男_暗夜黑_07.jpg"
+        ]
+      },
+      "rgba_main_template_path": {
+        "count": 14,
+        "paths": [
+          "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_08.jpg",
+          "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_08.jpg",
+          "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_08.jpg",
+          "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_08.jpg",
+          "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_08.jpg",
+          "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_08.jpg",
+          "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_08.jpg",
+          "唯品专享1440/无Logo/女_暗夜黑_08.jpg",
+          "唯品专享1440/无Logo/男_暗夜黑_08.jpg"
+        ]
+      }
+    }
+  },
+  "interpretation": {
+    "statistics_or_tolerance_issue": false,
+    "evidence": [
+      "All 120 files remain paired with identical dimensions/modes",
+      "baseline max_diff 255 and MAE 6.3367 are far above documented acceptance thresholds",
+      "candidate changed only the edge-safe opaque composition branch and reduced differences 52 to 28",
+      "transparent outputs remain 0 differences"
+    ],
+    "next_safe_candidate": "Align v3 opaque light-background foreground-extension behavior with legacy for _07 inputs; add explicit RGBA main-image category-template handling for _08 inputs. Do not classify remaining 28 as acceptable without visual/product review.",
+    "formal_baseline_unchanged": true
+  },
+  "candidate_output_report": "baselines/v2.6/v3-t3-candidate-20260927-report.json"
+}

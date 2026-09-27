@@ -15,8 +15,8 @@
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
-| T2 `.app` 完整回归 | ⚠️ 已完成回归，统计口径待修 | `desktop-app-ui-audit-manual-t2-20260927.json`：36 张、手动改分类、首次 264 输出、取消保留 97 输出、无失败；第二次复用报告 252 输出，存在 JOB-06 统计差异 |
-| T3 当前 legacy 基线 | ✅ 基线完成 | `docs/v3-T3-legacy-baseline-2026-09-27.md`；120/120 配对，52 个需修复差异 |
+| T2 `.app` 完整回归 | ⚠️ 已完成回归，Worker 统计已修复，宿主 UI 待复跑 | `desktop-app-ui-audit-manual-t2-20260927.json`：历史结果首次 264、第二次 252；根因是 VIP 复用提前跳过 PNG 透明图计数，Worker 与结果页统计已修复，宿主权限 UI 仍需重新实测 |
+| T3 当前 legacy 基线 | ✅ 基线完成，候选修复进行中 | 正式报告仍为 120/120 配对、52 个需修复；边缘前景候选将差异降至 28，见 `t3-edge-path-candidate-analysis-20260927.json`，未改写正式基线 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
 | T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
@@ -44,7 +44,7 @@
 - `npm run build`：通过。
 - `cargo clean && cargo check`：通过（当前 onedir 资源布局）。
 - Worker 协议测试：`worker.tests.test_contracts` 7/7 通过；预览越界拒绝、缓存和 ready 版本握手 smoke 通过。
-- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 89/89 通过。
+- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 91/91 通过。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
 - `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。

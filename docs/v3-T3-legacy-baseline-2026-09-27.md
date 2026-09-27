@@ -52,6 +52,17 @@ legacy↔v3 路径、尺寸和模式均可配对比较：120/120。首轮像素�
 当前结论是“输出数量与路径对齐，像素差异仍需修复或登记”，不能宣称
 legacy 与 v3 已完成像素 parity。
 
+## 候选修复审计（不改写正式基线）
+
+对光背景主体触碰源图边缘的路径做了一个隔离候选：v3 改走与 legacy
+一致的安全 cover 路径。候选输出只写入临时目录，正式 `v3-current-20260927`
+未被重写。候选 compare 将差异从 52 项降到 28 项，24 项变为像素完全一致；
+剩余 28 项分为 `_74731` 不透明背景延展 14 项和 `_74733/_74734` RGBA
+主图品类模板 14 项，仍保留为 `needs_fix`。
+
+详细证据见
+`baselines/v2.6/v3-recheck-20260927/t3-edge-path-candidate-analysis-20260927.json`。
+
 ## 可复现命令
 
     python tools/run_renderer_baseline.py \

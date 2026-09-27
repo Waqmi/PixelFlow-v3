@@ -15,11 +15,11 @@ T11（周期 active，T2–T10 已完成当前环境可执行部分）
 - [ ] 分类、手动修改、生成、打开输出目录、增量复用
 - [ ] 安全取消和进程残留检查
 - [ ] 20 张鞋类素材 Pose/Seg、复核提示、模型缺失回退
-- **Status:** partial — live UI evidence complete; JOB-06 count discrepancy and missing shoe fixture remain
+- **Status:** partial — Worker count bug fixed and regression-covered; host UI rerun and missing shoe fixture remain
 
 ### T3 legacy/v3 基线
 - [x] 双报告、逐像素指标、差异分类和 contact sheet
-- **Status:** complete（已有 52 项 needs_fix）
+- **Status:** complete（正式基线仍有 52 项 needs_fix；候选边缘修复已降至 28，剩余路径待复核）
 
 ### T4 预览与安全
 - [x] 预览缓存、canonical scope、CSP、300 张性能证据
@@ -28,7 +28,7 @@ T11（周期 active，T2–T10 已完成当前环境可执行部分）
 ### T5 Tauri Host
 - [x] 重启上限、日志滚动、任务 ID、ready 版本、平台行为
 - [ ] 故障注入不无限重启/不留孤儿
-- **Status:** partial — supervisor verified; platform fault injection and dialog plugin pending
+- **Status:** partial — supervisor and pure fault-boundary tests verified; native platform injection and dialog plugin pending
 
 ### T6 功能对齐
 - [x] 输入输出校验、主体比例、取消/失败报告、设置项和状态的可自动验证项
@@ -70,6 +70,7 @@ T11（周期 active，T2–T10 已完成当前环境可执行部分）
 | Error | Resolution |
 |-------|------------|
 | planning directory not found | Initialized selected plan with init-session.sh |
+| Baseline probe command typo/timeout | Corrected the command; kept the independently generated candidate evidence and did not alter the formal baseline |
 
 
 ## Verification note

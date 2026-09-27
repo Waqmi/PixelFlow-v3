@@ -145,6 +145,31 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(third["incremental_skipped"])
             self.assertEqual(third["failures"], [])
 
+    def test_v3_reuse_keeps_png_transparent_counts_after_vip_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGBA", (32, 32), (255, 255, 255, 0)).save(product_root / "sample.png")
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=True,
+                include_model_images=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            first = adapter.run(request)
+            second = adapter.run(request)
+            self.assertEqual(first["transparent_images"], 4)
+            self.assertEqual(second["transparent_images"], 4)
+            self.assertEqual(second["vip_images"], 1)
+            self.assertEqual(second["incremental_reused"], 6)
+            self.assertTrue(second["incremental_skipped"])
+            self.assertEqual(len(second["outputs"]), 6)
+            self.assertEqual(second["failures"], [])
+
     def test_v3_partial_reuse_is_not_reported_as_full_skip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"

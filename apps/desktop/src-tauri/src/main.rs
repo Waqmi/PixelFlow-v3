@@ -347,22 +347,29 @@ fn emit_worker_exit(app: &AppHandle, message: &str, task_id: Option<String>, ret
     let _ = app.emit("worker-exit", worker_exit_payload(message, task_id, retryable));
 }
 
+fn reserve_restart_slot(
+    history: &mut VecDeque<Instant>,
+    shutting_down: bool,
+    now: Instant,
+) -> Option<Duration> {
+    if shutting_down {
+        return None;
+    }
+    history.retain(|started| now.duration_since(*started) < RESTART_WINDOW);
+    if history.len() >= MAX_RESTARTS {
+        return None;
+    }
+    let attempt = history.len();
+    history.push_back(now);
+    Some(RESTART_BACKOFF[attempt])
+}
+
 fn reserve_restart(app: &AppHandle) -> Option<Duration> {
     let state = app.state::<WorkerState>();
     let mut guard = state.0.lock().ok()?;
-    if guard.shutting_down {
-        return None;
-    }
     let now = Instant::now();
-    guard
-        .restart_history
-        .retain(|started| now.duration_since(*started) < RESTART_WINDOW);
-    if guard.restart_history.len() >= MAX_RESTARTS {
-        return None;
-    }
-    let attempt = guard.restart_history.len();
-    guard.restart_history.push_back(now);
-    Some(RESTART_BACKOFF[attempt])
+    let shutting_down = guard.shutting_down;
+    reserve_restart_slot(&mut guard.restart_history, shutting_down, now)
 }
 
 fn restart_worker(app: &AppHandle, task_id: Option<String>) {
@@ -520,4 +527,39 @@ fn main() {
                 };
             };
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restart_budget_stops_after_three_attempts() {
+        let now = Instant::now();
+        let mut history = VecDeque::new();
+
+        assert_eq!(reserve_restart_slot(&mut history, false, now), Some(RESTART_BACKOFF[0]));
+        assert_eq!(reserve_restart_slot(&mut history, false, now), Some(RESTART_BACKOFF[1]));
+        assert_eq!(reserve_restart_slot(&mut history, false, now), Some(RESTART_BACKOFF[2]));
+        assert_eq!(reserve_restart_slot(&mut history, false, now), None);
+        assert_eq!(history.len(), MAX_RESTARTS);
+    }
+
+    #[test]
+    fn restart_budget_ignores_expired_attempts_and_shutdown() {
+        let now = Instant::now();
+        let mut history = VecDeque::from([now - RESTART_WINDOW - Duration::from_secs(1)]);
+
+        assert_eq!(reserve_restart_slot(&mut history, false, now), Some(RESTART_BACKOFF[0]));
+        assert_eq!(history.len(), 1);
+        assert_eq!(reserve_restart_slot(&mut history, true, now), None);
+        assert_eq!(history.len(), 1);
+    }
+
+    #[test]
+    fn worker_exit_payload_keeps_task_id() {
+        let payload = worker_exit_payload("boom", Some("job-7".to_string()), true);
+        assert_eq!(payload["task_id"], "job-7");
+        assert_eq!(payload["retryable"], true);
+    }
 }

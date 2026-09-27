@@ -356,14 +356,14 @@ class V3EngineAdapter:
                     outputs.append(vip_request.output_path)
                     vip_count += 1
                     reused_outputs += 1
-                    continue
-                vip_result = self._renderer.render(vip_request)
-                if vip_result.success:
-                    outputs.extend(vip_result.outputs); vip_count += 1
-                    if (decision is not None and getattr(decision, "skipped_by_scope", False)) or (plan is not None and plan.skipped_by_scope):
-                        skipped_outputs += len(vip_result.outputs)
                 else:
-                    failures.append({"source": str(source), "message": "; ".join(vip_result.errors)})
+                    vip_result = self._renderer.render(vip_request)
+                    if vip_result.success:
+                        outputs.extend(vip_result.outputs); vip_count += 1
+                        if (decision is not None and getattr(decision, "skipped_by_scope", False)) or (plan is not None and plan.skipped_by_scope):
+                            skipped_outputs += len(vip_result.outputs)
+                    else:
+                        failures.append({"source": str(source), "message": "; ".join(vip_result.errors)})
             if source.suffix.lower() == ".png":
                 for size in ("800x800", "1440x1440", "1440x1920", "1440x2160"):
                     transparent_path = request.output_root / "透明产品图" / size / f"{short_names[source]}_透明.png"
