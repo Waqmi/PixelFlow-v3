@@ -1,0 +1,77 @@
+{
+  "schema_version": "v3-acceptance-1",
+  "generated_at": "2026-09-27T10:54:37.083682+00:00",
+  "root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "checks": [
+    {
+      "name": "worker_tests",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "worker/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "",
+      "stderr_tail": "../Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/legacy_engine/category_engine/source_type_classifier.py:108: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n................................................./Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/v3_classification.py:122: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n................/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/renderer.py:303: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(rgba.convert(\"RGB\").getdata())\n......................\n----------------------------------------------------------------------\nRan 89 tests in 12.255s\n\nOK\n"
+    },
+    {
+      "name": "protocol_schema",
+      "command": [
+        "npm",
+        "run",
+        "protocol:check"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "\n> pixelflow-desktop@3.0.0-beta.1 protocol:check\n> python3 ../../tools/check_protocol_schema.py\n\n{\"protocol\": [\"cancel_generation\", \"cancelled\", \"classify_materials\", \"clear_cache\", \"done\", \"error\", \"ping\", \"preview_ready\", \"probe_models\", \"progress\", \"read_preview\", \"ready\", \"retry_failed\", \"shutdown\", \"start_generation\", \"status\"], \"passed\": true}\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "desktop_build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "\n> pixelflow-desktop@3.0.0-beta.1 build\n> vue-tsc --noEmit && vite build\n\nvite v6.4.3 building for production...\ntransforming...\n✓ 31 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                               0.45 kB │ gzip:  0.30 kB\ndist/assets/icon-CQr16eIN.png                 8.19 kB\ndist/assets/logo-square-light-KXks1jt8.png   10.88 kB\ndist/assets/logo-square-dark-RQ_2KoT8.png    11.06 kB\ndist/assets/logo-tall-light-DWRVRyNk.png     13.56 kB\ndist/assets/logo-tall-dark-BORgLDml.png      13.74 kB\ndist/assets/index-fmxxwDa0.css               44.03 kB │ gzip:  8.21 kB\ndist/assets/index-C1AHOSnx.js               158.03 kB │ gzip: 54.56 kB\n✓ built in 400ms\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "tauri_cargo_check",
+      "command": [
+        "cargo",
+        "check"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "",
+      "stderr_tail": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s\n"
+    }
+  ],
+  "artifacts": {
+    "bundled_worker": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "sha256": null
+    },
+    "source_worker": {
+      "path": "worker/dist/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "ondir_worker": {
+      "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2"
+    }
+  },
+  "manual": {
+    "desktop_ui": "baselines/v2.6/v3-recheck-20260927/desktop-app-ui-audit-manual-t2-20260927.json",
+    "release": "pending: signing, notarization, Windows packaging"
+  }
+}

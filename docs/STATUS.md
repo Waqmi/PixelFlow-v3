@@ -15,15 +15,15 @@
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
-| T2 `.app` 完整回归 | 进行中 | 36 张分类、264 输出、0 失败；新 onedir app 双跑复用证据见 `app-package-evidence-20260927.json`，取消/鞋类完整 UI 仍待补 |
+| T2 `.app` 完整回归 | ⚠️ 已完成回归，统计口径待修 | `desktop-app-ui-audit-manual-t2-20260927.json`：36 张、手动改分类、首次 264 输出、取消保留 97 输出、无失败；第二次复用报告 252 输出，存在 JOB-06 统计差异 |
 | T3 当前 legacy 基线 | ✅ 基线完成 | `docs/v3-T3-legacy-baseline-2026-09-27.md`；120/120 配对，52 个需修复差异 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
 | T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
 | T7 onedir/Python 3.12 | 进行中 | onedir app 已重建并完成 ping/生成双跑/退出；当前 Python 3.9.13，需在 Python 3.12 环境重跑 |
 | T8 复核与回退可见性 | ✅ 已实现，真实批次追踪待补 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`apps/desktop/src/App.vue` |
-| T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；`App.vue` 拆分与 Vitest 仍待处理 |
-| T10 发布 | 未开始 | 签名、公证、DMG 和 Windows 安装验证仍依赖对应环境 |
+| T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；已将进度状态抽出为 `src/composables/useTaskProgress.ts`，完整 views 拆分与 Vitest 仍待处理（当前环境无法安装新 npm 依赖） |
+| T10 发布 | 受环境阻塞 | 未签名 arm64 `.app` 已完成启动/Worker 验证；签名、公证、DMG 和 Windows 安装仍依赖对应环境 |
 | T11 legacy 周期 | 🔄 已定义，周期进行中 | [`docs/legacy-cycle-beta.2.md`](legacy-cycle-beta.2.md) 与 [`docs/legacy-cycle-beta.2.json`](legacy-cycle-beta.2.json)；尚未满足 14 天或 2 个真实批次 |
 
 ## 版本与模型
@@ -47,5 +47,7 @@
 - Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 89/89 通过。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
 - `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
+- `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
 - onedir `.app` Worker：ping、分类/生成双跑、模型探测和 shutdown 通过；第二次生成 `incremental_reused=1`、`skipped_by_scope=0`。
 - `npm run protocol:check`：通过；契约解析、请求 ID、错误事件和超时 self-check 通过。
+- `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。

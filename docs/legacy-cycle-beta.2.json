@@ -12,7 +12,7 @@
     "t8_traceability": true
   },
   "observations": {
-    "last_checked_at": "2026-09-27T10:14:09.681789+00:00",
+    "last_checked_at": "2026-09-27T10:54:37.099472+00:00",
     "elapsed_natural_days": 0,
     "real_batch_count": 0,
     "natural_fallback_count": null,
@@ -38,7 +38,8 @@
     "t3_compare_report": "baselines/v2.6/v3-current-20260927-compare-report.json",
     "t8_result_ui": "apps/desktop/src/App.vue",
     "acceptance_reports": [
-      "baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json"
+      "baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json",
+      "baselines/v2.6/acceptance-t2-t11-final-20260927/acceptance.json"
     ]
   },
   "removal_review": "not_before_cycle_complete",

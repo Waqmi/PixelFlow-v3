@@ -14,6 +14,7 @@ import categoryArrowUrl from './assets/category-arrow.svg'
 import folderIconUrl from './assets/folder.svg'
 import { windowWorkerBridge, WorkerClient } from './workerClient'
 import type { WorkerMessage } from './workerProtocol'
+import { useTaskProgress } from './composables/useTaskProgress'
 
 type Theme = 'system' | 'light' | 'dark'
 type MaterialType = 'main_product' | 'detail' | 'model' | 'model_detail'
@@ -63,6 +64,7 @@ interface ConfirmSnapshot {
 const theme = ref<Theme>('system')
 const systemDark = ref(false)
 const reducedMotion = ref(false)
+const { progress, setProgress } = useTaskProgress(reducedMotion)
 const classificationConcurrency = ref('auto')
 const inputRoot = ref('')
 const outputRoot = ref('')
@@ -130,7 +132,6 @@ const failureNotice = ref('')
 const lastResult = ref<Record<string, unknown>>({})
 const isRunning = ref(false)
 const isCancelling = ref(false)
-const progress = ref(0)
 const workerConnected = ref(false)
 const workerInterrupted = ref(false)
 const status = ref('准备就绪')
@@ -153,10 +154,6 @@ const modelProbeRequestId = ref<string>()
 let worker: WorkerClient | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
 let appliedConfirmSnapshotKey = ''
-let progressTarget = 0
-let progressFrame = 0
-let progressAnimationStartedAt = 0
-let progressAnimationFrom = 0
 let systemMedia: MediaQueryList | undefined
 let stopNativeThemeListener: (() => void) | undefined
 let stopSettingsListener: (() => void) | undefined
@@ -826,7 +823,6 @@ onBeforeUnmount(() => stopConfirmReadyListener?.())
 onBeforeUnmount(() => stopConfirmDataListener?.())
 onBeforeUnmount(() => stopConfirmResultListener?.())
 onBeforeUnmount(() => stopDropListener?.())
-onBeforeUnmount(() => cancelAnimationFrame(progressFrame))
 onBeforeUnmount(() => {
   if (typeof systemMedia?.removeEventListener === 'function') systemMedia.removeEventListener('change', onMediaThemeChange)
   else systemMedia?.removeListener?.(onMediaThemeChange)
@@ -912,33 +908,6 @@ watch(confirmOpen, (open) => {
     startPreviewObserver()
   })
 }, { immediate: isConfirmWindow })
-
-function setProgress(value: number, immediate = false) {
-  progressTarget = Math.max(0, Math.min(1000, value))
-  if (immediate || reducedMotion.value) {
-    progress.value = progressTarget
-    cancelAnimationFrame(progressFrame)
-    progressFrame = 0
-    return
-  }
-  progressAnimationFrom = progress.value
-  progressAnimationStartedAt = performance.now()
-  const distance = Math.abs(progressTarget - progressAnimationFrom)
-  const duration = Math.min(260, Math.max(120, 120 + distance * 0.18))
-  cancelAnimationFrame(progressFrame)
-  const tick = (now: number) => {
-    const elapsed = Math.min(1, (now - progressAnimationStartedAt) / duration)
-    const eased = 1 - Math.pow(1 - elapsed, 3)
-    progress.value = progressAnimationFrom + (progressTarget - progressAnimationFrom) * eased
-    if (elapsed >= 1) {
-      progress.value = progressTarget
-      progressFrame = 0
-      return
-    }
-    progressFrame = requestAnimationFrame(tick)
-  }
-  progressFrame = requestAnimationFrame(tick)
-}
 
 function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>

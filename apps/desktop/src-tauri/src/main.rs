@@ -365,9 +365,9 @@ fn reserve_restart(app: &AppHandle) -> Option<Duration> {
     Some(RESTART_BACKOFF[attempt])
 }
 
-fn restart_worker(app: &AppHandle) {
+fn restart_worker(app: &AppHandle, task_id: Option<String>) {
     let Some(delay) = reserve_restart(app) else {
-        emit_worker_exit(app, "Worker 无法启动；已停止自动重启，请查看日志", None, false);
+        emit_worker_exit(app, "Worker 无法启动；已停止自动重启，请查看日志", task_id, false);
         return;
     };
     thread::sleep(delay);
@@ -386,8 +386,8 @@ fn restart_worker(app: &AppHandle) {
             };
         }
         Err(error) => {
-            emit_worker_exit(app, &format!("Worker 重启失败：{error}"), None, true);
-            restart_worker(app);
+            emit_worker_exit(app, &format!("Worker 重启失败：{error}"), task_id.clone(), true);
+            restart_worker(app, task_id);
         }
     }
 }
@@ -464,8 +464,8 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
             (None, false)
         };
         if should_restart {
-            emit_worker_exit(&app, "Worker 意外退出；已保留完成的输出，正在重启", task_id, true);
-            restart_worker(&app);
+            emit_worker_exit(&app, "Worker 意外退出；已保留完成的输出，正在重启", task_id.clone(), true);
+            restart_worker(&app, task_id);
         }
     });
     let stdin = child.stdin.take().ok_or_else(|| "worker stdin unavailable".to_string())?;

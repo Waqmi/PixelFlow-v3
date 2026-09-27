@@ -1,0 +1,19 @@
+{
+  "schema_version": "v3-host-supervisor-audit-1",
+  "generated_at": "2026-09-27T00:00:00Z",
+  "scope": "static source review plus cargo check",
+  "checks": {
+    "restart_window_seconds": 60,
+    "max_restarts": 3,
+    "backoff_ms": [250, 1000, 2000],
+    "stderr_rolling_log": true,
+    "windows_create_no_window": true,
+    "task_id_on_unexpected_exit": true,
+    "task_id_on_restart_failure": true,
+    "task_id_on_restart_exhaustion": true,
+    "shutdown_stops_restart": true
+  },
+  "cargo_check": "passed",
+  "fault_injection": "pending: no native macOS/Windows fault-injection runner in current checkout",
+  "dialog_plugin": "pending: current implementation still uses platform scripts"
+}

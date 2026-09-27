@@ -1,0 +1,90 @@
+{
+  "schema_version": "v3-desktop-app-ui-audit-manual-2",
+  "generated_at": "2026-09-27T10:40:54Z",
+  "app": "dist/PixelFlow-v3-beta.app",
+  "execution": "host-permission CUA manual run",
+  "source_root": "/private/tmp/pixelflow-v3-sources-36",
+  "source_count": 36,
+  "runs": [
+    {
+      "id": "full-first",
+      "output_root": "/private/tmp/pixelflow-v3-output-t2-20260927",
+      "manual_category_change": "00_5B3A7456.jpg: 细节图 -> 商品白底图",
+      "classification": {
+        "completed": true,
+        "summary": "36 张；初始商品白底图 8、细节图 28，手动修改后商品白底图 9、细节图 27"
+      },
+      "generation": {
+        "completed": true,
+        "success_outputs_reported": 264,
+        "skipped": 0,
+        "failures": 0,
+        "requires_review": 0,
+        "fallback": 0
+      },
+      "open_output_folder": true
+    },
+    {
+      "id": "incremental-second",
+      "output_root": "/private/tmp/pixelflow-v3-output-t2-20260927",
+      "classification": {
+        "completed": true,
+        "manual_change_persisted": true
+      },
+      "generation": {
+        "completed": true,
+        "success_outputs_reported": 252,
+        "skipped": 0,
+        "failures": 0,
+        "requires_review": 0,
+        "fallback": 0,
+        "incremental_message": "检测到素材和设置均未变化，本次已复用上次输出。"
+      },
+      "output_files_observed": 264
+    },
+    {
+      "id": "cancel-fresh-output",
+      "output_root": "/private/tmp/pixelflow-v3-output-t2-cancel-20260927",
+      "classification": {
+        "completed": true
+      },
+      "generation": {
+        "cancelled": true,
+        "success_outputs_reported": 97,
+        "skipped": 0,
+        "failures": 0,
+        "requires_review": 0,
+        "fallback": 0
+      },
+      "output_files_observed": 97
+    }
+  ],
+  "steps": {
+    "app_launch": true,
+    "source_and_output_fields_filled": true,
+    "classification_completed": true,
+    "confirmation_page_visible": true,
+    "manual_category_controls_visible": true,
+    "manual_category_change_applied": true,
+    "generation_started": true,
+    "generation_completed": true,
+    "output_folder_action_visible": true,
+    "output_folder_opened": true,
+    "incremental_run_completed": true,
+    "safe_cancel_completed": true,
+    "completed_outputs_preserved_after_cancel": true,
+    "failures": 0,
+    "review_exceptions": 0,
+    "fallbacks": 0,
+    "app_closed_cleanly": true,
+    "incremental_skip_consistent": false
+  },
+  "discrepancies": [
+    {
+      "id": "T2-INCREMENTAL-COUNT-MISMATCH",
+      "severity": "medium",
+      "detail": "首次报告 264 成功输出；第二次显示完整复用但报告 252 成功输出。需核对重复/输出统计口径后再将 JOB-06 标为完全通过。"
+    }
+  ],
+  "process_residue": "CUA app inventory showed PixelFlow-v3-beta not running after close; shell pgrep unavailable in sandbox (sysmon permission error)."
+}

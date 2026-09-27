@@ -46,6 +46,20 @@ def _repo_path(value: Path) -> Path:
     return value.expanduser() if value.is_absolute() else ROOT / value
 
 
+def desktop_ui_evidence() -> str:
+    """Point the report at the latest checked-in manual audit when available."""
+    candidates = sorted(
+        (ROOT / "baselines" / "v2.6" / "v3-recheck-20260927").glob(
+            "desktop-app-ui-audit-manual-*.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if candidates:
+        return str(candidates[0].relative_to(ROOT))
+    return "pending: run T2 host-permission regression and attach desktop-app-ui-audit-manual.json"
+
+
 def update_legacy_cycle(record_path: Path, acceptance_report: Path) -> dict[str, object]:
     """Refresh observable cycle evidence without inferring real batches or success."""
     if record_path.is_file():
@@ -153,7 +167,7 @@ def main() -> int:
             },
         },
         "manual": {
-            "desktop_ui": "pending: run T2 host-permission regression and attach desktop-app-ui-audit-manual.json",
+            "desktop_ui": desktop_ui_evidence(),
             "release": "pending: signing, notarization, Windows packaging",
         },
     }
