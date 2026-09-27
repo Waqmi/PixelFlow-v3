@@ -135,3 +135,4 @@
 - `tools/run_acceptance.py --skip-desktop --full-evidence` 在当前 Python 3.9 环境失败：缺少 Pillow，Worker 13 项进程测试和 renderer baseline 无法启动；该失败已保留为未满足环境证据，未覆盖此前 Python 3.14 的 93/93 报告。
 - 使用已配置的 `/opt/homebrew/bin/python3.14` 重跑 Worker 全量测试：93/93 通过（26.4 秒）。本轮 acceptance runner 受 30 秒工具上限中断，未生成新的全量报告，继续引用此前已完成的 `acceptance-full-evidence-20260927-final/acceptance.json`。
 - 窄验证确认：源码 Worker 与当前 onedir Worker 在同一 36 张输入、`workers=4`、同一输出目录下连续两次均约 1.1 秒返回 `done`（36 条 progress，最后 36/36）；旧 `.app` 卡住不能归因到分类算法。`test_worker_process` 5/5、Vue build、protocol check 均通过；新的宿主 UI 复用证据仍未伪造。
+- 取消窄验证：分类开始后立即发送 `cancel_generation`，约 1.12 秒收到原分类 request 的 `cancelled`，随后 shutdown 正常退出且无 stderr；取消请求自身的 `cancelling` status 可能重复出现，前端按 request ID 幂等处理。
