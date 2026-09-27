@@ -1,0 +1,153 @@
+{
+  "audit": "desktop_app_startup",
+  "status": "passed",
+  "execution_mode": "require_escalated_host_permissions",
+  "host": {
+    "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.14.5"
+  },
+  "app": {
+    "path": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+    "bundle": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app",
+    "exists": true,
+    "mode": "0o755",
+    "size_bytes": 9927024,
+    "sha256": "9aefd35e5a79125d65e802a576f2740740d85f5235ec857b1e08e68f4a09a9f8"
+  },
+  "command": [
+    "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop"
+  ],
+  "cwd": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS",
+  "started_at_utc": "2026-09-27T07:18:26.728811Z",
+  "pre_launch_processes": {
+    "label": "pre_launch",
+    "captured_at_utc": "2026-09-27T07:18:26.775884Z",
+    "returncode": 0,
+    "relevant_process_lines": [
+      "12565 10772 S    05:27:58 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12566 10772 S    05:27:58 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "12567 12565 S    05:27:58 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12568 12566 S    05:27:58 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "17213 17196 S    04:11:22 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker"
+    ],
+    "stderr": ""
+  },
+  "launch": {
+    "pid": 30763,
+    "started_at_utc": "2026-09-27T07:18:26.778609Z",
+    "launch_elapsed_seconds": 0.002
+  },
+  "polls": [
+    {
+      "target_seconds": 1.0,
+      "observed_at_utc": "2026-09-27T07:18:27.781531Z",
+      "elapsed_seconds": 1.005,
+      "alive": true,
+      "returncode": null,
+      "processes": {
+        "label": "poll_1s",
+        "captured_at_utc": "2026-09-27T07:18:27.831153Z",
+        "returncode": 0,
+        "relevant_process_lines": [
+          "12565 10772 S    05:27:59 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12566 10772 S    05:27:59 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "12567 12565 S    05:27:59 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12568 12566 S    05:27:59 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "17213 17196 S    04:11:23 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker",
+          "30763 30759 Ss      00:01 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+          "30767 30763 S       00:01 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+          "30768 30767 S       00:00 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker"
+        ],
+        "stderr": ""
+      }
+    },
+    {
+      "target_seconds": 4.0,
+      "observed_at_utc": "2026-09-27T07:18:30.781625Z",
+      "elapsed_seconds": 4.005,
+      "alive": true,
+      "returncode": null,
+      "processes": {
+        "label": "poll_4s",
+        "captured_at_utc": "2026-09-27T07:18:30.835041Z",
+        "returncode": 0,
+        "relevant_process_lines": [
+          "12565 10772 S    05:28:02 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12566 10772 S    05:28:02 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "12567 12565 S    05:28:02 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12568 12566 S    05:28:02 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "17213 17196 S    04:11:26 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker",
+          "30763 30759 Ss      00:04 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+          "30767 30763 S       00:04 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+          "30768 30767 S       00:03 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker"
+        ],
+        "stderr": ""
+      }
+    },
+    {
+      "target_seconds": 8.0,
+      "observed_at_utc": "2026-09-27T07:18:34.781669Z",
+      "elapsed_seconds": 8.005,
+      "alive": true,
+      "returncode": null,
+      "processes": {
+        "label": "poll_8s",
+        "captured_at_utc": "2026-09-27T07:18:34.838539Z",
+        "returncode": 0,
+        "relevant_process_lines": [
+          "12565 10772 S    05:28:06 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12566 10772 S    05:28:06 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "12567 12565 S    05:28:06 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+          "12568 12566 S    05:28:06 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+          "17213 17196 S    04:11:30 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker",
+          "30763 30759 Ss      00:08 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+          "30767 30763 S       00:08 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+          "30768 30767 S       00:07 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker"
+        ],
+        "stderr": ""
+      }
+    }
+  ],
+  "termination": {
+    "attempted": true,
+    "signal": "SIGTERM",
+    "sent_at_utc": "2026-09-27T07:18:34.838625Z",
+    "returncode": -15,
+    "wait_seconds": 0.011,
+    "forced_kill": false
+  },
+  "post_termination_processes": {
+    "label": "post_termination",
+    "captured_at_utc": "2026-09-27T07:18:35.906203Z",
+    "returncode": 0,
+    "relevant_process_lines": [
+      "12565 10772 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12566 10772 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "12567 12565 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12568 12566 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "17213 17196 S    04:11:31 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker"
+    ],
+    "stderr": ""
+  },
+  "logs": {
+    "stdout_path": "/private/tmp/pixelflow-desktop-startup-audit.stdout",
+    "stderr_path": "/private/tmp/pixelflow-desktop-startup-audit.stderr",
+    "stdout": "",
+    "stderr": ""
+  },
+  "acceptance": {
+    "survived_at_least_8_seconds": true,
+    "no_immediate_exit": true,
+    "controlled_termination_completed": true,
+    "remaining_related_processes_after_termination": [
+      "12565 10772 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12566 10772 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex sandbox -c shell_environment_policy.inherit=\"all\" -c default_permissions=\"node_repl\" -c permissions.node_repl={filesystem = {\"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin\" = \"read\", \"/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719\" = \"write\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.agents\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.codex\" = \"read\", \"/Users/weiheng/.codex/visualizations/2026/09/26/01a0de2b-5a84-7391-b7eb-c122752b3719/.git\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow\" = \"write\", \"/Users/weiheng/Desktop/PixelFlow/.agents\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.codex\" = \"read\", \"/Users/weiheng/Desktop/PixelFlow/.git\" = \"read\", \"/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh\" = \"read\", \":root\" = \"read\", \":slash_tmp\" = \"write\", \":tmpdir\" = \"write\"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "12567 12565 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/kernel.js --session-id 8b4686e7f912442b891a6a4c43730033 --working-dir /Users/weiheng/Desktop/PixelFlow",
+      "12568 12566 S    05:28:07 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/.tmpr8RNgh/trusted-worker.js /Users/weiheng/Desktop/PixelFlow",
+      "17213 17196 S    04:11:31 /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m pixelflow_core.worker"
+    ],
+    "passed": true
+  },
+  "finished_at_utc": "2026-09-27T07:18:35.906450Z"
+}

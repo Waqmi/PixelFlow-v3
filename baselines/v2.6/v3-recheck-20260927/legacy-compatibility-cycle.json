@@ -1,0 +1,27 @@
+{
+  "schema_version": "v3-legacy-compatibility-cycle-1",
+  "cycle_id": "v3-renderer-independent-20260927",
+  "status": "active",
+  "cycle_started_at": "2026-09-27T07:31:09.400809+00:00",
+  "recorded_at": "2026-09-27T07:46:00.732719+00:00",
+  "minimum_complete_cycles": 1,
+  "legacy_role": [
+    "explicit legacy mode",
+    "v3 failure fallback",
+    "compare formal output"
+  ],
+  "removal_review": "not_before_cycle_complete",
+  "completion_checks": [
+    "v3 four-kind output report remains reproducible",
+    "legacy explicit mode and v3 fallback remain process-tested",
+    "compare keeps legacy formal output and cleans v3 temporary tree",
+    "worker and app resource hashes remain synchronized",
+    "release owner records a new version boundary after this cycle"
+  ],
+  "evidence": [
+    "baselines/v2.6/v3-recheck-20260927/migration-exit-audit-20260927.json",
+    "baselines/v2.6/v3-recheck-20260927/frozen-worker-ondir-evidence.json",
+    "docs/v3-Renderer独立化阶段目标.md"
+  ],
+  "notes": "Technical exit conditions passed; legacy deletion is intentionally deferred until one complete compatibility cycle is observed."
+}

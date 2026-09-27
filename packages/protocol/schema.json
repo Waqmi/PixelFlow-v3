@@ -16,6 +16,7 @@
         "cancel_generation",
         "retry_failed",
         "clear_cache",
+        "read_preview",
         "shutdown",
         "ready",
         "status",

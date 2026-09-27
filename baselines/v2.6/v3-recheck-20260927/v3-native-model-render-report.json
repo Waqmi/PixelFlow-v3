@@ -1,0 +1,17 @@
+{
+  "schema_version": "v3-native-model-render-report-1",
+  "evidence": "v3-native-model-evidence.json",
+  "source_count": 20,
+  "selected_sizes": [
+    "1440x1440",
+    "1440x1920",
+    "1125x1500"
+  ],
+  "model_images": 60,
+  "outputs": 60,
+  "failures": 0,
+  "typed_renderer_validated": 60,
+  "typed_renderer_failed": 0,
+  "formal_output_persisted": false,
+  "replay_mode": "typed_plan_only"
+}

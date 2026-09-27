@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Window controls used when entering and leaving the settings view.",
+  "windows": ["main", "settings", "report", "confirm"],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-center",
+    "core:window:allow-close",
+    "core:window:allow-inner-size",
+    "core:window:allow-is-maximized",
+    "core:window:allow-maximize",
+    "core:window:allow-scale-factor",
+    "core:window:allow-set-min-size",
+    "core:window:allow-set-size",
+    "core:window:allow-set-title",
+    "core:window:allow-unmaximize"
+  ]
+}

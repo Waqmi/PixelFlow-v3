@@ -1,0 +1,14 @@
+{
+  "app": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+  "pid": 30714,
+  "launch_cwd": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "wait_seconds": 12,
+  "poll_after_wait": null,
+  "alive_after_wait": true,
+  "termination": "SIGTERM",
+  "returncode": -15,
+  "stdout_tail": "",
+  "stderr_tail": "",
+  "elapsed_seconds": 12.05,
+  "startup_audit_passed": true
+}

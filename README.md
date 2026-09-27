@@ -10,6 +10,7 @@ UI, and a Tauri Host bridge. macOS arm64 app/DMG bundling is now wired to the
 packaged Worker; signing/notarization and Windows packaging remain release work.
 
 - v2.6 feature parity checklist: `docs/v2.6-feature-parity.md`
+- v2.6 UI baseline and acceptance: `docs/v2.6-ui-baseline-and-acceptance.md`
 - output baseline plan: `docs/v2.6-output-baseline.md`
 - architecture decisions: `docs/architecture.md`
 - Worker protocol v1: `docs/worker-protocol.md`
@@ -30,8 +31,10 @@ Tauri 2 + Vue 3 + TypeScript
  Pillow / NumPy / ONNX Runtime / SQLite
 ```
 
-The v2.6 source remains in `../PixelFlow-App-v2.0` and is not modified by
-this rewrite.
+The verified v2.6 pure-Python image core is bundled under
+`worker/pixelflow_core/legacy_engine` for compatibility and offline Worker
+operation. The external `../PixelFlow-App-v2.0` checkout remains a reference
+source only; normal v3 runtime does not require that directory.
 
 前端开发：
 
@@ -73,4 +76,4 @@ cd worker
 ```
 
 输出位于 `worker/dist/pixelflow-worker`（构建目录已忽略）。该 Worker 已内置
-v2.6 Python 模块和 `resources`，Pose/Seg 模型仍通过外部目录配置。
+v3 Renderer、兼容图像核心、缓存和模型服务；Pose/Seg 模型仍通过外部目录配置。

@@ -1,0 +1,58 @@
+{
+  "schema_version": "v3-app-package-evidence-1",
+  "generated_at": "2026-09-27T08:10:42.102538+00:00",
+  "app_path": "dist/PixelFlow-v3-beta.app",
+  "bundle_source": "apps/desktop/src-tauri/target/release/bundle/macos/PixelFlow.app",
+  "build_command": "PIXELFLOW_PYTHON=/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python npm run tauri:build -- --bundles app",
+  "architecture": "arm64",
+  "artifacts": {
+    "worker": {
+      "path": "worker/dist/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "app_worker": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "desktop_binary": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+      "sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976"
+    }
+  },
+  "hash_match": true,
+  "runtime_validation": {
+    "request": "ping then shutdown",
+    "ready": {
+      "protocol": 1,
+      "request_id": "worker",
+      "type": "ready",
+      "payload": {
+        "worker": "pixelflow-v3",
+        "protocol": 1
+      }
+    },
+    "ping": {
+      "protocol": 1,
+      "request_id": "ping",
+      "type": "ready",
+      "payload": {
+        "worker": "pixelflow-v3",
+        "protocol": 1
+      }
+    },
+    "shutdown": {
+      "protocol": 1,
+      "request_id": "shutdown",
+      "type": "done",
+      "payload": {
+        "action": "shutdown"
+      }
+    },
+    "returncode": 0,
+    "host_permissions": true
+  },
+  "limitations": [
+    "DMG target was not built; the app bundle target completed successfully.",
+    "This packaging check validates Worker ping/shutdown; full generation protocol remains in frozen-worker-latest-evidence.json."
+  ]
+}

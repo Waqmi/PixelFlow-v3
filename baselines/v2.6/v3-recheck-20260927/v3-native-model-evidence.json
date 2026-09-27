@@ -1,0 +1,3780 @@
+{
+  "schema_version": "v3-native-model-evidence-1",
+  "generated_at": "2026-09-27T04:41:32.307149+00:00",
+  "source_root": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋",
+  "model_root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/models",
+  "python": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python",
+  "model_files": {
+    "pose": {
+      "path": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/models/pose/yolo11n-pose.onnx",
+      "sha256": "86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8",
+      "size": 11853451
+    },
+    "segmentation": {
+      "path": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/models/segmentation/yolo11n-seg.onnx",
+      "sha256": "52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55",
+      "size": 11763717
+    }
+  },
+  "counts": {
+    "sources": 20,
+    "fallback": 0,
+    "pose_ready": 20,
+    "segmentation_ready": 20,
+    "typed_plans": 60,
+    "requires_review": 8,
+    "skipped_by_scope": 0
+  },
+  "entries": [
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0840.jpg",
+      "source_sha256": "7e3c049384ca5a848d26381992f24ebc98356be624affac14b52b9c26d5f5899",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8773,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0840.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7922,
+              "mask_area_ratio": 0.3712,
+              "mask_edge_ratio": 0.2437,
+              "mask_bbox_ratio": [
+                0.0063,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0840.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.62,
+          "position_x": 0.6072,
+          "position_y": 1.0,
+          "crop_ratio": 0.549,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7922,
+              "mask_area_ratio": 0.3712,
+              "mask_edge_ratio": 0.2437,
+              "mask_bbox_ratio": [
+                0.0063,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0840.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.62,
+          "position_x": 0.6072,
+          "position_y": 1.0,
+          "crop_ratio": 0.549,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7922,
+              "mask_area_ratio": 0.3712,
+              "mask_edge_ratio": 0.2437,
+              "mask_bbox_ratio": [
+                0.0063,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0855.jpg",
+      "source_sha256": "95f93145824649c1bad4ca977591ad8bac22419289e5a12163b69ba9377bdc05",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7607,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0855.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8224,
+              "mask_area_ratio": 0.3096,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0,
+                0.8313,
+                0.85
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0855.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8224,
+              "mask_area_ratio": 0.3096,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0,
+                0.8313,
+                0.85
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0855.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8224,
+              "mask_area_ratio": 0.3096,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0,
+                0.8313,
+                0.85
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0861.jpg",
+      "source_sha256": "2237c50855eda5186d45fd62d19c6794378dd09f7c369ce30bddd103b560e4e3",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7853,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0861.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8282,
+              "mask_area_ratio": 0.5694,
+              "mask_edge_ratio": 0.5984,
+              "mask_bbox_ratio": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0861.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0003,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8282,
+              "mask_area_ratio": 0.5694,
+              "mask_edge_ratio": 0.5984,
+              "mask_bbox_ratio": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0861.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0003,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8282,
+              "mask_area_ratio": 0.5694,
+              "mask_edge_ratio": 0.5984,
+              "mask_bbox_ratio": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0998.jpg",
+      "source_sha256": "20a96b7dae5dcbfcd8c311a3d58474f7d777a3af5759ee741cdda2f9624d31fc",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7124,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0998.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8982,
+              "mask_area_ratio": 0.175,
+              "mask_edge_ratio": 0.0469,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8875,
+                0.8688
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0998.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.61,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8982,
+              "mask_area_ratio": 0.175,
+              "mask_edge_ratio": 0.0469,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8875,
+                0.8688
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI0998.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.61,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8982,
+              "mask_area_ratio": 0.175,
+              "mask_edge_ratio": 0.0469,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8875,
+                0.8688
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1008.jpg",
+      "source_sha256": "d54ae6803ce3a8df8fa4c668655cd2609a868a89f990bbb824d487bcdcf607e6",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8963,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1008.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9053,
+              "mask_area_ratio": 0.226,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0813,
+                0.8313,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1008.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9053,
+              "mask_area_ratio": 0.226,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0813,
+                0.8313,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1008.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9053,
+              "mask_area_ratio": 0.226,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2562,
+                0.0813,
+                0.8313,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1125.jpg",
+      "source_sha256": "fa19c49cd31c292da22c422978e6905d29f038a34b03f19eee34901cf1f28ef4",
+      "source_type": "model_detail",
+      "classifier": "local_onnx",
+      "confidence": 0.6058,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1125.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8548,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1125.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1125.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1132.jpg",
+      "source_sha256": "56610719e5f2768676833c9d582018ac420db246750efe634c04f985e6eb9732",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.892,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1132.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8836,
+              "mask_area_ratio": 0.2276,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2125,
+                0.0563,
+                0.7812,
+                0.9062
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1132.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.224,
+          "position_x": 0.8111,
+          "position_y": 0.8795,
+          "crop_ratio": 0.4,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8836,
+              "mask_area_ratio": 0.2276,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2125,
+                0.0563,
+                0.7812,
+                0.9062
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1132.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.224,
+          "position_x": 0.8111,
+          "position_y": 0.8795,
+          "crop_ratio": 0.4,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8836,
+              "mask_area_ratio": 0.2276,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2125,
+                0.0563,
+                0.7812,
+                0.9062
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1140.jpg",
+      "source_sha256": "929f2e903d38e224cec2b882f46570eaade9480b964e755bc69ed0cb5b327b30",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.3458,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1140.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1140.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.799,
+          "position_x": 0.3934,
+          "position_y": 1.0,
+          "crop_ratio": 0.494,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1140.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.799,
+          "position_x": 0.3934,
+          "position_y": 1.0,
+          "crop_ratio": 0.494,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1142.jpg",
+      "source_sha256": "44fceac919d0a3247f0d5b51c419214ed89174ab193703776f721ac3fe859547",
+      "source_type": "model_detail",
+      "classifier": "segmentation",
+      "confidence": 0.7132,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1142.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.9365,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.2187,
+              "mask_area_ratio": 0.0,
+              "mask_edge_ratio": 0.0,
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1142.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4924,
+          "position_y": 0.8233,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.2187,
+              "mask_area_ratio": 0.0,
+              "mask_edge_ratio": 0.0,
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1142.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4924,
+          "position_y": 0.8233,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.2187,
+              "mask_area_ratio": 0.0,
+              "mask_edge_ratio": 0.0,
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1148.jpg",
+      "source_sha256": "47203fd977218f72e97475416f60c182d074cb170b7ff476232f6db14ffdabd8",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7446,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1148.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8626,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8598,
+              "mask_area_ratio": 0.1586,
+              "mask_edge_ratio": 0.0859,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.7937,
+                0.8938
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1148.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.336,
+          "position_x": 0.3548,
+          "position_y": 0.82,
+          "crop_ratio": 0.381,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8598,
+              "mask_area_ratio": 0.1586,
+              "mask_edge_ratio": 0.0859,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.7937,
+                0.8938
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1148.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.336,
+          "position_x": 0.3548,
+          "position_y": 0.82,
+          "crop_ratio": 0.381,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8598,
+              "mask_area_ratio": 0.1586,
+              "mask_edge_ratio": 0.0859,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.7937,
+                0.8938
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1257.jpg",
+      "source_sha256": "6bf53dcb4e26a7cf1429c736926a40e65fd2e43b6114c62f99d861cbdedaae5c",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8706,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1257.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8264,
+              "mask_area_ratio": 0.2518,
+              "mask_edge_ratio": 0.0797,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1257.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4639,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8264,
+              "mask_area_ratio": 0.2518,
+              "mask_edge_ratio": 0.0797,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1257.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4639,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8264,
+              "mask_area_ratio": 0.2518,
+              "mask_edge_ratio": 0.0797,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1370.jpg",
+      "source_sha256": "ef8b928ee41fc65247c2e0bf226e3c3e7684d847f90f4b277dd22ecd7c10e16e",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.873,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1370.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.9097,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7941,
+              "mask_area_ratio": 0.2926,
+              "mask_edge_ratio": 0.1219,
+              "mask_bbox_ratio": [
+                0.1562,
+                0.0,
+                0.8,
+                0.8125
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1370.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.3868,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7941,
+              "mask_area_ratio": 0.2926,
+              "mask_edge_ratio": 0.1219,
+              "mask_bbox_ratio": [
+                0.1562,
+                0.0,
+                0.8,
+                0.8125
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1370.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.3868,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.7941,
+              "mask_area_ratio": 0.2926,
+              "mask_edge_ratio": 0.1219,
+              "mask_bbox_ratio": [
+                0.1562,
+                0.0,
+                0.8,
+                0.8125
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1372.jpg",
+      "source_sha256": "401c4cae0b25d01a92fccdca4ad4f01e39e3738f7d25cbd3036f480c3bcf66d6",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8527,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1372.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.415,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.471,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8864,
+              "mask_area_ratio": 0.1418,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.4625,
+                0.0063,
+                0.8,
+                0.8063
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1372.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.132,
+          "position_x": 0.7859,
+          "position_y": 0.82,
+          "crop_ratio": 0.417,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8864,
+              "mask_area_ratio": 0.1418,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.4625,
+                0.0063,
+                0.8,
+                0.8063
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1372.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.132,
+          "position_x": 0.7859,
+          "position_y": 0.82,
+          "crop_ratio": 0.417,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8864,
+              "mask_area_ratio": 0.1418,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.4625,
+                0.0063,
+                0.8,
+                0.8063
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1562.jpg",
+      "source_sha256": "f815c362582f05634c1aaf5d01e36fa7f94a1d9fef11b9019534e502b6078678",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8544,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1562.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8584,
+              "mask_area_ratio": 0.2405,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2437,
+                0.0625,
+                0.7812,
+                0.8875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1562.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8584,
+              "mask_area_ratio": 0.2405,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2437,
+                0.0625,
+                0.7812,
+                0.8875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1562.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8584,
+              "mask_area_ratio": 0.2405,
+              "mask_edge_ratio": 0.0,
+              "mask_bbox_ratio": [
+                0.2437,
+                0.0625,
+                0.7812,
+                0.8875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1568.jpg",
+      "source_sha256": "50a98057e689fff8abb411960419405c01937c99cdd3d1208745eaafa7c4a68b",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.709,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1568.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 0.8835,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8472,
+              "mask_area_ratio": 0.2573,
+              "mask_edge_ratio": 0.1281,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.8313,
+                0.8438
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1568.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.667,
+          "position_x": 0.3382,
+          "position_y": 0.82,
+          "crop_ratio": 0.533,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8472,
+              "mask_area_ratio": 0.2573,
+              "mask_edge_ratio": 0.1281,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.8313,
+                0.8438
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1568.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.667,
+          "position_x": 0.3382,
+          "position_y": 0.82,
+          "crop_ratio": 0.533,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8472,
+              "mask_area_ratio": 0.2573,
+              "mask_edge_ratio": 0.1281,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.8313,
+                0.8438
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1571.jpg",
+      "source_sha256": "3ce67a41955b4d6b4d563b87817a1ab6c4694420ff242b7272beb7757553aca1",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7932,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1571.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8075,
+              "mask_area_ratio": 0.2113,
+              "mask_edge_ratio": 0.1031,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.775,
+                0.875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1571.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.897,
+          "position_x": 0.7808,
+          "position_y": 1.0,
+          "crop_ratio": 0.469,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8075,
+              "mask_area_ratio": 0.2113,
+              "mask_edge_ratio": 0.1031,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.775,
+                0.875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1571.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.897,
+          "position_x": 0.7808,
+          "position_y": 1.0,
+          "crop_ratio": 0.469,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8075,
+              "mask_area_ratio": 0.2113,
+              "mask_edge_ratio": 0.1031,
+              "mask_bbox_ratio": [
+                0.025,
+                0.0,
+                0.775,
+                0.875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1706.jpg",
+      "source_sha256": "e41d7ebd3fa77db2c9501e26927280c12074d5c777462a0241f0ef0c913b9a9c",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8709,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1706.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8927,
+              "mask_area_ratio": 0.3111,
+              "mask_edge_ratio": 0.0969,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9375,
+                0.9875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1706.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.5628,
+          "position_y": 0.82,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8927,
+              "mask_area_ratio": 0.3111,
+              "mask_edge_ratio": 0.0969,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9375,
+                0.9875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1706.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.5628,
+          "position_y": 0.82,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8927,
+              "mask_area_ratio": 0.3111,
+              "mask_edge_ratio": 0.0969,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9375,
+                0.9875
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1714.jpg",
+      "source_sha256": "86f0a74117c28e3ff6e35140a3f145bdfe2f2ffa7af215a3b681ed6353a7f0ae",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.9069,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1714.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8262,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9164,
+              "mask_area_ratio": 0.1919,
+              "mask_edge_ratio": 0.0453,
+              "mask_bbox_ratio": [
+                0.2,
+                0.0,
+                0.8125,
+                0.7625
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1714.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.968,
+          "position_x": 0.6747,
+          "position_y": 0.82,
+          "crop_ratio": 0.452,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9164,
+              "mask_area_ratio": 0.1919,
+              "mask_edge_ratio": 0.0453,
+              "mask_bbox_ratio": [
+                0.2,
+                0.0,
+                0.8125,
+                0.7625
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1714.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.968,
+          "position_x": 0.6747,
+          "position_y": 0.82,
+          "crop_ratio": 0.452,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.9164,
+              "mask_area_ratio": 0.1919,
+              "mask_edge_ratio": 0.0453,
+              "mask_bbox_ratio": [
+                0.2,
+                0.0,
+                0.8125,
+                0.7625
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1719.jpg",
+      "source_sha256": "36bd823e1aa6232d1588a01ddff2632aea6332f48b00beacab7227899d18d8a8",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.8458,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1719.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8186,
+              "mask_area_ratio": 0.3211,
+              "mask_edge_ratio": 0.1016,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1719.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0,
+          "position_y": 0.9767,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8186,
+              "mask_area_ratio": 0.3211,
+              "mask_edge_ratio": 0.1016,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI1719.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0,
+          "position_y": 0.9767,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8186,
+              "mask_area_ratio": 0.3211,
+              "mask_edge_ratio": 0.1016,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.8313,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    },
+    {
+      "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI2582.jpg",
+      "source_sha256": "f813c91b091436718042a1af560d488cf4ab9060b3c730e49826fd5c02f848b0",
+      "source_type": "model",
+      "classifier": "local_onnx",
+      "confidence": 0.7697,
+      "fallback": false,
+      "pose_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "segmentation_evidence": {
+        "status": "ready",
+        "reason": "v3 native model service returns typed composition evidence"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI2582.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8469,
+              "mask_area_ratio": 0.1918,
+              "mask_edge_ratio": 0.0641,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9625,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI2582.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.6313,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8469,
+              "mask_area_ratio": 0.1918,
+              "mask_edge_ratio": 0.0641,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9625,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/鞋/2026-9-4BMAI2582.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.6313,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8469,
+              "mask_area_ratio": 0.1918,
+              "mask_edge_ratio": 0.0641,
+              "mask_bbox_ratio": [
+                0.0125,
+                0.0,
+                0.9625,
+                0.8812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      }
+    }
+  ]
+}

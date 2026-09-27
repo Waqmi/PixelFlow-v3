@@ -1,0 +1,19 @@
+{
+  "schema_version": "v3-desktop-app-ui-audit-1",
+  "generated_at": "2026-09-27T07:43:37.349560+00:00",
+  "app": "dist/PixelFlow-v3-beta.app",
+  "source_root": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/冲锋裤主图",
+  "output_root": "/private/tmp/pixelflow-app-ui-audit-20260927",
+  "status": "not_completed",
+  "steps": {
+    "app_launch": true,
+    "source_and_output_fields_filled": true,
+    "classification_completed": true,
+    "confirmation_page_visible": true,
+    "generation_started": false,
+    "outputs_written": 0,
+    "controlled_termination": true
+  },
+  "classification_summary": "已识别 36 张：商品白底图 8、细节图 28、模特图 0、模特细节图 0、跳过 0",
+  "limitation": "CUA 控制在确认按钮动作前发生工具绑定异常；未将确认页误报为生成成功。"
+}

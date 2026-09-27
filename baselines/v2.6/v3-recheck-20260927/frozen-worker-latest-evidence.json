@@ -1,0 +1,358 @@
+{
+  "generated_at": "2026-09-27T07:53:32.626484+00:00",
+  "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/冲锋裤主图/FRPN015-1 男 暗夜黑/5B3A74731.jpg",
+  "results": {
+    "onefile": {
+      "ready": {
+        "protocol": 1,
+        "request_id": "worker",
+        "type": "ready",
+        "payload": {
+          "worker": "pixelflow-v3",
+          "protocol": 1
+        }
+      },
+      "classification": {
+        "protocol": 1,
+        "request_id": "classify",
+        "type": "done",
+        "payload": {
+          "result": {
+            "decisions": [
+              {
+                "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/冲锋裤主图/FRPN015-1 男 暗夜黑/5B3A74731.jpg",
+                "source_type": "main_product",
+                "confidence": 0.9,
+                "classifier": "rules",
+                "reason": "浅色均匀背景且主体未贴边",
+                "metadata": {},
+                "composition_plans": {},
+                "fallback": false,
+                "fallback_reason": null,
+                "skipped_by_scope": false
+              }
+            ],
+            "preflight_warnings": [],
+            "summary": {
+              "count": 1,
+              "fallback_count": 0,
+              "skipped_by_scope_count": 0,
+              "skipped_by_scope": []
+            },
+            "category": {
+              "category": "pants",
+              "confidence": 0.95,
+              "source": "name",
+              "matched_keyword": "冲锋裤"
+            },
+            "suggested_exclusions": []
+          }
+        }
+      },
+      "generation": {
+        "protocol": 1,
+        "request_id": "generate",
+        "type": "done",
+        "payload": {
+          "result": {
+            "sources": 1,
+            "main_images": 1,
+            "model_images": 0,
+            "transparent_images": 0,
+            "vip_images": 1,
+            "failures": [],
+            "outputs": [
+              "/private/tmp/pixelflow-frozen-latest-probe/onefile/normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+              "/private/tmp/pixelflow-frozen-latest-probe/onefile/normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+            ],
+            "retried_only": true,
+            "skipped_by_scope": 0,
+            "validation": {
+              "passed": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "audit": {
+              "checked_outputs": 2
+            },
+            "mode": "v3",
+            "renderer": "typed-v3",
+            "fallback": false,
+            "typed_renderer": {
+              "validated": 2,
+              "failed": 0,
+              "outputs": [
+                "/private/tmp/pixelflow-frozen-latest-probe/onefile/normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+                "/private/tmp/pixelflow-frozen-latest-probe/onefile/normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+              ],
+              "failures": []
+            }
+          }
+        }
+      },
+      "probe": {
+        "protocol": 1,
+        "request_id": "probe",
+        "type": "done",
+        "payload": {
+          "models": {
+            "pose": {
+              "state": "未配置",
+              "status": "unconfigured",
+              "fallback": true
+            },
+            "segmentation": {
+              "state": "未配置",
+              "status": "unconfigured",
+              "fallback": true
+            }
+          }
+        }
+      },
+      "fallback": {
+        "protocol": 1,
+        "request_id": "fallback",
+        "type": "done",
+        "payload": {
+          "result": {
+            "sources": 1,
+            "main_images": 2,
+            "model_images": 0,
+            "selling_point_images": 0,
+            "ai_assist": false,
+            "ai_model": null,
+            "ai_errors": [],
+            "transparent_images": 0,
+            "vip_images": 0,
+            "render_workers": 1,
+            "local_model_used": false,
+            "segmentation_used": 0,
+            "segmentation_candidates": 0,
+            "segmentation_ratio": 0.0,
+            "local_model_errors": [],
+            "cancelled": false,
+            "retried_only": true,
+            "incremental_reused": 0,
+            "stale_outputs_removed": 0,
+            "failures": [],
+            "validation": {
+              "passed": 2,
+              "warnings": [],
+              "failed": []
+            },
+            "audit": {
+              "passed": true,
+              "issues": [],
+              "checked_outputs": 2,
+              "anomaly_count": 0
+            },
+            "category": "pants",
+            "category_source": "name",
+            "category_confidence": 0.95,
+            "composition_templates": {},
+            "output_root": "/private/tmp/pixelflow-frozen-latest-probe/onefile/fallback",
+            "skipped_model_sources": 0,
+            "mode": "v3",
+            "fallback": true,
+            "fallback_reason": "'<' not supported between instances of 'str' and 'int'"
+          }
+        }
+      },
+      "shutdown": {
+        "protocol": 1,
+        "request_id": "shutdown",
+        "type": "done",
+        "payload": {
+          "action": "shutdown"
+        }
+      },
+      "returncode": 0,
+      "stderr": "",
+      "outputs": [
+        "fallback/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_15.jpg",
+        "fallback/产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_15.jpg",
+        "normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+        "normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+      ]
+    },
+    "app_resource": {
+      "ready": {
+        "protocol": 1,
+        "request_id": "worker",
+        "type": "ready",
+        "payload": {
+          "worker": "pixelflow-v3",
+          "protocol": 1
+        }
+      },
+      "classification": {
+        "protocol": 1,
+        "request_id": "classify",
+        "type": "done",
+        "payload": {
+          "result": {
+            "decisions": [
+              {
+                "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/冲锋裤主图/FRPN015-1 男 暗夜黑/5B3A74731.jpg",
+                "source_type": "main_product",
+                "confidence": 0.9,
+                "classifier": "rules",
+                "reason": "浅色均匀背景且主体未贴边",
+                "metadata": {},
+                "composition_plans": {},
+                "fallback": false,
+                "fallback_reason": null,
+                "skipped_by_scope": false
+              }
+            ],
+            "preflight_warnings": [],
+            "summary": {
+              "count": 1,
+              "fallback_count": 0,
+              "skipped_by_scope_count": 0,
+              "skipped_by_scope": []
+            },
+            "category": {
+              "category": "pants",
+              "confidence": 0.95,
+              "source": "name",
+              "matched_keyword": "冲锋裤"
+            },
+            "suggested_exclusions": []
+          }
+        }
+      },
+      "generation": {
+        "protocol": 1,
+        "request_id": "generate",
+        "type": "done",
+        "payload": {
+          "result": {
+            "sources": 1,
+            "main_images": 1,
+            "model_images": 0,
+            "transparent_images": 0,
+            "vip_images": 1,
+            "failures": [],
+            "outputs": [
+              "/private/tmp/pixelflow-frozen-latest-probe/app_resource/normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+              "/private/tmp/pixelflow-frozen-latest-probe/app_resource/normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+            ],
+            "retried_only": true,
+            "skipped_by_scope": 0,
+            "validation": {
+              "passed": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "audit": {
+              "checked_outputs": 2
+            },
+            "mode": "v3",
+            "renderer": "typed-v3",
+            "fallback": false,
+            "typed_renderer": {
+              "validated": 2,
+              "failed": 0,
+              "outputs": [
+                "/private/tmp/pixelflow-frozen-latest-probe/app_resource/normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+                "/private/tmp/pixelflow-frozen-latest-probe/app_resource/normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+              ],
+              "failures": []
+            }
+          }
+        }
+      },
+      "probe": {
+        "protocol": 1,
+        "request_id": "probe",
+        "type": "done",
+        "payload": {
+          "models": {
+            "pose": {
+              "state": "未配置",
+              "status": "unconfigured",
+              "fallback": true
+            },
+            "segmentation": {
+              "state": "未配置",
+              "status": "unconfigured",
+              "fallback": true
+            }
+          }
+        }
+      },
+      "fallback": {
+        "protocol": 1,
+        "request_id": "fallback",
+        "type": "done",
+        "payload": {
+          "result": {
+            "sources": 1,
+            "main_images": 2,
+            "model_images": 0,
+            "selling_point_images": 0,
+            "ai_assist": false,
+            "ai_model": null,
+            "ai_errors": [],
+            "transparent_images": 0,
+            "vip_images": 0,
+            "render_workers": 1,
+            "local_model_used": false,
+            "segmentation_used": 0,
+            "segmentation_candidates": 0,
+            "segmentation_ratio": 0.0,
+            "local_model_errors": [],
+            "cancelled": false,
+            "retried_only": true,
+            "incremental_reused": 0,
+            "stale_outputs_removed": 0,
+            "failures": [],
+            "validation": {
+              "passed": 2,
+              "warnings": [],
+              "failed": []
+            },
+            "audit": {
+              "passed": true,
+              "issues": [],
+              "checked_outputs": 2,
+              "anomaly_count": 0
+            },
+            "category": "pants",
+            "category_source": "name",
+            "category_confidence": 0.95,
+            "composition_templates": {},
+            "output_root": "/private/tmp/pixelflow-frozen-latest-probe/app_resource/fallback",
+            "skipped_model_sources": 0,
+            "mode": "v3",
+            "fallback": true,
+            "fallback_reason": "'<' not supported between instances of 'str' and 'int'"
+          }
+        }
+      },
+      "shutdown": {
+        "protocol": 1,
+        "request_id": "shutdown",
+        "type": "done",
+        "payload": {
+          "action": "shutdown"
+        }
+      },
+      "returncode": 0,
+      "stderr": "",
+      "outputs": [
+        "fallback/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_15.jpg",
+        "fallback/产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_15.jpg",
+        "normal/产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+        "normal/唯品专享1440/无Logo/男_暗夜黑_01.jpg"
+      ]
+    }
+  },
+  "schema_version": "v3-frozen-worker-evidence-2",
+  "onefile_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+  "app_resource_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+  "hash_match": true,
+  "verified_with_host_permissions": true,
+  "architecture": "Mach-O 64-bit executable arm64"
+}

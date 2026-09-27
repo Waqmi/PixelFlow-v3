@@ -1,0 +1,5536 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-27T03:41:01.114151+00:00",
+  "source_fixture": "fixtures/shoe-matrix.json",
+  "status": "replayable_cached_model_evidence",
+  "cache_version": 8,
+  "composition_rules_version": "v3-composition-1",
+  "model_files": {
+    "pose": {
+      "path": "models/pose/yolo11n-pose.onnx",
+      "sha256": "86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8",
+      "size": 11853451
+    },
+    "segmentation": {
+      "path": "models/segmentation/yolo11n-seg.onnx",
+      "sha256": "52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55",
+      "size": 11763717
+    }
+  },
+  "counts": {
+    "fixtures": 20,
+    "pose": 20,
+    "segmentation": 2,
+    "typed_plans": 60
+  },
+  "entries": [
+    {
+      "id": "shoe-01",
+      "relative_path": "2026-9-4BMAI0840.jpg",
+      "source_sha256": "7e3c049384ca5a848d26381992f24ebc98356be624affac14b52b9c26d5f5899",
+      "pose_cache": {
+        "cache_file_sha256": "892fd4c44c260919488678bc2c1c0082703d466bc54ea1580a541c4c0de9e0d4",
+        "created_at": "2026-09-26T14:34:52.896765+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI0840.jpg",
+            "mtime_ns": 1789610409929999948,
+            "size": 21097951,
+            "sha256": "7e3c049384ca5a848d26381992f24ebc98356be624affac14b52b9c26d5f5899"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8773,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3362.2,
+                4638,
+                6345.7
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 62.0,
+              "position_x": 0.6072,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8773,
+              "target_crop_height_ratio": 0.549,
+              "protected_crop_bbox": [
+                0.0,
+                3362.2,
+                4638,
+                6345.7
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 62.0,
+              "position_x": 0.6072,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8773,
+              "target_crop_height_ratio": 0.549,
+              "protected_crop_bbox": [
+                0.0,
+                3362.2,
+                4638,
+                6345.7
+              ]
+            }
+          },
+          "confidence": 0.8773,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              218.73534872531891,
+              0.0,
+              4249.135591292381,
+              6131.067297744751
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": false,
+            "visible_keypoints": 5,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.7833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.881153678894043,
+            "person_box_width_ratio": 0.8689953088760375,
+            "image_height": 6958,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI0840.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI0840.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.62,
+          "position_x": 0.6072,
+          "position_y": 1.0,
+          "crop_ratio": 0.549,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI0840.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.62,
+          "position_x": 0.6072,
+          "position_y": 1.0,
+          "crop_ratio": 0.549,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3362.2,
+                4638.0,
+                6345.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8773
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-02",
+      "relative_path": "2026-9-4BMAI0855.jpg",
+      "source_sha256": "95f93145824649c1bad4ca977591ad8bac22419289e5a12163b69ba9377bdc05",
+      "pose_cache": {
+        "cache_file_sha256": "83597502a0bb78b1bee1272d5896041139e0743a721f5e38864bc908ba378b7b",
+        "created_at": "2026-09-26T14:34:53.692308+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI0855.jpg",
+            "mtime_ns": 1789610413960000038,
+            "size": 21464470,
+            "sha256": "95f93145824649c1bad4ca977591ad8bac22419289e5a12163b69ba9377bdc05"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7607,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2890.6,
+                4747,
+                4424.3
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7607,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2890.6,
+                4747,
+                4424.3
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7607,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2890.6,
+                4747,
+                4424.3
+              ]
+            }
+          },
+          "confidence": 0.7607,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              1167.7140091941853,
+              0.0,
+              4680.151167293507,
+              4274.684829711914
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 10,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.600377082824707,
+            "person_box_width_ratio": 0.739927777143316,
+            "image_height": 7120,
+            "relief_score": 0.993,
+            "flatness_score": 0.007
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI0855.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI0855.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI0855.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2890.6,
+                4747.0,
+                4424.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7607
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-03",
+      "relative_path": "2026-9-4BMAI0861.jpg",
+      "source_sha256": "2237c50855eda5186d45fd62d19c6794378dd09f7c369ce30bddd103b560e4e3",
+      "pose_cache": {
+        "cache_file_sha256": "6eade13e1cd67bd86ef5e49f9cfdc38e6317dd3f76ca7acb33875797c1d76edb",
+        "created_at": "2026-09-26T14:34:54.527489+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI0861.jpg",
+            "mtime_ns": 1789610412850000024,
+            "size": 25087387,
+            "sha256": "2237c50855eda5186d45fd62d19c6794378dd09f7c369ce30bddd103b560e4e3"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7853,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2257.0,
+                4619,
+                5427.7
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.0003,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7853,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2257.0,
+                4619,
+                5427.7
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.0003,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7853,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2257.0,
+                4619,
+                5427.7
+              ]
+            }
+          },
+          "confidence": 0.7853,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              0.0,
+              3.9942955017089843,
+              4590.016191978207,
+              5244.274452209473
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": false,
+            "visible_keypoints": 5,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.702799436453617,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7563914775848389,
+            "person_box_width_ratio": 0.993725090274563,
+            "image_height": 6928,
+            "relief_score": 0.7948,
+            "flatness_score": 0.2052
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI0861.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI0861.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0003,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI0861.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0003,
+          "position_y": 0.82,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2257.0,
+                4619.0,
+                5427.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7853
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-04",
+      "relative_path": "2026-9-4BMAI0998.jpg",
+      "source_sha256": "20a96b7dae5dcbfcd8c311a3d58474f7d777a3af5759ee741cdda2f9624d31fc",
+      "pose_cache": {
+        "cache_file_sha256": "b8d51e50b32630989776c6918ca2b893aa3a8a07715817ef7de3d1f5ce6d0d9d",
+        "created_at": "2026-09-26T14:34:55.176661+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI0998.jpg",
+            "mtime_ns": 1789610414789999962,
+            "size": 15993562,
+            "sha256": "20a96b7dae5dcbfcd8c311a3d58474f7d777a3af5759ee741cdda2f9624d31fc"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7124,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                1935.7,
+                4638,
+                6156.5
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.61,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7124,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                1935.7,
+                4638,
+                6156.5
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.61,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7124,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                1935.7,
+                4638,
+                6156.5
+              ]
+            }
+          },
+          "confidence": 0.7124,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              445.2533807516098,
+              0.0,
+              4282.531083512306,
+              5948.3203954696655
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": false,
+            "hands": false,
+            "torso_or_hip": true,
+            "visible_keypoints": 6,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.7666666666666666,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8548893928527832,
+            "person_box_width_ratio": 0.8273561239242554,
+            "image_height": 6958,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI0998.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI0998.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.61,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI0998.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.61,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                1935.7,
+                4638.0,
+                6156.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7124
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-05",
+      "relative_path": "2026-9-4BMAI1008.jpg",
+      "source_sha256": "d54ae6803ce3a8df8fa4c668655cd2609a868a89f990bbb824d487bcdcf607e6",
+      "pose_cache": {
+        "cache_file_sha256": "a7859662b55d4a19420b750f1cbcbf3923b61a11431e53a2c74257749635317c",
+        "created_at": "2026-09-26T14:34:55.809706+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1008.jpg",
+            "mtime_ns": 1789610406250000000,
+            "size": 15606514,
+            "sha256": "d54ae6803ce3a8df8fa4c668655cd2609a868a89f990bbb824d487bcdcf607e6"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "full_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8963,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边",
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                4347.1,
+                4747,
+                6396.6
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8963,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边",
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                4347.1,
+                4747,
+                6396.6
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8963,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边",
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                4347.1,
+                4747,
+                6396.6
+              ]
+            }
+          },
+          "confidence": 0.8963,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              691.0702456162572,
+              574.9005355834961,
+              4739.466516579513,
+              6199.690078735352
+            ]
+          ],
+          "body_visibility": {
+            "head": true,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 16,
+            "person_count": 1,
+            "head_visible_count": 1,
+            "head_clipped": false,
+            "all_heads_visible": true,
+            "pose_geometry_score": 0.9999999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7899985313415527,
+            "person_box_width_ratio": 0.8528325828867191,
+            "image_height": 7120,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1008.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1008.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1008.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4347.1,
+                4747.0,
+                6396.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8963
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边",
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边",
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边",
+          "腿部动作幅度大"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "full_body"
+      }
+    },
+    {
+      "id": "shoe-06",
+      "relative_path": "2026-9-4BMAI1125.jpg",
+      "source_sha256": "fa19c49cd31c292da22c422978e6905d29f038a34b03f19eee34901cf1f28ef4",
+      "pose_cache": {
+        "cache_file_sha256": "7256c23c47c887e7dc3c5fd038c6bf62f3dea2bf725bb39978617729f09caa00",
+        "created_at": "2026-09-26T14:34:56.659805+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1125.jpg",
+            "mtime_ns": 1789610411860000014,
+            "size": 24718383,
+            "sha256": "fa19c49cd31c292da22c422978e6905d29f038a34b03f19eee34901cf1f28ef4"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.8548,
+              "allow_mirror_extension": false,
+              "confidence": 0.6058,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "脚部关键点不足",
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3210.8,
+                4620,
+                5359.9
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.6058,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "脚部关键点不足",
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3210.8,
+                4620,
+                5359.9
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.6058,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "脚部关键点不足",
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3210.8,
+                4620,
+                5359.9
+              ]
+            }
+          },
+          "confidence": 0.6058,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              99.38055305480957,
+              0.0,
+              4620.0,
+              5178.65159702301
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": false,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 6,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.7666666666666666,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7471723556518555,
+            "person_box_width_ratio": 0.9784890577803442,
+            "image_height": 6931,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "cache_file_sha256": "f2cb58ec473047167b4b0527f5b0befbbd9c12a2f826f40101238cb557055ad2",
+        "created_at": "2026-09-26T14:35:07.618541+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1125.jpg",
+            "mtime_ns": 1789610411860000014,
+            "size": 24718383,
+            "sha256": "fa19c49cd31c292da22c422978e6905d29f038a34b03f19eee34901cf1f28ef4"
+          },
+          "model": {
+            "path": "models/segmentation/yolo11n-seg.onnx",
+            "mtime_ns": 1788675044996307492,
+            "size": 11763717
+          },
+          "pose_model": null,
+          "seg_model": {
+            "path": "models/segmentation/yolo11n-seg.onnx",
+            "mtime_ns": 1788675044996307492,
+            "size": 11763717
+          },
+          "purpose": "segmentation",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "segmentation"
+        },
+        "result": {
+          "available": true,
+          "model": "yolo11n-seg.onnx",
+          "confidence": 0.8304,
+          "mask_area_ratio": 0.3814,
+          "mask_edge_ratio": 0.1766,
+          "mask_bbox_ratio": [
+            0.0187,
+            0.0,
+            0.9688,
+            0.9812
+          ],
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1125.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8548,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1125.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1125.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3210.8,
+                4620.0,
+                5359.9
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.6058
+            }
+          ],
+          "risk_flags": [
+            "脚部关键点不足",
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "脚部关键点不足",
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8304,
+              "mask_area_ratio": 0.3814,
+              "mask_edge_ratio": 0.1766,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.9688,
+                0.9812
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "脚部关键点不足",
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-07",
+      "relative_path": "2026-9-4BMAI1132.jpg",
+      "source_sha256": "56610719e5f2768676833c9d582018ac420db246750efe634c04f985e6eb9732",
+      "pose_cache": {
+        "cache_file_sha256": "72cb46628620e6f7946f2eedefb05701ed0f6a027125b96c9d2c403010a6a1fa",
+        "created_at": "2026-09-26T14:34:57.337893+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1132.jpg",
+            "mtime_ns": 1789610410879999995,
+            "size": 17335408,
+            "sha256": "56610719e5f2768676833c9d582018ac420db246750efe634c04f985e6eb9732"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "full_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.892,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                4291.7,
+                4866,
+                6333.1
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 122.4,
+              "position_x": 0.8111,
+              "position_y": 0.8795,
+              "allow_mirror_extension": false,
+              "confidence": 0.892,
+              "target_crop_height_ratio": 0.4,
+              "protected_crop_bbox": [
+                0.0,
+                4291.7,
+                4866,
+                6333.1
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 122.4,
+              "position_x": 0.8111,
+              "position_y": 0.8795,
+              "allow_mirror_extension": false,
+              "confidence": 0.892,
+              "target_crop_height_ratio": 0.4,
+              "protected_crop_bbox": [
+                0.0,
+                4291.7,
+                4866,
+                6333.1
+              ]
+            }
+          },
+          "confidence": 0.892,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              298.5032947982249,
+              393.4262183189392,
+              4529.171699991751,
+              6132.285990142823
+            ]
+          ],
+          "body_visibility": {
+            "head": true,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 16,
+            "person_count": 1,
+            "head_visible_count": 1,
+            "head_clipped": false,
+            "all_heads_visible": true,
+            "pose_geometry_score": 0.9999999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7862528800964356,
+            "person_box_width_ratio": 0.8694345263447444,
+            "image_height": 7299,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1132.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1132.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.224,
+          "position_x": 0.8111,
+          "position_y": 0.8795,
+          "crop_ratio": 0.4,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1132.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.224,
+          "position_x": 0.8111,
+          "position_y": 0.8795,
+          "crop_ratio": 0.4,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4291.7,
+                4866.0,
+                6333.1
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.892
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "full_body"
+      }
+    },
+    {
+      "id": "shoe-08",
+      "relative_path": "2026-9-4BMAI1140.jpg",
+      "source_sha256": "929f2e903d38e224cec2b882f46570eaade9480b964e755bc69ed0cb5b327b30",
+      "pose_cache": {
+        "cache_file_sha256": "86d6a5ce6e4f864a2c95923e14172d884079434954cd26e8ab23ea3801f395af",
+        "created_at": "2026-09-26T14:34:58.118566+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1140.jpg",
+            "mtime_ns": 1789610415629999995,
+            "size": 20267078,
+            "sha256": "929f2e903d38e224cec2b882f46570eaade9480b964e755bc69ed0cb5b327b30"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.3458,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3891.6,
+                4747,
+                6555.3
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 79.9,
+              "position_x": 0.3934,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.3458,
+              "target_crop_height_ratio": 0.494,
+              "protected_crop_bbox": [
+                0.0,
+                3891.6,
+                4747,
+                6555.3
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 79.9,
+              "position_x": 0.3934,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.3458,
+              "target_crop_height_ratio": 0.494,
+              "protected_crop_bbox": [
+                0.0,
+                3891.6,
+                4747,
+                6555.3
+              ]
+            }
+          },
+          "confidence": 0.3458,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              825.707753630978,
+              0.0,
+              4076.1592956368627,
+              6333.638229370117
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 9,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8895559310913086,
+            "person_box_width_ratio": 0.6847380539300368,
+            "image_height": 7120,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "cache_file_sha256": "7a8fd5436bb1d2dfb310ada0fa0376a4ee2b82e9078ce116a4f2d4151375965d",
+        "created_at": "2026-09-26T14:35:08.199368+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1140.jpg",
+            "mtime_ns": 1789610415629999995,
+            "size": 20267078,
+            "sha256": "929f2e903d38e224cec2b882f46570eaade9480b964e755bc69ed0cb5b327b30"
+          },
+          "model": {
+            "path": "models/segmentation/yolo11n-seg.onnx",
+            "mtime_ns": 1788675044996307492,
+            "size": 11763717
+          },
+          "pose_model": null,
+          "seg_model": {
+            "path": "models/segmentation/yolo11n-seg.onnx",
+            "mtime_ns": 1788675044996307492,
+            "size": 11763717
+          },
+          "purpose": "segmentation",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "segmentation"
+        },
+        "result": {
+          "available": true,
+          "model": "yolo11n-seg.onnx",
+          "confidence": 0.8403,
+          "mask_area_ratio": 0.2667,
+          "mask_edge_ratio": 0.1062,
+          "mask_bbox_ratio": [
+            0.0187,
+            0.0,
+            0.775,
+            0.95
+          ],
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1140.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1140.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.799,
+          "position_x": 0.3934,
+          "position_y": 1.0,
+          "crop_ratio": 0.494,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1140.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.799,
+          "position_x": 0.3934,
+          "position_y": 1.0,
+          "crop_ratio": 0.494,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3891.6,
+                4747.0,
+                6555.3
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.3458
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "segmentation": {
+              "available": true,
+              "model": "yolo11n-seg.onnx",
+              "confidence": 0.8403,
+              "mask_area_ratio": 0.2667,
+              "mask_edge_ratio": 0.1062,
+              "mask_bbox_ratio": [
+                0.0187,
+                0.0,
+                0.775,
+                0.95
+              ],
+              "model_status": "ready",
+              "state": "已就绪",
+              "fallback": false
+            },
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-09",
+      "relative_path": "2026-9-4BMAI1142.jpg",
+      "source_sha256": "44fceac919d0a3247f0d5b51c419214ed89174ab193703776f721ac3fe859547",
+      "pose_cache": {
+        "cache_file_sha256": "29b601d0ce6638f6ff649c8b2993f01b1dd308ae5357c099de83dd98e4c8ce08",
+        "created_at": "2026-09-26T14:34:58.876229+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1142.jpg",
+            "mtime_ns": 1789610437580000043,
+            "size": 19822262,
+            "sha256": "44fceac919d0a3247f0d5b51c419214ed89174ab193703776f721ac3fe859547"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.9365,
+              "allow_mirror_extension": false,
+              "confidence": 0.7132,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2973.9,
+                4747,
+                6217.5
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.4924,
+              "position_y": 0.8233,
+              "allow_mirror_extension": false,
+              "confidence": 0.7132,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                2973.9,
+                4747,
+                6217.5
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.4924,
+              "position_y": 0.8233,
+              "allow_mirror_extension": false,
+              "confidence": 0.7132,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                2973.9,
+                4747,
+                6217.5
+              ]
+            }
+          },
+          "confidence": 0.7132,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              181.810702711168,
+              0.8345108032226562,
+              3951.1578821545404,
+              6007.287467956543
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": false,
+            "hands": false,
+            "torso_or_hip": false,
+            "visible_keypoints": 4,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.6194608893149423,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8436029434204102,
+            "person_box_width_ratio": 0.7940482787957389,
+            "image_height": 7120,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1142.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.9365,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1142.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4924,
+          "position_y": 0.8233,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1142.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4924,
+          "position_y": 0.8233,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2973.9,
+                4747.0,
+                6217.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7132
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-10",
+      "relative_path": "2026-9-4BMAI1148.jpg",
+      "source_sha256": "47203fd977218f72e97475416f60c182d074cb170b7ff476232f6db14ffdabd8",
+      "pose_cache": {
+        "cache_file_sha256": "dacf84fd691b67dea49597d3aec88db6af12f29e71945269eaa4fcd1e2fa80bf",
+        "created_at": "2026-09-26T14:34:59.335634+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1148.jpg",
+            "mtime_ns": 1789610430730000019,
+            "size": 10576287,
+            "sha256": "47203fd977218f72e97475416f60c182d074cb170b7ff476232f6db14ffdabd8"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.8626,
+              "allow_mirror_extension": false,
+              "confidence": 0.7446,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                17.3,
+                2811.2,
+                3820,
+                4304.0
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 133.6,
+              "position_x": 0.3548,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7446,
+              "target_crop_height_ratio": 0.381,
+              "protected_crop_bbox": [
+                17.3,
+                2811.2,
+                3820,
+                4304.0
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 133.6,
+              "position_x": 0.3548,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.7446,
+              "target_crop_height_ratio": 0.381,
+              "protected_crop_bbox": [
+                17.3,
+                2811.2,
+                3820,
+                4304.0
+              ]
+            }
+          },
+          "confidence": 0.7446,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              1034.0576629638672,
+              0.0,
+              3575.950086212158,
+              4158.435028553009
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 9,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7257303714752197,
+            "person_box_width_ratio": 0.6654168647246835,
+            "image_height": 5730,
+            "relief_score": 0.9345,
+            "flatness_score": 0.0655
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1148.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8626,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1148.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.336,
+          "position_x": 0.3548,
+          "position_y": 0.82,
+          "crop_ratio": 0.381,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1148.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.336,
+          "position_x": 0.3548,
+          "position_y": 0.82,
+          "crop_ratio": 0.381,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                17.3,
+                2811.2,
+                3820.0,
+                4304.0
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7446
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-11",
+      "relative_path": "2026-9-4BMAI1257.jpg",
+      "source_sha256": "6bf53dcb4e26a7cf1429c736926a40e65fd2e43b6114c62f99d861cbdedaae5c",
+      "pose_cache": {
+        "cache_file_sha256": "7d135137f8601c58beb9266b5d2410d69e4fd77843ff8041f90c623facd84f30",
+        "created_at": "2026-09-26T14:35:00.058252+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1257.jpg",
+            "mtime_ns": 1789610441769999981,
+            "size": 18691257,
+            "sha256": "6bf53dcb4e26a7cf1429c736926a40e65fd2e43b6114c62f99d861cbdedaae5c"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8706,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3175.2,
+                4638,
+                6363.2
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.4639,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8706,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                3175.2,
+                4638,
+                6363.2
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.4639,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8706,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                3175.2,
+                4638,
+                6363.2
+              ]
+            }
+          },
+          "confidence": 0.8706,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              586.4203185081482,
+              14.22554054260254,
+              4519.680080795288,
+              6148.483266448975
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 7,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8816122055053712,
+            "person_box_width_ratio": 0.848050832748413,
+            "image_height": 6958,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1257.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1257.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4639,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1257.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.4639,
+          "position_y": 1.0,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3175.2,
+                4638.0,
+                6363.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8706
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-12",
+      "relative_path": "2026-9-4BMAI1370.jpg",
+      "source_sha256": "ef8b928ee41fc65247c2e0bf226e3c3e7684d847f90f4b277dd22ecd7c10e16e",
+      "pose_cache": {
+        "cache_file_sha256": "77bf0402f44aacdcef448a0b4f6370a7f33247eaedaeecb39b7d3df0aac00d10",
+        "created_at": "2026-09-26T14:35:00.823759+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1370.jpg",
+            "mtime_ns": 1789610438500000000,
+            "size": 19396211,
+            "sha256": "ef8b928ee41fc65247c2e0bf226e3c3e7684d847f90f4b277dd22ecd7c10e16e"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.9097,
+              "allow_mirror_extension": false,
+              "confidence": 0.873,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3185.6,
+                4866,
+                6107.2
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.3868,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.873,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3185.6,
+                4866,
+                6107.2
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.3868,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.873,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3185.6,
+                4866,
+                6107.2
+              ]
+            }
+          },
+          "confidence": 0.873,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              0.0,
+              3.545866584777832,
+              4302.260991213453,
+              5900.767492675782
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 7,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8079492568969727,
+            "person_box_width_ratio": 0.884147347146209,
+            "image_height": 7299,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1370.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.9097,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1370.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.3868,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1370.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.3868,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3185.6,
+                4866.0,
+                6107.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.873
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-13",
+      "relative_path": "2026-9-4BMAI1372.jpg",
+      "source_sha256": "401c4cae0b25d01a92fccdca4ad4f01e39e3738f7d25cbd3036f480c3bcf66d6",
+      "pose_cache": {
+        "cache_file_sha256": "3644ec5b25093d25ab6655446b7bfc571ba74af6e1ecd4611eec8bb7dd1ec5c6",
+        "created_at": "2026-09-26T14:35:01.529426+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1372.jpg",
+            "mtime_ns": 1789610434299999952,
+            "size": 15883949,
+            "sha256": "401c4cae0b25d01a92fccdca4ad4f01e39e3738f7d25cbd3036f480c3bcf66d6"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 41.5,
+              "position_x": 1.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8527,
+              "target_crop_height_ratio": 0.471,
+              "protected_crop_bbox": [
+                1125.1,
+                3643.0,
+                4866,
+                5810.4
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 113.2,
+              "position_x": 0.7859,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8527,
+              "target_crop_height_ratio": 0.417,
+              "protected_crop_bbox": [
+                1125.1,
+                3643.0,
+                4866,
+                5810.4
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 113.2,
+              "position_x": 0.7859,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8527,
+              "target_crop_height_ratio": 0.417,
+              "protected_crop_bbox": [
+                1125.1,
+                3643.0,
+                4866,
+                5810.4
+              ]
+            }
+          },
+          "confidence": 0.8527,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              2129.8300689542107,
+              46.29813079833985,
+              4641.595127263222,
+              5615.503430843353
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 11,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.9999999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7630093574523925,
+            "person_box_width_ratio": 0.5161868183947824,
+            "image_height": 7299,
+            "relief_score": 0.8351,
+            "flatness_score": 0.1649
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1372.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.415,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.471,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1372.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 2.132,
+          "position_x": 0.7859,
+          "position_y": 0.82,
+          "crop_ratio": 0.417,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1372.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 2.132,
+          "position_x": 0.7859,
+          "position_y": 0.82,
+          "crop_ratio": 0.417,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                1125.1,
+                3643.0,
+                4866.0,
+                5810.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8527
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-14",
+      "relative_path": "2026-9-4BMAI1562.jpg",
+      "source_sha256": "f815c362582f05634c1aaf5d01e36fa7f94a1d9fef11b9019534e502b6078678",
+      "pose_cache": {
+        "cache_file_sha256": "2695dfc15b674a416bde15e94eb0cfdb5786ce64da881270ca7ca257608da169",
+        "created_at": "2026-09-26T14:35:02.268182+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1562.jpg",
+            "mtime_ns": 1789610435190000057,
+            "size": 18113608,
+            "sha256": "f815c362582f05634c1aaf5d01e36fa7f94a1d9fef11b9019534e502b6078678"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "full_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8544,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                4070.1,
+                4747,
+                6237.7
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8544,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                4070.1,
+                4747,
+                6237.7
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 1.0,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.8544,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "腿部动作幅度大"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                4070.1,
+                4747,
+                6237.7
+              ]
+            }
+          },
+          "confidence": 0.8544,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              1012.9540235540298,
+              426.4472427368164,
+              4371.944136593054,
+              6041.173767089844
+            ]
+          ],
+          "body_visibility": {
+            "head": true,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 16,
+            "person_count": 1,
+            "head_visible_count": 1,
+            "head_clipped": false,
+            "all_heads_visible": true,
+            "pose_geometry_score": 0.9999999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7885851860046387,
+            "person_box_width_ratio": 0.7076027202525857,
+            "image_height": 7120,
+            "relief_score": 0.9211,
+            "flatness_score": 0.0789
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1562.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1562.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1562.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 1.0,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                4070.1,
+                4747.0,
+                6237.7
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8544
+            }
+          ],
+          "risk_flags": [
+            "腿部动作幅度大"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "full_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "腿部动作幅度大"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "腿部动作幅度大"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "full_body"
+      }
+    },
+    {
+      "id": "shoe-15",
+      "relative_path": "2026-9-4BMAI1568.jpg",
+      "source_sha256": "50a98057e689fff8abb411960419405c01937c99cdd3d1208745eaafa7c4a68b",
+      "pose_cache": {
+        "cache_file_sha256": "d9a69b67bcf139b81e22351fe0af7cdce1c23b8881d8da33934cb5234860d265",
+        "created_at": "2026-09-26T14:35:03.082876+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1568.jpg",
+            "mtime_ns": 1789610436259999990,
+            "size": 21754058,
+            "sha256": "50a98057e689fff8abb411960419405c01937c99cdd3d1208745eaafa7c4a68b"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 1.0,
+              "position_y": 0.8835,
+              "allow_mirror_extension": false,
+              "confidence": 0.709,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2930.9,
+                4638,
+                5806.5
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 66.7,
+              "position_x": 0.3382,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.709,
+              "target_crop_height_ratio": 0.533,
+              "protected_crop_bbox": [
+                0.0,
+                2930.9,
+                4638,
+                5806.5
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 66.7,
+              "position_x": 0.3382,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.709,
+              "target_crop_height_ratio": 0.533,
+              "protected_crop_bbox": [
+                0.0,
+                2930.9,
+                4638,
+                5806.5
+              ]
+            }
+          },
+          "confidence": 0.709,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              135.74289464950562,
+              0.0,
+              4540.976843547821,
+              5610.144300270081
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 9,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8062869071960449,
+            "person_box_width_ratio": 0.9498132705688476,
+            "image_height": 6958,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1568.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 0.8835,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1568.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.667,
+          "position_x": 0.3382,
+          "position_y": 0.82,
+          "crop_ratio": 0.533,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1568.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.667,
+          "position_x": 0.3382,
+          "position_y": 0.82,
+          "crop_ratio": 0.533,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2930.9,
+                4638.0,
+                5806.5
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-16",
+      "relative_path": "2026-9-4BMAI1571.jpg",
+      "source_sha256": "3ce67a41955b4d6b4d563b87817a1ab6c4694420ff242b7272beb7757553aca1",
+      "pose_cache": {
+        "cache_file_sha256": "a2df4d04a37cb7c4ab768f9d97ebe97a399698d4aea5ee7287e5ecc64a3b7cfe",
+        "created_at": "2026-09-26T14:35:03.765630+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1571.jpg",
+            "mtime_ns": 1789610439710000038,
+            "size": 16038520,
+            "sha256": "3ce67a41955b4d6b4d563b87817a1ab6c4694420ff242b7272beb7757553aca1"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7932,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3888.6,
+                4747,
+                6371.4
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 89.7,
+              "position_x": 0.7808,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7932,
+              "target_crop_height_ratio": 0.469,
+              "protected_crop_bbox": [
+                0.0,
+                3888.6,
+                4747,
+                6371.4
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 89.7,
+              "position_x": 0.7808,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7932,
+              "target_crop_height_ratio": 0.469,
+              "protected_crop_bbox": [
+                0.0,
+                3888.6,
+                4747,
+                6371.4
+              ]
+            }
+          },
+          "confidence": 0.7932,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              1099.2656103445888,
+              11.090370178222656,
+              4412.532262197139,
+              6156.2690353393555
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 10,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8630868911743164,
+            "person_box_width_ratio": 0.6979706450079103,
+            "image_height": 7120,
+            "relief_score": 0.9338,
+            "flatness_score": 0.0662
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1571.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1571.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.897,
+          "position_x": 0.7808,
+          "position_y": 1.0,
+          "crop_ratio": 0.469,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1571.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.897,
+          "position_x": 0.7808,
+          "position_y": 1.0,
+          "crop_ratio": 0.469,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3888.6,
+                4747.0,
+                6371.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7932
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-17",
+      "relative_path": "2026-9-4BMAI1706.jpg",
+      "source_sha256": "e41d7ebd3fa77db2c9501e26927280c12074d5c777462a0241f0ef0c913b9a9c",
+      "pose_cache": {
+        "cache_file_sha256": "6fcfdb3377cf973323b1c290b1ded26315a2634784c53033d2cf8e22de718a77",
+        "created_at": "2026-09-26T14:35:04.566521+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1706.jpg",
+            "mtime_ns": 1789610440710000038,
+            "size": 21646538,
+            "sha256": "e41d7ebd3fa77db2c9501e26927280c12074d5c777462a0241f0ef0c913b9a9c"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8709,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2449.0,
+                4638,
+                5680.6
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.5628,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8709,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                2449.0,
+                4638,
+                5680.6
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 61.6,
+              "position_x": 0.5628,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8709,
+              "target_crop_height_ratio": 0.55,
+              "protected_crop_bbox": [
+                0.0,
+                2449.0,
+                4638,
+                5680.6
+              ]
+            }
+          },
+          "confidence": 0.8709,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              227.74114122390748,
+              1.8514164447784425,
+              4421.755709266663,
+              5488.534500217438
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": false,
+            "hands": false,
+            "torso_or_hip": false,
+            "visible_keypoints": 4,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.6499999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.78865647315979,
+            "person_box_width_ratio": 0.904272222518921,
+            "image_height": 6957,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1706.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1706.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.5628,
+          "position_y": 0.82,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1706.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.616,
+          "position_x": 0.5628,
+          "position_y": 0.82,
+          "crop_ratio": 0.55,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2449.0,
+                4638.0,
+                5680.6
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8709
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-18",
+      "relative_path": "2026-9-4BMAI1714.jpg",
+      "source_sha256": "86f0a74117c28e3ff6e35140a3f145bdfe2f2ffa7af215a3b681ed6353a7f0ae",
+      "pose_cache": {
+        "cache_file_sha256": "919c88404041b3fb3fd8950dd49f9292818a672aa8927b7ccdcf7488648bc6ef",
+        "created_at": "2026-09-26T14:35:05.383902+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1714.jpg",
+            "mtime_ns": 1789610442870000005,
+            "size": 22452807,
+            "sha256": "86f0a74117c28e3ff6e35140a3f145bdfe2f2ffa7af215a3b681ed6353a7f0ae"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 0.8262,
+              "allow_mirror_extension": false,
+              "confidence": 0.9069,
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3081.0,
+                4637,
+                5387.8
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 96.8,
+              "position_x": 0.6747,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.9069,
+              "target_crop_height_ratio": 0.452,
+              "protected_crop_bbox": [
+                0.0,
+                3081.0,
+                4637,
+                5387.8
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 96.8,
+              "position_x": 0.6747,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.9069,
+              "target_crop_height_ratio": 0.452,
+              "protected_crop_bbox": [
+                0.0,
+                3081.0,
+                4637,
+                5387.8
+              ]
+            }
+          },
+          "confidence": 0.9069,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              220.6580795935721,
+              11.916883850097655,
+              4516.361714534615,
+              5206.03970413208
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": false,
+            "hands": false,
+            "torso_or_hip": false,
+            "visible_keypoints": 4,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.6499999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7467111587524415,
+            "person_box_width_ratio": 0.9263971608671647,
+            "image_height": 6956,
+            "relief_score": 1.0,
+            "flatness_score": 0.0
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1714.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 0.8262,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1714.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.968,
+          "position_x": 0.6747,
+          "position_y": 0.82,
+          "crop_ratio": 0.452,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1714.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.968,
+          "position_x": 0.6747,
+          "position_y": 0.82,
+          "crop_ratio": 0.452,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3081.0,
+                4637.0,
+                5387.8
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.9069
+            }
+          ],
+          "risk_flags": [],
+          "requires_review": false,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": false,
+            "shoe_risk_reasons": [],
+            "review_hint": null,
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": false,
+        "shoe_risk_reasons": [],
+        "review_hint": null,
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-19",
+      "relative_path": "2026-9-4BMAI1719.jpg",
+      "source_sha256": "36bd823e1aa6232d1588a01ddff2632aea6332f48b00beacab7227899d18d8a8",
+      "pose_cache": {
+        "cache_file_sha256": "3d6907082ce6b8cdcd5bbf4b1867a2707165d3d8256c4830213d13c42e8c88c8",
+        "created_at": "2026-09-26T14:35:06.234118+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI1719.jpg",
+            "mtime_ns": 1789610447090000033,
+            "size": 23756930,
+            "sha256": "36bd823e1aa6232d1588a01ddff2632aea6332f48b00beacab7227899d18d8a8"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 1.0,
+              "position_y": 0.82,
+              "allow_mirror_extension": false,
+              "confidence": 0.8458,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                2668.7,
+                4638,
+                5482.2
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.0,
+              "position_y": 0.9767,
+              "allow_mirror_extension": false,
+              "confidence": 0.8458,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2668.7,
+                4638,
+                5482.2
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.0,
+              "position_y": 0.9767,
+              "allow_mirror_extension": false,
+              "confidence": 0.8458,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                2668.7,
+                4638,
+                5482.2
+              ]
+            }
+          },
+          "confidence": 0.8458,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              339.3011733055115,
+              0.0,
+              4636.825213623047,
+              5296.7846823692325
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": true,
+            "lower_body": true,
+            "feet": true,
+            "hips": true,
+            "knees": true,
+            "arms": true,
+            "hands": true,
+            "torso_or_hip": true,
+            "visible_keypoints": 10,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.8833333333333333,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.7613604545593262,
+            "person_box_width_ratio": 0.9265899181365965,
+            "image_height": 6957,
+            "relief_score": 0.9923,
+            "flatness_score": 0.0077
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI1719.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 1.0,
+          "position_y": 0.82,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI1719.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0,
+          "position_y": 0.9767,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI1719.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.0,
+          "position_y": 0.9767,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                2668.7,
+                4638.0,
+                5482.2
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.8458
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    },
+    {
+      "id": "shoe-20",
+      "relative_path": "2026-9-4BMAI2582.jpg",
+      "source_sha256": "f813c91b091436718042a1af560d488cf4ab9060b3c730e49826fd5c02f848b0",
+      "pose_cache": {
+        "cache_file_sha256": "767b218b02b4717350b1acbfa897d9b82f2ec87a2bba32518f83247dd7e12fdb",
+        "created_at": "2026-09-26T14:35:06.994674+00:00",
+        "identity": {
+          "cache_version": 8,
+          "source": {
+            "path": "2026-9-4BMAI2582.jpg",
+            "mtime_ns": 1789610468710000038,
+            "size": 18950220,
+            "sha256": "f813c91b091436718042a1af560d488cf4ab9060b3c730e49826fd5c02f848b0"
+          },
+          "model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "pose_model": {
+            "path": "models/pose/yolo11n-pose.onnx",
+            "mtime_ns": 1788675044767281055,
+            "size": 11853451
+          },
+          "seg_model": null,
+          "purpose": "pose",
+          "composition_rules_version": "v3-composition-1",
+          "category": "shoes",
+          "output_size": "all"
+        },
+        "result": {
+          "composition_mode": "zoom_focus",
+          "model_view": "lower_body",
+          "by_size": {
+            "1440x1440": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 0.0,
+              "position_x": 0.5,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7697,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.95,
+              "protected_crop_bbox": [
+                0.0,
+                3654.3,
+                4866,
+                6379.4
+              ]
+            },
+            "1440x1920": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.6313,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7697,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3654.3,
+                4866,
+                6379.4
+              ]
+            },
+            "1125x1500": {
+              "composition_mode": "zoom_focus",
+              "scale_adjustment_percent": 8.4,
+              "position_x": 0.6313,
+              "position_y": 1.0,
+              "allow_mirror_extension": false,
+              "confidence": 0.7697,
+              "shoe_risk": true,
+              "shoe_risk_reasons": [
+                "人物框贴边"
+              ],
+              "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+              "target_crop_height_ratio": 0.82,
+              "protected_crop_bbox": [
+                0.0,
+                3654.3,
+                4866,
+                6379.4
+              ]
+            }
+          },
+          "confidence": 0.7697,
+          "detector": "yolo11n-pose.onnx",
+          "person_count": 1,
+          "person_bboxes": [
+            [
+              0.0,
+              16.004429626464844,
+              3567.5457589099324,
+              6164.239162445068
+            ]
+          ],
+          "body_visibility": {
+            "head": false,
+            "upper_body": false,
+            "lower_body": true,
+            "feet": true,
+            "hips": false,
+            "knees": true,
+            "arms": false,
+            "hands": false,
+            "torso_or_hip": false,
+            "visible_keypoints": 4,
+            "person_count": 1,
+            "head_visible_count": 0,
+            "head_clipped": true,
+            "all_heads_visible": false,
+            "pose_geometry_score": 0.6499999999999999,
+            "feet_clipped": false,
+            "person_box_height_ratio": 0.8423393249511718,
+            "person_box_width_ratio": 0.733157780293862,
+            "image_height": 7299,
+            "relief_score": 0.9787,
+            "flatness_score": 0.0213
+          },
+          "model_status": "ready",
+          "state": "已就绪",
+          "fallback": false
+        }
+      },
+      "segmentation_cache": {
+        "status": "not_run",
+        "reason": "no valid segmentation cache for this source"
+      },
+      "composition_plans": {
+        "1440x1440": {
+          "source": "2026-9-4BMAI2582.jpg",
+          "size": "1440x1440",
+          "composition_mode": "zoom_focus",
+          "scale": 1.0,
+          "position_x": 0.5,
+          "position_y": 1.0,
+          "crop_ratio": 0.95,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1440x1920": {
+          "source": "2026-9-4BMAI2582.jpg",
+          "size": "1440x1920",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.6313,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        },
+        "1125x1500": {
+          "source": "2026-9-4BMAI2582.jpg",
+          "size": "1125x1500",
+          "composition_mode": "zoom_focus",
+          "scale": 1.084,
+          "position_x": 0.6313,
+          "position_y": 1.0,
+          "crop_ratio": 0.82,
+          "protected_regions": [
+            {
+              "kind": "shoe",
+              "bbox": [
+                0.0,
+                3654.3,
+                4866.0,
+                6379.4
+              ],
+              "source": "pose",
+              "required": true,
+              "confidence": 0.7697
+            }
+          ],
+          "risk_flags": [
+            "人物框贴边"
+          ],
+          "requires_review": true,
+          "evidence": {
+            "model_view": "lower_body",
+            "shoe_risk": true,
+            "shoe_risk_reasons": [
+              "人物框贴边"
+            ],
+            "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+            "protected_region_source": "pose",
+            "fallback_reason": null,
+            "skipped_by_scope": false,
+            "composition_rules_version": "v3-composition-1"
+          },
+          "fallback": false,
+          "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+          "fallback_reason": "",
+          "skipped_by_scope": false
+        }
+      },
+      "plan_summary": {
+        "shoe_risk": true,
+        "shoe_risk_reasons": [
+          "人物框贴边"
+        ],
+        "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+        "fallback": false,
+        "fallback_reason": null,
+        "skipped_by_scope": false,
+        "person_count": 1,
+        "model_view": "lower_body"
+      }
+    }
+  ]
+}

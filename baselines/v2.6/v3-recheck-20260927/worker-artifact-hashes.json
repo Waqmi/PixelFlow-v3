@@ -1,0 +1,134 @@
+{
+  "generated_at": "2026-09-27T07:53:32.625401+00:00",
+  "artifacts": [
+    {
+      "path": "worker/dist/pixelflow-worker",
+      "exists": true,
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
+      "size": 32363920,
+      "architecture": "Mach-O 64-bit executable arm64",
+      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json",
+      "previous_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0"
+    },
+    {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "exists": true,
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
+      "size": 32363920,
+      "architecture": "Mach-O 64-bit executable arm64",
+      "previous_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+      "synchronized_with": "worker/dist/pixelflow-worker",
+      "historical_sha256": "69205a84880b990d577a57cbafa17b7002dec54b11c09817d8bfdd7135a2bf50",
+      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json"
+    },
+    {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
+      "exists": true,
+      "sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976",
+      "size": 9927024,
+      "architecture": "Mach-O 64-bit executable arm64",
+      "previous_sha256": "9aefd35e5a79125d65e802a576f2740740d85f5235ec857b1e08e68f4a09a9f8",
+      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json"
+    }
+  ],
+  "experiments": {
+    "experimental_onedir": {
+      "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "exists": true,
+      "sha256": "6b4aa3da9af69ca93e1c0c8edda4444e91bbc333e9b5692494e69d9439a2c1c6",
+      "size": 3431712,
+      "architecture": "Mach-O 64-bit executable arm64",
+      "build": "PyInstaller 6.22.0 onedir experiment",
+      "startup_test": "ping, v3 product+VIP generation (typed validation 2/2), probe_models fallback, shutdown passed"
+    }
+  },
+  "resources": {
+    "path": "worker/resources",
+    "sha256": "3d27d0639aa1bd498c4de42f14a22d9a2e04839e581d55a57a95d1069058e9d5",
+    "files": [
+      {
+        "path": "worker/resources/app-icon.icns",
+        "sha256": "cbb6c720a2c1ef254115af9ca4e55818d81cf549f5b2a8d861850cf5a58e5e40",
+        "size": 427811
+      },
+      {
+        "path": "worker/resources/app-icon.ico",
+        "sha256": "043a80ee4707ca918e00ea5348f84773ffa5546ac1cf5cfe1ebedcca2ba6597f",
+        "size": 33810
+      },
+      {
+        "path": "worker/resources/settings-02-stroke-rounded.svg",
+        "sha256": "4d409646a2bb4ad261fa64c3b4e7ac93ffd09ada78aa9b2fb41d387fabdf4e2c",
+        "size": 1833
+      },
+      {
+        "path": "worker/resources/templates/category_templates.json",
+        "sha256": "f4cc71fca52091a7ab133d4b8f193e8a292f23e9c3afdc17711eb695a4e0e972",
+        "size": 2283
+      },
+      {
+        "path": "worker/resources/templates/render_rules.json",
+        "sha256": "e25a038ceaa89a7607022759e69c9e4ecd7c256d5b417a00bbfda9e0bd319327",
+        "size": 205
+      },
+      {
+        "path": "worker/resources/下拉.svg",
+        "sha256": "bd2f92161e4859bafa7fe0a3d1a6a44ef5c0d6aba4f33526947ce066f6350619",
+        "size": 225
+      },
+      {
+        "path": "worker/resources/唯品会边框.png",
+        "sha256": "9aa77036e79af69e4a1bd5bde67d9312cba63707cc759fb7f31eeaab5f4cda53",
+        "size": 615898
+      },
+      {
+        "path": "worker/resources/新logo 1440 2.png",
+        "sha256": "5b17f9186ad47276f37b31cc26dd22b7aede9a2d7d7df1606ac50e3fb5ce4b34",
+        "size": 10883
+      },
+      {
+        "path": "worker/resources/新logo 1440.png",
+        "sha256": "79f2960270a4995f95bef0e4712455d0aad9b24af89aeb34e625a9b0ce58f332",
+        "size": 11058
+      },
+      {
+        "path": "worker/resources/新logo 1920 2.png",
+        "sha256": "63c9bc0ce176d0443781bb018462c0d03c4732ffc20b9e20490390cfe699ad55",
+        "size": 13563
+      },
+      {
+        "path": "worker/resources/新logo 1920.png",
+        "sha256": "49568e19c8a6e546b2c8a66d8f92e96c0aab1d87a48429d64ce5ac67be945fb3",
+        "size": 13738
+      }
+    ]
+  },
+  "models": {
+    "path": "models",
+    "sha256": "2d8086fdbcbef70fdc86fd9ed37f78e6112dbc7ab758d7eefd67ebdaa41844ff",
+    "files": [
+      {
+        "path": "models/.DS_Store",
+        "sha256": "210ae567a30355ce24fd97da5ec7cc6c64543ab481d79da3f653872524e6709c",
+        "size": 6148
+      },
+      {
+        "path": "models/README.md",
+        "sha256": "ed819181759a22ac8b2f5cc8a61e34a7b1b3136514003164aacacc6a31dc0d1b",
+        "size": 529
+      },
+      {
+        "path": "models/pose/yolo11n-pose.onnx",
+        "sha256": "86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8",
+        "size": 11853451
+      },
+      {
+        "path": "models/segmentation/yolo11n-seg.onnx",
+        "sha256": "52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55",
+        "size": 11763717
+      }
+    ]
+  },
+  "latest_protocol_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
+  "latest_package_evidence": "baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json"
+}

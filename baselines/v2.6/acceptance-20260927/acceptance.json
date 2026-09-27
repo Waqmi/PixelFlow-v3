@@ -1,0 +1,38 @@
+{
+  "schema_version": "v3-acceptance-1",
+  "generated_at": "2026-09-27T09:25:27.891486+00:00",
+  "root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "checks": [
+    {
+      "name": "worker_tests",
+      "command": [
+        "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "worker/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "",
+      "stderr_tail": ".......................................................................................\n----------------------------------------------------------------------\nRan 87 tests in 24.713s\n\nOK\n"
+    }
+  ],
+  "artifacts": {
+    "bundled_worker": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "source_worker": {
+      "path": "worker/dist/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    }
+  },
+  "manual": {
+    "desktop_ui": "pending: run T2 host-permission regression and attach desktop-app-ui-audit-manual.json",
+    "release": "pending: signing, notarization, Windows packaging"
+  }
+}

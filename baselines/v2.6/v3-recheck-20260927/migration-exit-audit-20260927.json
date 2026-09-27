@@ -1,0 +1,119 @@
+{
+  "schema_version": "v3-renderer-exit-audit-1",
+  "generated_at": "2026-09-27T07:53:32.723355+00:00",
+  "repository": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "checks": [
+    {
+      "id": "A-contracts",
+      "status": "passed",
+      "evidence": [
+        "worker/pixelflow_core/contracts.py",
+        "worker/tests/test_contracts.py"
+      ],
+      "detail": "four builders validate and JSON serialize"
+    },
+    {
+      "id": "B-v3-algorithms",
+      "status": "passed",
+      "evidence": [
+        "worker/pixelflow_core/renderer.py",
+        "worker/pixelflow_core/shoe_composition.py",
+        "worker/pixelflow_core/model_cache.py",
+        "worker/tests/test_renderer.py",
+        "worker/tests/test_shoe_composition.py"
+      ],
+      "detail": "Pillow algorithms and composition_rules_version=v3-composition-1"
+    },
+    {
+      "id": "C-E-four-output-kinds",
+      "status": "passed",
+      "evidence": [
+        "baselines/v2.6/v3-recheck-20260927/v3-output-kind-report-20260927.json"
+      ],
+      "detail": {
+        "outputs": 180,
+        "failures": 0,
+        "typed_renderer_validated": 180,
+        "typed_renderer_failed": 0,
+        "formal_output_persisted": false
+      }
+    },
+    {
+      "id": "D-native-model-evidence",
+      "status": "passed",
+      "evidence": [
+        "baselines/v2.6/v3-recheck-20260927/v3-native-model-evidence.json"
+      ],
+      "detail": {
+        "sources": 20,
+        "fallback": 0,
+        "pose_ready": 20,
+        "segmentation_ready": 20,
+        "typed_plans": 60,
+        "requires_review": 8,
+        "skipped_by_scope": 0
+      }
+    },
+    {
+      "id": "F-isolation-and-fallback",
+      "status": "passed",
+      "evidence": [
+        "worker/pixelflow_core/engine.py",
+        "worker/tests/test_engine.py",
+        "worker/tests/test_worker_process.py",
+        "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json"
+      ],
+      "detail": "exception and per-file reported failures both route to legacy fallback"
+    },
+    {
+      "id": "G-worker-app",
+      "status": "passed",
+      "evidence": [
+        "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
+        "baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json"
+      ],
+      "detail": "Worker protocol and app startup audit passed"
+    },
+    {
+      "id": "test-suite",
+      "status": "passed",
+      "evidence": [
+        "worker/tests"
+      ],
+      "detail": {
+        "tests": 83,
+        "returncode": 0,
+        "summary": [
+          "",
+          "OK"
+        ]
+      }
+    },
+    {
+      "id": "legacy-cycle",
+      "status": "active",
+      "evidence": [
+        "docs/v3-Renderer独立化阶段目标.md",
+        "baselines/v2.6/v3-recheck-20260927/legacy-compatibility-cycle.json"
+      ],
+      "detail": "retain legacy for one complete compatibility cycle before removal review"
+    }
+  ],
+  "artifacts": {
+    "worker_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "app_worker_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "worker_app_hash_match": true
+  },
+  "limitations": [
+    "ordinary sandbox PyInstaller launch still reports semctl: Operation not permitted; host-permission acceptance passed",
+    "desktop app audit covered startup/Worker launch/controlled exit, not UI-driven generation",
+    "historical .app pixel parity is not claimed; both baseline reports remain persisted",
+    "desktop-app-ui-audit-20260927.json records classification/confirmation-page smoke but no completed generation; this remains unverified."
+  ],
+  "completion_status": "technical_exit_conditions_passed_legacy_compatibility_cycle_active",
+  "static": {
+    "renderer_legacy_import": false,
+    "legacy_reverse_renderer_import": false,
+    "legacy_reverse_renderer_import_files": []
+  }
+}

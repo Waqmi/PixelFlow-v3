@@ -35,7 +35,7 @@
 - [x] Tauri Host 最小桥接已建立并通过 macOS `cargo check` / release 构建
 - [x] macOS arm64 `.app/.dmg` 已完成一次资源映射回归（内置 `pixelflow-worker`）
 
-当前自动化回归：`worker/tests` 共 27 项，全部通过。
+当前自动化回归：`worker/tests` 共 64 个测试方法，全部通过；进程测试使用工作区外置的 16 张固定素材。
 
 ## 进入 Vue UI 的门槛
 

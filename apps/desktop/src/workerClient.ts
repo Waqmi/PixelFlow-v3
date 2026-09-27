@@ -1,7 +1,8 @@
 import {
   createRequest,
+  isWorkerEventType,
+  parseWorkerMessage,
   WORKER_PROTOCOL,
-  type WorkerEventType,
   type WorkerMessage,
   type WorkerRequestType,
 } from './workerProtocol'
@@ -23,7 +24,12 @@ export class WorkerClient {
   private readonly handlers = new Set<MessageHandler>()
   private nextRequest = 1
 
-  constructor(private readonly bridge: WorkerBridge, onMessage?: MessageHandler) {
+  constructor(
+    private readonly bridge: WorkerBridge,
+    onMessage?: MessageHandler,
+    private readonly requestPrefix = 'ui',
+    private readonly requestTimeoutMs = 30_000,
+  ) {
     this.connected = true
     if (onMessage) this.handlers.add(onMessage)
     this.unsubscribe = bridge.subscribe((line) => this.receive(line))
@@ -35,9 +41,40 @@ export class WorkerClient {
   }
 
   request<T extends object>(type: WorkerRequestType, payload: T): string {
-    const requestId = `ui-${this.nextRequest++}`
+    const requestId = `${this.requestPrefix}-${this.nextRequest++}`
     this.bridge.send(JSON.stringify(createRequest(requestId, type, payload)))
     return requestId
+  }
+
+  requestResult<TPayload extends object, TResult>(
+    type: WorkerRequestType,
+    payload: TPayload,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<TResult> {
+    const requestId = `${this.requestPrefix}-${this.nextRequest++}`
+    return new Promise((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const stop = this.onMessage((message) => {
+        if (message.request_id !== requestId) return
+        stop()
+        if (timer) clearTimeout(timer)
+        if (message.type === 'done') resolve(message.payload as TResult)
+        else reject(new Error(String((message.payload as { message?: string }).message || 'Worker request failed')))
+      })
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => {
+          stop()
+          reject(new Error(`Worker request timed out after ${timeoutMs}ms`))
+        }, timeoutMs)
+      }
+      try {
+        this.bridge.send(JSON.stringify(createRequest(requestId, type, payload)))
+      } catch (error) {
+        stop()
+        if (timer) clearTimeout(timer)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
+    })
   }
 
   dispose() {
@@ -46,16 +83,8 @@ export class WorkerClient {
   }
 
   private receive(line: string) {
-    try {
-      const message = JSON.parse(line) as WorkerMessage
-      if (message.protocol !== WORKER_PROTOCOL || !this.isEvent(message.type)) return
-      this.handlers.forEach((handler) => handler(message))
-    } catch {
-      // A malformed line must not break the UI event loop.
-    }
-  }
-
-  private isEvent(type: WorkerMessage['type']): type is WorkerEventType {
-    return ['ready', 'status', 'progress', 'preview_ready', 'done', 'cancelled', 'error'].includes(type)
+    const message = parseWorkerMessage(line)
+    if (!message || message.protocol !== WORKER_PROTOCOL || !isWorkerEventType(message.type)) return
+    this.handlers.forEach((handler) => handler(message))
   }
 }

@@ -1,0 +1,60 @@
+{
+  "schema_version": "v3-output-kind-report-1",
+  "generated_at": "2026-09-27",
+  "renderer": "typed-v3",
+  "reports": {
+    "product_main": {
+      "source_count": 16,
+      "outputs": 96,
+      "typed_renderer_validated": 96,
+      "typed_renderer_failed": 0,
+      "failures": [],
+      "evidence": "render-report-four-kinds-20260927.json"
+    },
+    "model": {
+      "source_count": 20,
+      "outputs": 60,
+      "typed_renderer_validated": 60,
+      "typed_renderer_failed": 0,
+      "failures": [],
+      "evidence": "v3-native-model-render-report.json",
+      "replay_mode": "typed_plan_only"
+    },
+    "transparent": {
+      "source_count": 2,
+      "outputs": 8,
+      "typed_renderer_validated": 8,
+      "typed_renderer_failed": 0,
+      "failures": [],
+      "evidence": "render-report-four-kinds-20260927.json",
+      "sizes": [
+        "800x800",
+        "1440x1440",
+        "1440x1920",
+        "1440x2160"
+      ]
+    },
+    "vip": {
+      "source_count": 16,
+      "outputs": 16,
+      "typed_renderer_validated": 16,
+      "typed_renderer_failed": 0,
+      "failures": [],
+      "evidence": "render-report-four-kinds-20260927.json",
+      "size": "1440x1440",
+      "formal_logo": "无Logo"
+    }
+  },
+  "aggregate": {
+    "outputs": 180,
+    "failures": 0,
+    "typed_renderer_validated": 180,
+    "typed_renderer_failed": 0,
+    "formal_output_persisted": false
+  },
+  "notes": [
+    "Product/main, transparent, and VIP counts come from the same isolated v3 run; VIP outputs are now included in typed validation via the 1440x1440 directory rule.",
+    "Model outputs are replayed from saved typed Pose/Seg plans without a Pose/Seg process.",
+    "The report is evidence for v3 output coverage and does not claim pixel parity with the historical .app baseline."
+  ]
+}

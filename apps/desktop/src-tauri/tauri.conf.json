@@ -6,27 +6,30 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run worker:build && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173"
+    },
     "windows": [
       {
-        "title": "PixelFlow v3 beta",
-        "width": 1240,
-        "height": 820,
-        "minWidth": 960,
-        "minHeight": 640,
+        "title": "PixelFlow",
+        "width": 1120,
+        "height": 848,
+        "minWidth": 900,
+        "minHeight": 768,
         "resizable": true
       }
-    ],
-    "security": { "csp": null }
+    ]
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "icon": ["icons/icon.icns", "icons/icon.ico", "icons/icon.png"],
     "resources": {
-      "../../../worker/dist/pixelflow-worker": "pixelflow-worker"
+      "../../../worker/dist-ondir/pixelflow-worker": "pixelflow-worker"
     }
   }
 }
