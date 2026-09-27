@@ -7,6 +7,8 @@ on:
 
 jobs:
   worker:
+    env:
+      PYTHONPATH: worker
     strategy:
       matrix:
         os: [macos-14, windows-2022]

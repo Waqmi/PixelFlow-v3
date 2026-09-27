@@ -126,3 +126,10 @@
 ### T2 rebuild attempt
 - 为避免使用 18:02 的旧 `.app`，尝试 `npm run tauri:build` 重建当前包；`beforeBuildCommand` 在 Python 3.9 阶段因缺少 PyInstaller 失败。
 - 未将旧包的第二次分类卡住归因到当前源码，也未伪造新 `.app` 证据；该重建继续归入 T7 Python/独立环境阻塞。
+
+### T2/T9 corrective maintenance
+- `apps/desktop/src/App.vue` 增加确认窗口 stale label 恢复：已有窗口展示/聚焦失败时关闭并重建，避免分类完成后确认页不可见。
+- 分类进度增加 120 秒无进展 watchdog；取消请求记录 request/job ID，处理 Worker `cancelling`/`idle`、错误和 15 秒超时，避免 UI 永久停留在“正在安全停止”。这只改善前端收敛，不替代宿主复跑证据。
+- `.github/workflows/v3.yml` 的 Worker job 增加 `PYTHONPATH=worker`，修复从仓库根目录运行 unittest 时导入路径不稳定的问题。
+- 验证：Vue `npm run build`、`npm run protocol:check`、`git diff --check`、Tauri `cargo check` 和 `cargo test --bin pixelflow-desktop`（4/4）通过。
+- `tools/run_acceptance.py --skip-desktop --full-evidence` 在当前 Python 3.9 环境失败：缺少 Pillow，Worker 13 项进程测试和 renderer baseline 无法启动；该失败已保留为未满足环境证据，未覆盖此前 Python 3.14 的 93/93 报告。

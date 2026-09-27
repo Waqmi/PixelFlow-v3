@@ -105,6 +105,15 @@
 - 解锁后复跑暴露出更具体的 UI 问题：分类进度显示 36/36 但没有发出可见的完成/确认状态；安全取消也未在观察窗口内收敛。应优先检查第二次分类请求的 Worker done/error 事件和前端 request id 过滤，确认是否为多实例 Worker 或旧请求残留。
 - 当前 `.app` 构建时间为 18:02；重建当前源码时 `npm run tauri:build` 在 `worker/build_worker.py` 阶段因 Python 3.9 缺少 PyInstaller 失败。因此旧包 UI 卡住不能作为当前源码回归结论。
 
+## T2/T9 corrective findings
+- `cancel_generation` 的响应使用取消请求自身的 request ID，而分类/生成终态事件使用原任务 request ID；此前前端未处理取消响应为 `idle` 或取消请求错误，因此任务在竞态结束时可能永久显示“正在安全停止”。现已记录取消请求与目标任务 ID，并加入 idle、错误和超时收敛。
+- 确认窗口复用依赖 `WebviewWindow.getByLabel('confirm')`；若窗口标签残留但展示/聚焦失败，分类已完成也无法让用户看到确认页。现已在失败时关闭 stale 窗口并重建。
+- 分类 watchdog 按“无进度”而非固定总时长重置，120 秒无 Worker 事件后请求取消并明确提示重试；不能替代宿主权限下的正式回归。
+- CI Worker job 从仓库根目录执行测试，显式设置 `PYTHONPATH=worker`，避免依赖本地环境隐式导入路径。
+
+## 2026-09-27 acceptance environment failure
+- 当前默认 `python3` 为 `/Library/Frameworks/Python.framework/Versions/3.9/bin/python3`，未安装 Pillow；本轮 acceptance runner 的 Worker 进程测试与 renderer baseline 失败，错误为 `ModuleNotFoundError: No module named 'PIL'`。此前 Python 3.14 环境的 93/93 报告仍是有效基线，本轮不覆盖或伪造通过结果。
+
 ## T4/T6 review
 - T4 现有实现和 Worker 证据一致：IntersectionObserver 懒加载、并发队列、198×138 预览限制、LRU 128 缓存、canonical scope；300/300 响应耗时 6.03 秒。宿主首屏 1 秒交互仍没有可核实数据。
 - T6 人工延期项仍合理；JOB-06 仅 Worker 264/264 已通过，宿主增量 UI 仍等待解锁后复跑。

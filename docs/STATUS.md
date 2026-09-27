@@ -17,14 +17,14 @@
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
-| T2 `.app` 完整回归 | ⚠️ 首轮通过，增量复用仍需修复 | `desktop-app-ui-audit-host-rerun-20260927.json`：36 张素材首轮生成 264 个输出并完成手动分类；解锁后第二次分类在 36/36 后未进入确认页，安全取消也未及时收敛，未标记复用通过 |
+| T2 `.app` 完整回归 | ⚠️ 首轮通过，增量复用待宿主复跑 | `desktop-app-ui-audit-host-rerun-20260927.json`：36 张素材首轮生成 264 个输出并完成手动分类；前端已增加确认窗口 stale label 恢复、分类无响应超时和取消 idle/超时收敛，仍需宿主复跑确认 264→264 |
 | T3 当前 legacy 基线 | ✅ 基线完成，候选修复待视觉复核 | 正式报告仍为 120/120 配对、52 个需修复；candidate2 固定 16 张素材为 120/120、0 个差异，见 `v3-t3-candidate2-compare-report-20260927.json`，未改写正式基线 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
 | T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
 | T7 onedir/Python 3.12 | 进行中 | onedir app 已重建并完成 ping/生成双跑/退出；当前 Python 3.9.13，需在 Python 3.12 环境重跑 |
 | T8 复核与回退可见性 | ✅ 已实现，真实批次追踪待补 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`apps/desktop/src/App.vue` |
-| T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；已将进度状态抽出为 `src/composables/useTaskProgress.ts`，完整 views 拆分与 Vitest 仍待处理（当前环境无法安装新 npm 依赖） |
+| T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；Worker CI job 已固定 `PYTHONPATH=worker`，已将进度状态和关于页抽出；完整 views 拆分与 Vitest 仍待处理（当前环境无法安装新 npm 依赖） |
 | T10 发布 | 受环境阻塞 | 未签名 arm64 `.app` 已完成启动/Worker 验证；签名、公证、DMG 和 Windows 安装仍依赖对应环境 |
 | T11 legacy 周期 | 🔄 已定义，周期进行中 | [`docs/legacy-cycle-beta.2.md`](legacy-cycle-beta.2.md) 与 [`docs/legacy-cycle-beta.2.json`](legacy-cycle-beta.2.json)；尚未满足 14 天或 2 个真实批次 |
 

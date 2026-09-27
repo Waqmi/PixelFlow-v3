@@ -161,7 +161,11 @@ const classificationProgress = ref(0)
 const generationRequestId = ref<string>()
 const classificationRequestId = ref<string>()
 const modelProbeRequestId = ref<string>()
+const cancelRequestId = ref<string>()
+const cancelTargetRequestId = ref<string>()
 let worker: WorkerClient | undefined
+let classificationWatchdog: ReturnType<typeof window.setTimeout> | undefined
+let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
@@ -458,10 +462,15 @@ async function openConfirmWindow() {
   try { localStorage.setItem('pixelflow.confirm-data', JSON.stringify(snapshot)) } catch { /* optional */ }
   const existing = await WebviewWindow.getByLabel('confirm')
   if (existing) {
-    await existing.show()
-    await existing.setFocus()
-    void emitTo('confirm', 'confirm-data', snapshot)
-    return
+    try {
+      await existing.show()
+      await existing.setFocus()
+      void emitTo('confirm', 'confirm-data', snapshot)
+      return
+    } catch {
+      // A stale WebView label can survive a crash/close. Recreate it below.
+      await existing.close().catch(() => {})
+    }
   }
   const confirmWindow = new WebviewWindow('confirm', {
     url: '/?view=confirm',
@@ -482,6 +491,52 @@ async function openConfirmWindow() {
     void emitTo('confirm', 'confirm-data', snapshot)
   })
   confirmWindow.once('tauri://error', () => { status.value = '素材确认窗口打开失败' })
+}
+
+function clearClassificationWatchdog() {
+  if (classificationWatchdog !== undefined) window.clearTimeout(classificationWatchdog)
+  classificationWatchdog = undefined
+}
+
+function armClassificationWatchdog() {
+  clearClassificationWatchdog()
+  classificationWatchdog = window.setTimeout(() => {
+    classificationWatchdog = undefined
+    const requestId = classificationRequestId.value
+    if (!requestId || !classificationRunning.value) return
+    worker?.request('cancel_generation', { request_id: requestId })
+    classificationRunning.value = false
+    isCancelling.value = false
+    classificationRequestId.value = undefined
+    status.value = '素材分析超时，请重试'
+    taskPhase.value = '分析失败'
+    taskDetail.value = 'Worker 在限定时间内没有返回分类结果；已请求停止当前任务。'
+  }, 120_000)
+}
+
+function clearCancelWatchdog() {
+  if (cancelWatchdog !== undefined) window.clearTimeout(cancelWatchdog)
+  cancelWatchdog = undefined
+}
+
+function settleCancellation(message: string, detail: string, phase = '已安全停止') {
+  clearCancelWatchdog()
+  clearClassificationWatchdog()
+  const target = cancelTargetRequestId.value
+  if (target && target === classificationRequestId.value) {
+    classificationRunning.value = false
+    classificationRequestId.value = undefined
+  }
+  if (target && target === generationRequestId.value) {
+    isRunning.value = false
+    generationRequestId.value = undefined
+  }
+  cancelRequestId.value = undefined
+  cancelTargetRequestId.value = undefined
+  isCancelling.value = false
+  status.value = message
+  taskPhase.value = phase
+  taskDetail.value = detail
 }
 
 function handleConfirmResult(payload: ConfirmSnapshot & { action?: 'confirm' | 'cancel' }) {
@@ -1028,6 +1083,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskPhase.value = '准备素材'
     taskDetail.value = '正在整理生成任务……'
   } else if (message.type === 'progress' && message.request_id === classificationRequestId.value) {
+    armClassificationWatchdog()
     const total = Number(payload.total || 0)
     const completed = Number(payload.completed || 0)
     const phase = String(payload.phase || '规则分类')
@@ -1047,6 +1103,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskPhase.value = '识别分类'
     status.value = taskDetail.value
   } else if (message.type === 'done' && message.request_id === classificationRequestId.value) {
+    clearClassificationWatchdog()
     const result = payload.result as { decisions?: MaterialDecision[]; category?: { category: string; source: string; matched_keyword?: string }; suggested_exclusions?: string[]; preflight_warnings?: string[] } | undefined
     materials.value = Array.isArray(result?.decisions)
       ? result.decisions.map((material) => ({
@@ -1105,6 +1162,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     materialConfirmed.value = false
     showReport()
   } else if (message.type === 'cancelled' && message.request_id === generationRequestId.value) {
+    clearCancelWatchdog()
     isRunning.value = false
     isCancelling.value = false
     lastResult.value = (payload.result as Record<string, unknown>) || {}
@@ -1114,12 +1172,18 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskDetail.value = '已保留已完成的输出。'
     showReport()
   } else if (message.type === 'cancelled' && message.request_id === classificationRequestId.value) {
-    classificationRunning.value = false
-    isCancelling.value = false
-    status.value = '素材分析已取消'
-    taskPhase.value = '已安全停止'
-    taskDetail.value = '素材识别已停止，未开始生成；可以调整选项后重新开始。'
+    settleCancellation('素材分析已取消', '素材识别已停止，未开始生成；可以调整选项后重新开始。')
+  } else if (message.type === 'status' && message.request_id === cancelRequestId.value) {
+    if (payload.state === 'cancelling') {
+      taskDetail.value = 'Worker 正在停止当前任务，并保留已完成的输出。'
+    } else if (payload.state === 'idle') {
+      settleCancellation('取消请求已完成', '当前任务已结束；已保留已有输出，可以重新开始。')
+    }
   } else if (message.type === 'error') {
+    if (message.request_id === cancelRequestId.value) {
+      settleCancellation('取消请求失败', String(payload.message || 'Worker 未接受取消请求'), '任务失败')
+      return
+    }
     if (message.request_id === modelProbeRequestId.value) {
       modelTesting.value = false
       modelStatus.value = `状态：模型检测失败；${String(payload.message || '请检查模型目录')}`
@@ -1137,6 +1201,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       }
       if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
     }
+    clearClassificationWatchdog()
     isRunning.value = false
     isCancelling.value = false
     classificationRunning.value = false
@@ -1189,6 +1254,7 @@ function classifyMaterials() {
     local_model_enabled: localModelEnabled.value,
     local_model_path: localModelPath.value || undefined,
   })
+  armClassificationWatchdog()
 }
 
 function currentClassificationKey() {
@@ -1392,7 +1458,14 @@ function cancelGeneration() {
   status.value = '正在取消…'
   taskPhase.value = '正在安全停止'
   taskDetail.value = '会完成当前图片，并保留已经生成的输出。'
-  worker.request('cancel_generation', { request_id: (classificationRunning.value ? classificationRequestId.value : generationRequestId.value) || '' })
+  cancelTargetRequestId.value = (classificationRunning.value ? classificationRequestId.value : generationRequestId.value) || undefined
+  cancelRequestId.value = worker.request('cancel_generation', { request_id: cancelTargetRequestId.value || '' })
+  clearCancelWatchdog()
+  cancelWatchdog = window.setTimeout(() => {
+    cancelWatchdog = undefined
+    if (!isCancelling.value) return
+    settleCancellation('取消请求超时', 'Worker 未在限定时间内确认停止；可以重试，已完成输出会保留。', '任务失败')
+  }, 15_000)
 }
 
 function applyDroppedPaths(paths: string[]) {
