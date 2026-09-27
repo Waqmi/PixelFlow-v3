@@ -134,3 +134,4 @@
 - 验证：Vue `npm run build`、`npm run protocol:check`、`git diff --check`、Tauri `cargo check` 和 `cargo test --bin pixelflow-desktop`（4/4）通过。
 - `tools/run_acceptance.py --skip-desktop --full-evidence` 在当前 Python 3.9 环境失败：缺少 Pillow，Worker 13 项进程测试和 renderer baseline 无法启动；该失败已保留为未满足环境证据，未覆盖此前 Python 3.14 的 93/93 报告。
 - 使用已配置的 `/opt/homebrew/bin/python3.14` 重跑 Worker 全量测试：93/93 通过（26.4 秒）。本轮 acceptance runner 受 30 秒工具上限中断，未生成新的全量报告，继续引用此前已完成的 `acceptance-full-evidence-20260927-final/acceptance.json`。
+- 窄验证确认：源码 Worker 与当前 onedir Worker 在同一 36 张输入、`workers=4`、同一输出目录下连续两次均约 1.1 秒返回 `done`（36 条 progress，最后 36/36）；旧 `.app` 卡住不能归因到分类算法。`test_worker_process` 5/5、Vue build、protocol check 均通过；新的宿主 UI 复用证据仍未伪造。
