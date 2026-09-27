@@ -1,0 +1,80 @@
+{
+  "schema_version": "v3-acceptance-1",
+  "generated_at": "2026-09-27T11:29:08.370769+00:00",
+  "root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "checks": [
+    {
+      "name": "worker_tests",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "worker/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "",
+      "stderr_tail": "../Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/legacy_engine/category_engine/source_type_classifier.py:108: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n................................................../Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/v3_classification.py:122: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n.................../Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/renderer.py:318: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(rgba.convert(\"RGB\").getdata())\n......................\n----------------------------------------------------------------------\nRan 93 tests in 25.119s\n\nOK\n"
+    },
+    {
+      "name": "renderer_baseline",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tools/run_renderer_baseline.py",
+        "baselines/v2.6/acceptance-full-evidence-20260927-fixed/v3-baseline",
+        "--mode",
+        "v3",
+        "--compare-root",
+        "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/baselines/v2.6/legacy-current-20260927",
+        "--report",
+        "baselines/v2.6/acceptance-full-evidence-20260927-fixed/v3-baseline-report.json"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "\", \"bytes\": 131561, \"size\": [1440, 1440], \"mode\": \"RGB\"}, \"differences\": [\"bytes\", \"sha256\", \"pixel_sha256\"], \"pixel_metrics\": {\"compatible\": true, \"pixels\": 2073600, \"channels\": 4, \"max_diff\": 255, \"mae\": 4.682693865740741, \"psnr\": 19.205270807018934, \"psnr_is_infinite\": false, \"diff_bbox\": [528, 136, 909, 1304]}, \"max_diff\": 255, \"mae\": 4.682693865740741, \"psnr\": 19.205270807018934, \"diff_bbox\": [528, 136, 909, 1304], \"classification\": \"needs_fix\"}, {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_07.jpg\", \"status\": \"different\", \"legacy\": {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_07.jpg\", \"sha256\": \"a8f19b2d602613c114e487ddfee8719e59918541b73fbde088d0aa06fd8da8c2\", \"file_sha256\": \"a8f19b2d602613c114e487ddfee8719e59918541b73fbde088d0aa06fd8da8c2\", \"pixel_sha256\": \"b0a94aa0f9af15404522538e64fcb7f3a931b18d6cdce1a28f31a76aeedb7bb7\", \"rgba_pixel_sha256\": \"b0a94aa0f9af15404522538e64fcb7f3a931b18d6cdce1a28f31a76aeedb7bb7\", \"bytes\": 120116, \"size\": [1440, 1440], \"mode\": \"RGB\"}, \"v3\": {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_07.jpg\", \"sha256\": \"314e84b441c95a766745facabb620e488ac7a24c660da5347b41261aa214d627\", \"file_sha256\": \"314e84b441c95a766745facabb620e488ac7a24c660da5347b41261aa214d627\", \"pixel_sha256\": \"7ad41dc3a6df7359746c1df273e4c5ccd0d824bcaa67f8831ff0abe84c9b61f8\", \"rgba_pixel_sha256\": \"7ad41dc3a6df7359746c1df273e4c5ccd0d824bcaa67f8831ff0abe84c9b61f8\", \"bytes\": 155069, \"size\": [1440, 1440], \"mode\": \"RGB\"}, \"differences\": [\"bytes\", \"sha256\", \"pixel_sha256\"], \"pixel_metrics\": {\"compatible\": true, \"pixels\": 2073600, \"channels\": 4, \"max_diff\": 255, \"mae\": 10.222463469328703, \"psnr\": 15.372354848978734, \"psnr_is_infinite\": false, \"diff_bbox\": [504, 96, 921, 1384]}, \"max_diff\": 255, \"mae\": 10.222463469328703, \"psnr\": 15.372354848978734, \"diff_bbox\": [504, 96, 921, 1384], \"classification\": \"needs_fix\"}, {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_08.jpg\", \"status\": \"different\", \"legacy\": {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_08.jpg\", \"sha256\": \"9235a6fc597394f9f3dd7200a4c1a1df49c094d823ebb7f3e3a530946cb30957\", \"file_sha256\": \"9235a6fc597394f9f3dd7200a4c1a1df49c094d823ebb7f3e3a530946cb30957\", \"pixel_sha256\": \"127b4c0c441da9b89f9ff2b973ecffe2395c192f1ce4fe6ee0a8c7e968c27ae1\", \"rgba_pixel_sha256\": \"127b4c0c441da9b89f9ff2b973ecffe2395c192f1ce4fe6ee0a8c7e968c27ae1\", \"bytes\": 122123, \"size\": [1440, 1440], \"mode\": \"RGB\"}, \"v3\": {\"path\": \"唯品专享1440/无Logo/男_暗夜黑_08.jpg\", \"sha256\": \"fc7f8b8e10795fb5654277dce2c6f476893322d60fa5e15075c08c9af2687026\", \"file_sha256\": \"fc7f8b8e10795fb5654277dce2c6f476893322d60fa5e15075c08c9af2687026\", \"pixel_sha256\": \"6da44b55dfc8655d2d77b0c2e1a1b0309b2321bd4b46231daa47f6ef55bcfa3a\", \"rgba_pixel_sha256\": \"6da44b55dfc8655d2d77b0c2e1a1b0309b2321bd4b46231daa47f6ef55bcfa3a\", \"bytes\": 137424, \"size\": [1440, 1440], \"mode\": \"RGB\"}, \"differences\": [\"bytes\", \"sha256\", \"pixel_sha256\"], \"pixel_metrics\": {\"compatible\": true, \"pixels\": 2073600, \"channels\": 4, \"max_diff\": 255, \"mae\": 4.877816116898148, \"psnr\": 19.030272660483337, \"psnr_is_infinite\": false, \"diff_bbox\": [520, 135, 920, 1304]}, \"max_diff\": 255, \"mae\": 4.877816116898148, \"psnr\": 19.030272660483337, \"diff_bbox\": [520, 135, 920, 1304], \"classification\": \"needs_fix\"}], \"output_kind_summary\": {\"product_main\": {\"legacy_files\": 96, \"v3_files\": 96, \"compared_files\": 96, \"different_files\": 24, \"missing_in_legacy\": 0, \"missing_in_v3\": 0}, \"model\": {\"legacy_files\": 0, \"v3_files\": 0, \"compared_files\": 0, \"different_files\": 0, \"missing_in_legacy\": 0, \"missing_in_v3\": 0}, \"transparent\": {\"legacy_files\": 8, \"v3_files\": 8, \"compared_files\": 8, \"different_files\": 0, \"missing_in_legacy\": 0, \"missing_in_v3\": 0}, \"vip\": {\"legacy_files\": 16, \"v3_files\": 16, \"compared_files\": 16, \"different_files\": 4, \"missing_in_legacy\": 0, \"missing_in_v3\": 0}}, \"pixel_metrics\": {\"files\": 120, \"different_files\": 28, \"max_diff\": 255, \"mae\": 2.3226358947697388, \"psnr\": 21.8690570956079, \"psnr_is_infinite\": false, \"diff_bbox\": [376, 88, 957, 1680]}, \"classification_summary\": {\"version_difference\": 0, \"acceptable_implementation_difference\": 0, \"needs_fix\": 28}}}\n",
+      "stderr_tail": ""
+    }
+  ],
+  "artifacts": {
+    "bundled_worker": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "sha256": null
+    },
+    "source_worker": {
+      "path": "worker/dist/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "ondir_worker": {
+      "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2"
+    }
+  },
+  "manual": {
+    "desktop_ui": "baselines/v2.6/v3-recheck-20260927/desktop-app-ui-audit-manual-t2-20260927.json",
+    "release": "pending: signing, notarization, Windows packaging"
+  },
+  "evidence": {
+    "four_kind_outputs": {
+      "path": "baselines/v2.6/v3-recheck-20260927/v3-output-kind-report-20260927.json",
+      "exists": true
+    },
+    "frozen_worker": {
+      "path": "baselines/v2.6/v3-recheck-20260927/frozen-worker-ondir-evidence.json",
+      "exists": true
+    },
+    "hash_manifest": {
+      "path": "baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json",
+      "exists": true
+    },
+    "baseline_compare": {
+      "path": "baselines/v2.6/v3-current-20260927-compare-report.json",
+      "exists": true
+    },
+    "renderer_baseline_report": "baselines/v2.6/acceptance-full-evidence-20260927-fixed/v3-baseline-report.json",
+    "renderer_baseline_output": "baselines/v2.6/acceptance-full-evidence-20260927-fixed/v3-baseline"
+  }
+}

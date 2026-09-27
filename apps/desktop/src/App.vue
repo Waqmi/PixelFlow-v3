@@ -61,6 +61,15 @@ interface ConfirmSnapshot {
   preflightWarnings: string[]
 }
 
+interface ModelDiagnostic {
+  state?: string
+  status?: string
+  error?: string
+  fallback?: boolean
+  model?: string
+  model_version?: { path?: string; sha256?: string; size?: number; mtime_ns?: number }
+}
+
 const theme = ref<Theme>('system')
 const systemDark = ref(false)
 const reducedMotion = ref(false)
@@ -181,8 +190,21 @@ let previewScrolling = false
 let previewScrollRoot: HTMLElement | undefined
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
-const expectedWorkerVersion = '3.0.0-beta.1'
+const appVersion = '3.0.0-beta.1'
+const expectedWorkerVersion = appVersion
 const expectedRulesVersion = 'v3-composition-1'
+const workerVersion = ref(expectedWorkerVersion)
+const workerBuildHash = ref('')
+const workerRulesVersion = ref(expectedRulesVersion)
+const modelDiagnostics = ref<Record<string, ModelDiagnostic>>({})
+const workerReadyState = ref('未连接')
+const expectedModels = {
+  pose: { label: 'Pose', filename: 'pose/yolo11n-pose.onnx', sha256: '86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8' },
+  segmentation: { label: 'Seg', filename: 'segmentation/yolo11n-seg.onnx', sha256: '52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55' },
+} as const
+const modelFallbackWarning = computed(() => Object.keys(expectedModels).some((key) => modelDiagnostics.value[key]?.state !== '已就绪'))
+const modelDiagnosticRows = computed(() => (['pose', 'segmentation'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
+const modelConfirmFallbackWarning = computed(() => localModelEnabled.value && materials.value.some((material) => material.metadata?.fallback === true || material.metadata?.model_status === 'fallback'))
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
@@ -534,6 +556,36 @@ function clearCache() {
       : `清理失败：${String(payload.message || '请重试')}`
   })
 }
+async function exportDiagnostics() {
+  if (!window.__TAURI_INTERNALS__) {
+    settingsNotice.value = '请在桌面 App 中导出诊断包'
+    return
+  }
+  const snapshot = {
+    app_version: appVersion,
+    worker_version: workerVersion.value,
+    worker_hash: workerBuildHash.value,
+    rules_version: workerRulesVersion.value,
+    model_status: modelStatus.value,
+    model_probe: modelDiagnostics.value,
+    generated_at: new Date().toISOString(),
+  }
+  const entries = [
+    { name: 'diagnostics.json', content: JSON.stringify(snapshot, null, 2) },
+    { name: 'failures.txt', content: failureReportText() },
+    { name: 'last-result.json', content: JSON.stringify(lastResult.value, null, 2) },
+  ]
+  settingsNotice.value = '正在生成诊断包…'
+  try {
+    const path = await invoke<string | null>('export_diagnostics', {
+      defaultName: 'PixelFlow-诊断包.zip',
+      entries,
+    })
+    settingsNotice.value = path ? `诊断包已导出：${path}` : '已取消导出诊断包'
+  } catch (error) {
+    settingsNotice.value = `诊断包导出失败：${String(error)}`
+  }
+}
 function resetBrand() {
   logoOverrides.value = {}
   Object.values(logoPreviews.value).forEach((url) => URL.revokeObjectURL(url))
@@ -640,6 +692,32 @@ function onDocumentPointerdown(event: PointerEvent) {
 async function copyOutputPath() {
   if (!outputRoot.value) return
   try { await navigator.clipboard.writeText(outputRoot.value); reportNotice.value = '输出路径已复制' } catch { reportNotice.value = '无法复制输出路径' }
+}
+function modelShaLabel(key: keyof typeof expectedModels, diagnostic?: ModelDiagnostic) {
+  const actual = diagnostic?.model_version?.sha256
+  if (!actual) return 'Worker 未提供校验信息'
+  if (actual === expectedModels[key].sha256) return `匹配 · ${actual.slice(0, 8)}`
+  return `不匹配 · ${actual.slice(0, 8)}`
+}
+function modelFileLabel(diagnostic?: ModelDiagnostic) {
+  return diagnostic?.model || diagnostic?.model_version?.path?.split(/[\\/]/).pop() || '未检测到'
+}
+async function copyDiagnostics() {
+  const diagnostics = {
+    app_version: expectedWorkerVersion,
+    worker_version: workerVersion.value,
+    worker_build_hash: workerBuildHash.value || null,
+    rules_version: workerRulesVersion.value,
+    worker_status: workerReadyState.value,
+    model_root: localModelPath.value || null,
+    models: modelDiagnostics.value,
+  }
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2))
+    settingsNotice.value = '诊断信息已复制'
+  } catch {
+    settingsNotice.value = '无法复制诊断信息'
+  }
 }
 async function openOutputFolder(path = outputRoot.value) {
   if (!path) return
@@ -918,6 +996,10 @@ function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>
   if (message.type === 'ready') {
     workerConnected.value = true
+    workerReadyState.value = '已连接'
+    workerVersion.value = String(payload.worker_version || '未知')
+    workerRulesVersion.value = String(payload.rules_version || '未知')
+    workerBuildHash.value = String(payload.build_hash || '')
     const versionMismatch = payload.worker_version !== expectedWorkerVersion
     const rulesMismatch = payload.rules_version !== expectedRulesVersion
     if (workerInterrupted.value) {
@@ -991,7 +1073,8 @@ function handleWorkerMessage(message: WorkerMessage) {
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
   } else if (message.type === 'done' && message.request_id === modelProbeRequestId.value) {
     modelTesting.value = false
-    const models = payload.models as Record<string, { state?: string; error?: string }> | undefined
+    const models = payload.models as Record<string, ModelDiagnostic> | undefined
+    modelDiagnostics.value = models || {}
     const modelLabel = (key: string) => {
       const model = models?.[key]
       return `${model?.state || '未配置'}${model?.error ? `（${model.error.split('\n')[0]}）` : ''}`
@@ -1044,6 +1127,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
     if (message.request_id === 'worker') {
       workerConnected.value = false
+      workerReadyState.value = 'Worker 已退出'
       workerInterrupted.value = true
       const taskId = String(payload.task_id || '')
       if (modelTesting.value) {
@@ -1107,7 +1191,7 @@ function classifyMaterials() {
 }
 
 function currentClassificationKey() {
-  return JSON.stringify([inputRoot.value, categoryTemplate.value, localModelEnabled.value, localModelPath.value])
+  return JSON.stringify([inputRoot.value, outputRoot.value, categoryTemplate.value, localModelEnabled.value, localModelPath.value])
 }
 
 function setMaterialType(material: MaterialDecision, type: MaterialType) {
@@ -1459,18 +1543,21 @@ function startGeneration() {
             <div class="settings-option-row"><div><strong>生成唯品专享 1440</strong><small>在主页显示唯品图输出开关</small></div><input v-model="includeVip" aria-label="唯品图默认开启" type="checkbox" /><input v-model="showVipOption" aria-label="唯品图主页显示" type="checkbox" /></div>
             <div class="settings-option-row"><div><strong>启用素材理解层（规则识别）</strong><small>在主页显示素材分类开关</small></div><input v-model="enableMaterialUnderstanding" aria-label="素材理解默认开启" type="checkbox" /><input v-model="showMaterialOption" aria-label="素材理解主页显示" type="checkbox" /></div>
             <div class="settings-option-row"><div><strong>自动生成模特主图</strong><small>模特图开关仅在设置页控制</small></div><input v-model="includeModelImages" aria-label="模特主图默认开启" type="checkbox" /><span class="not-applicable">—</span></div>
-            <div class="settings-naming-row"><span><strong>文件命名</strong><small>简短模式使用编号和性别+颜色名，原始完整路径会写入输出清单</small></span><div class="settings-naming-select"><button type="button" :aria-expanded="namingOpen" aria-haspopup="listbox" @click.stop="namingOpen = !namingOpen">{{ namingLabel }}<span class="select-chevron" /></button><Transition name="dropdown"><div v-if="namingOpen" class="compact-menu" role="listbox"><button v-for="(label, value) in namingOptions" :key="value" type="button" role="option" :aria-selected="outputNamingMode === value" @click="selectNaming(value)">{{ label }}</button></div></Transition></div></div>
+            <div class="settings-naming-row"><span><strong>文件命名</strong><small>简短模式使用编号和性别+颜色名，原始完整路径会写入输出清单；同名输出默认复用，强制重跑覆盖原路径，不自动重命名</small></span><div class="settings-naming-select"><button type="button" :aria-expanded="namingOpen" aria-haspopup="listbox" @click.stop="namingOpen = !namingOpen">{{ namingLabel }}<span class="select-chevron" /></button><Transition name="dropdown"><div v-if="namingOpen" class="compact-menu" role="listbox"><button v-for="(label, value) in namingOptions" :key="value" type="button" role="option" :aria-selected="outputNamingMode === value" @click="selectNaming(value)">{{ label }}</button></div></Transition></div></div>
           </template>
           <template v-else-if="settingsTab === 'model'">
             <section class="settings-page-intro"><h3>模特图增强</h3><p>外部 Pose/Seg 仅提供分类证据和安全构图；不可用时显示并使用规则判断。</p></section>
             <label class="settings-check"><input v-model="localModelEnabled" type="checkbox" />启用本地模型辅助判断</label>
             <div class="model-path-row"><input v-model="localModelPath" class="settings-input" readonly placeholder="尚未选择外部模型总目录" /><button class="outline-button" @click="pickDirectory('model')">选择总目录</button></div>
             <p class="settings-status">{{ modelStatus }}</p>
+            <div class="model-diagnostics"><div v-for="row in modelDiagnosticRows" :key="row.key" class="model-diagnostic-row"><div><strong>{{ row.label }}</strong><small>期望文件：{{ row.filename }}</small><small>期望 SHA-256：{{ row.sha256.slice(0, 8) }}…</small><small>检测文件：{{ modelFileLabel(row.diagnostic) }}</small></div><span>{{ row.diagnostic?.state || '未检测' }} · SHA-256 {{ modelShaLabel(row.key, row.diagnostic) }}</span></div></div>
+            <p v-if="modelFallbackWarning" class="settings-status settings-status-warning">模特图将使用保守构图，建议配置模型</p>
             <div class="settings-actions"><button class="text-button" :disabled="modelTesting" @click="probeModels">{{ modelTesting ? '检测中…' : '测试模型' }}</button></div>
           </template>
           <template v-else>
             <section class="settings-page-intro"><h3>关于 PixelFlow</h3><p>轻量、离线优先的电商主图整理工具，帮助你把原始素材整理成可直接检查的电商图片。</p></section>
-            <dl class="about-list"><div><dt>版本号</dt><dd>PixelFlow v3 beta</dd></div><div><dt>构建日期</dt><dd>2026-09-19</dd></div><div><dt>这是什么</dt><dd>PixelFlow 用于批量整理电商商品素材，按尺寸、品类模板和品牌 Logo 输出主图、透明产品图、唯品专享图及模特主图。</dd></div><div><dt>怎么使用</dt><dd>选择素材目录和输出目录 → 选择品类、尺寸及输出选项 → 必要时在素材确认中修正分类 → 点击生成，完成后可直接打开输出文件夹检查结果。</dd></div><div><dt>素材目录</dt><dd>支持图片直接放在根目录，也支持按颜色或款式放在子文件夹中；支持 JPG、JPEG、PNG。建议同一商品的图片放在同一文件夹，文件名尽量保留颜色或款式信息。</dd></div><div><dt>使用技巧</dt><dd>白底商品图适合生成普通主图；细节图可用于辅助判断；模特图请在文件名或文件夹名中标注“模特、上身、穿搭、model、lookbook”等关键词。Logo 请使用完整尺寸的 RGBA PNG，并按浅色背景/深色背景选择对应版本。文件命名建议使用简短模式，完整原名可在输出清单中追溯。</dd></div><div><dt>功能边界</dt><dd>模特图只做分类和安全构图放大，保留原图内容，不凭空生成新人物或新场景。本地 ONNX 模型只提供人物位置和构图建议，无法使用时自动回退规则模式；未启用远程辅助时无需 API Key，图片处理在本机完成。</dd></div><div><dt>最新版本</dt><dd><a href="https://github.com/Waqmi/PixelFlow-Open/releases" target="_blank">https://github.com/Waqmi/PixelFlow-Open/releases</a>（点击查看和下载最新发布版本）</dd></div></dl>
+            <dl class="about-list"><div><dt>版本号</dt><dd>{{ expectedWorkerVersion }}</dd></div><div><dt>Worker 版本</dt><dd>{{ workerVersion }}</dd></div><div><dt>Worker 哈希</dt><dd>{{ workerBuildHash ? workerBuildHash.slice(0, 8) : '未提供' }}</dd></div><div><dt>规则版本</dt><dd>{{ workerRulesVersion }}</dd></div><div><dt>Worker 状态</dt><dd>{{ workerReadyState }}</dd></div><div><dt>构建日期</dt><dd>2026-09-19</dd></div><div><dt>这是什么</dt><dd>PixelFlow 用于批量整理电商商品素材，按尺寸、品类模板和品牌 Logo 输出主图、透明产品图、唯品专享图及模特主图。</dd></div><div><dt>怎么使用</dt><dd>选择素材目录和输出目录 → 选择品类、尺寸及输出选项 → 必要时在素材确认中修正分类 → 点击生成，完成后可直接打开输出文件夹检查结果。</dd></div><div><dt>素材目录</dt><dd>支持图片直接放在根目录，也支持按颜色或款式放在子文件夹中；支持 JPG、JPEG、PNG。建议同一商品的图片放在同一文件夹，文件名尽量保留颜色或款式信息。</dd></div><div><dt>使用技巧</dt><dd>白底商品图适合生成普通主图；细节图可用于辅助判断；模特图请在文件名或文件夹名中标注“模特、上身、穿搭、model、lookbook”等关键词。Logo 请使用完整尺寸的 RGBA PNG，并按浅色背景/深色背景选择对应版本。文件命名建议使用简短模式，完整原名可在输出清单中追溯。</dd></div><div><dt>功能边界</dt><dd>模特图只做分类和安全构图放大，保留原图内容，不凭空生成新人物或新场景。本地 ONNX 模型只提供人物位置和构图建议，无法使用时自动回退规则模式；未启用远程辅助时无需 API Key，图片处理在本机完成。</dd></div><div><dt>最新版本</dt><dd><a href="https://github.com/Waqmi/PixelFlow-Open/releases" target="_blank">https://github.com/Waqmi/PixelFlow-Open/releases</a>（点击查看和下载最新发布版本）</dd></div></dl>
+            <div class="settings-actions"><button class="text-button" @click="copyDiagnostics">复制诊断信息</button><button class="text-button" @click="exportDiagnostics">导出诊断包</button></div>
           </template>
         </div>
         <div class="settings-footer"><div class="settings-footer-left"><button class="text-button" @click="resetBrand">恢复默认品牌设置</button><span class="settings-notice">{{ settingsNotice }}</span></div><div><button class="outline-button" @click="closeSettings()">取消</button><button class="confirm-button" @click="saveSettings">保存设置</button></div></div>
@@ -1482,7 +1569,7 @@ function startGeneration() {
     <div v-if="confirmOpen" class="settings-backdrop confirmation-backdrop" @click.self="dismissMaterialConfirmation">
       <section class="page-dialog panel confirmation-dialog" role="dialog" aria-modal="true" aria-label="素材确认">
         <div class="settings-header"><div><p class="eyebrow">CONFIRMATION</p><h2>确认素材分类 · {{ materials.length }} 张</h2><p>核对 v2.6 的自动识别结果，必要时调整分类、跳过模特素材或修改商品主体比例。</p></div><button class="modal-close" aria-label="关闭确认页" @click="dismissMaterialConfirmation">×</button></div>
-        <div class="confirm-summary"><div>{{ categoryHint }}</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
+        <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div ref="confirmGridElement" class="confirm-grid"><article v-for="material in materials" :key="material.source" :ref="(element) => setPreviewElement(material, element)" class="confirm-card">
           <div class="confirm-preview"><img v-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>

@@ -94,3 +94,10 @@
 - The historical T2 UI audit is preserved unchanged as an observation, with diagnosis and post-fix Worker reproduction appended; host-permission UI rerun remains pending.
 - T3 edge-safe renderer candidate persisted without rewriting the formal baseline. Candidate report shows 120/120 paired, 0 failures, needs_fix 28 (down from 52), MAE 2.3226 and PSNR 21.8691. Remaining 28 are explicitly grouped and not reclassified as acceptable.
 - A narrow source-filter experiment for the RGBA path produced contaminated naming/output scope and was reverted; it is not evidence and is not retained.
+
+### Product maintenance suggestions
+- 设置页补充 `3.0.0-beta.1`、Worker 版本/哈希前 8 位、`v3-composition-1` 和 Worker 状态；模型页显示 Pose/Seg 期望文件名、实际文件及 SHA-256 匹配状态，缺失时提示保守构图。
+- 桌面 Host 增加无第三方依赖的标准 store ZIP 导出命令，条目校验、大小上限和路径防穿越均有 Rust 单测；导出内容包括诊断 JSON、失败报告、最近结果和滚动 Worker 日志。
+- v3 输出策略固定为同名复用；`force_rerender=true` 才覆盖，分类预检检查输出磁盘并在低于 200 MB 时警告；补充了复用/覆盖/低磁盘回归测试。
+- `tools/run_acceptance.py --full-evidence` 首次运行因 `Path.relative_to(ROOT)` 对相对输出路径抛错；已改为先 resolve 并安全记录仓库内/外路径，随后成功生成 full evidence 报告。
+- 本轮最终验证：Worker 93/93；协议检查、Vue 构建、Cargo 检查通过；Rust 桌面单测 4/4；full evidence report 已持久化。全量 runner 生成的图片保持忽略，不纳入提交。

@@ -91,3 +91,9 @@
 - The 264→252 discrepancy had a concrete Worker cause: VIP reuse used `continue` before PNG transparent reuse/counting. The fix preserves the output tree and reports `main=216`, `transparent=12`, `vip=36`, `incremental_reused=264`, `incremental_skipped=true` on the retained 36-source output.
 - The safe T3 candidate is limited to the light-background edge detector and legacy-compatible cover branch. It reduces 24 files to exact pixel parity while leaving the formal 52-item baseline untouched.
 - An attempted narrow source-filter experiment for RGBA template alignment was invalidated because the fixture's naming/source scope was contaminated; it was reverted and excluded from evidence.
+
+## Product suggestions verification
+- 诊断导出不依赖新增 Rust crate：Host 写入标准 store ZIP，限制单条目 10 MiB、总计 32 MiB、日志最多 256 KiB，并拒绝绝对路径、`..` 和重复条目。
+- `probe_models` 对已发现模型返回 `model_version.sha256`；前端把它与 `models/README.md` 中的期望值比较并展示匹配状态。模型二进制仍被 `.gitignore` 排除。
+- 输出目录策略已在协议、确认页和设置页统一为“同名复用；强制重跑覆盖；不自动重命名”；预检沿现有输出路径的已存在父目录检查可写性和剩余空间。
+- full evidence runner 失败原因是 CLI 相对输出路径在 `Path.relative_to(ROOT)` 前未 resolve；修复后报告成功生成，正式 T3 报告仍保留 52，runner 生成的 candidate baseline report 记录 28 项差异。

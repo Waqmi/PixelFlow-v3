@@ -1,6 +1,6 @@
 use std::{
+    collections::{HashSet, VecDeque},
     ffi::OsString,
-    collections::VecDeque,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::PathBuf,
@@ -20,6 +20,9 @@ const RESTART_BACKOFF: [Duration; MAX_RESTARTS] = [
     Duration::from_secs(1),
     Duration::from_secs(2),
 ];
+const MAX_DIAGNOSTIC_ENTRY_BYTES: usize = 10 * 1024 * 1024;
+const MAX_DIAGNOSTIC_TOTAL_BYTES: usize = 32 * 1024 * 1024;
+const MAX_DIAGNOSTIC_LOG_BYTES: usize = 256 * 1024;
 
 struct WorkerProcess {
     child: Child,
@@ -222,12 +225,26 @@ fn windows_dialog(script: &str) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-fn save_text_file(default_name: String, content: String) -> Result<Option<String>, String> {
+fn choose_save_path(
+    default_name: &str,
+    prompt: &str,
+    windows_filter: &str,
+) -> Result<Option<PathBuf>, String> {
     #[cfg(target_os = "macos")]
     {
-        let safe_name = default_name.replace('"', "'");
+        let _ = windows_filter;
+        let safe_name = default_name
+            .replace('\\', "/")
+            .replace('"', "'")
+            .replace('\n', " ")
+            .replace('\r', " ");
+        let safe_prompt = prompt
+            .replace('\\', "/")
+            .replace('"', "'")
+            .replace('\n', " ")
+            .replace('\r', " ");
         let script = format!(
-            "POSIX path of (choose file name with prompt \"导出失败报告\" default name \"{safe_name}\")"
+            "POSIX path of (choose file name with prompt \"{safe_prompt}\" default name \"{safe_name}\")"
         );
         let output = Command::new("osascript")
             .args(["-e", &script])
@@ -237,16 +254,17 @@ fn save_text_file(default_name: String, content: String) -> Result<Option<String
             return Ok(None);
         }
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        std::fs::write(&path, content).map_err(|error| format!("write report failed: {error}"))?;
-        return Ok(Some(path));
+        return Ok((!path.is_empty()).then_some(PathBuf::from(path)));
     }
     #[cfg(target_os = "windows")]
     {
-        let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_REPORT_NAME; $d.Filter = 'Text files (*.txt)|*.txt'; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
+        let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
         let mut command = Command::new("powershell");
         command
             .args(["-NoProfile", "-STA", "-Command", script])
-            .env("PIXELFLOW_REPORT_NAME", &default_name);
+            .env("PIXELFLOW_FILE_NAME", default_name)
+            .env("PIXELFLOW_FILE_FILTER", windows_filter)
+            .env("PIXELFLOW_DIALOG_TITLE", prompt);
         hide_console(&mut command);
         let output = command
             .output()
@@ -255,12 +273,177 @@ fn save_text_file(default_name: String, content: String) -> Result<Option<String
             return Err(format!("save dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
         }
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if path.is_empty() { return Ok(None); }
-        std::fs::write(&path, content).map_err(|error| format!("write report failed: {error}"))?;
-        return Ok(Some(path));
+        return Ok((!path.is_empty()).then_some(PathBuf::from(path)));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-    { Ok(None) }
+    {
+        let _ = (default_name, prompt, windows_filter);
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+fn save_text_file(default_name: String, content: String) -> Result<Option<String>, String> {
+    let Some(path) = choose_save_path(
+        &default_name,
+        "导出失败报告",
+        "Text files (*.txt)|*.txt",
+    )? else {
+        return Ok(None);
+    };
+    std::fs::write(&path, content).map_err(|error| format!("write report failed: {error}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+fn crc32(bytes: &[u8]) -> u32 {
+    let mut checksum = u32::MAX;
+    for byte in bytes {
+        checksum ^= u32::from(*byte);
+        for _ in 0..8 {
+            let mask = 0u32.wrapping_sub(checksum & 1);
+            checksum = (checksum >> 1) ^ (0xedb8_8320 & mask);
+        }
+    }
+    !checksum
+}
+
+fn push_u16(buffer: &mut Vec<u8>, value: u16) {
+    buffer.extend_from_slice(&value.to_le_bytes());
+}
+
+fn push_u32(buffer: &mut Vec<u8>, value: u32) {
+    buffer.extend_from_slice(&value.to_le_bytes());
+}
+
+fn validate_zip_entry_name(raw: &str) -> Result<String, String> {
+    let name = raw.replace('\\', "/");
+    if name.is_empty()
+        || name.starts_with('/')
+        || name.contains(':')
+        || name.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err("diagnostic entry name is invalid".to_string());
+    }
+    if name.len() > usize::from(u16::MAX) {
+        return Err("diagnostic entry name is too long".to_string());
+    }
+    Ok(name)
+}
+
+fn build_zip_archive(entries: Vec<(String, Vec<u8>)>) -> Result<Vec<u8>, String> {
+    if entries.len() > usize::from(u16::MAX) {
+        return Err("too many diagnostic entries".to_string());
+    }
+    let entry_count = entries.len();
+    let mut archive = Vec::new();
+    let mut central_directory = Vec::new();
+    let mut names = HashSet::new();
+    let mut total_size = 0usize;
+
+    for (raw_name, content) in entries {
+        let name = validate_zip_entry_name(&raw_name)?;
+        if !names.insert(name.clone()) {
+            return Err(format!("duplicate diagnostic entry: {name}"));
+        }
+        if content.len() > MAX_DIAGNOSTIC_ENTRY_BYTES {
+            return Err(format!("diagnostic entry is too large: {name}"));
+        }
+        total_size = total_size
+            .checked_add(content.len())
+            .ok_or_else(|| "diagnostic archive is too large".to_string())?;
+        if total_size > MAX_DIAGNOSTIC_TOTAL_BYTES {
+            return Err("diagnostic archive is too large".to_string());
+        }
+        let name_bytes = name.as_bytes();
+        let size = u32::try_from(content.len())
+            .map_err(|_| format!("diagnostic entry is too large: {name}"))?;
+        let checksum = crc32(&content);
+        let offset = u32::try_from(archive.len())
+            .map_err(|_| "diagnostic archive is too large".to_string())?;
+
+        archive.extend_from_slice(b"PK\x03\x04");
+        push_u16(&mut archive, 20);
+        push_u16(&mut archive, 0);
+        push_u16(&mut archive, 0);
+        push_u16(&mut archive, 0);
+        push_u16(&mut archive, 0);
+        push_u32(&mut archive, checksum);
+        push_u32(&mut archive, size);
+        push_u32(&mut archive, size);
+        push_u16(&mut archive, name_bytes.len() as u16);
+        push_u16(&mut archive, 0);
+        archive.extend_from_slice(name_bytes);
+        archive.extend_from_slice(&content);
+
+        central_directory.extend_from_slice(b"PK\x01\x02");
+        push_u16(&mut central_directory, 20);
+        push_u16(&mut central_directory, 20);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u32(&mut central_directory, checksum);
+        push_u32(&mut central_directory, size);
+        push_u32(&mut central_directory, size);
+        push_u16(&mut central_directory, name_bytes.len() as u16);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u16(&mut central_directory, 0);
+        push_u32(&mut central_directory, 0);
+        push_u32(&mut central_directory, offset);
+        central_directory.extend_from_slice(name_bytes);
+    }
+
+    let central_offset = u32::try_from(archive.len())
+        .map_err(|_| "diagnostic archive is too large".to_string())?;
+    let central_size = u32::try_from(central_directory.len())
+        .map_err(|_| "diagnostic archive is too large".to_string())?;
+    archive.extend_from_slice(&central_directory);
+    archive.extend_from_slice(b"PK\x05\x06");
+    push_u16(&mut archive, 0);
+    push_u16(&mut archive, 0);
+    push_u16(&mut archive, entry_count as u16);
+    push_u16(&mut archive, entry_count as u16);
+    push_u32(&mut archive, central_size);
+    push_u32(&mut archive, central_offset);
+    push_u16(&mut archive, 0);
+    Ok(archive)
+}
+
+fn recent_worker_log() -> Vec<u8> {
+    match std::fs::read(worker_log_path()) {
+        Ok(bytes) => bytes[bytes.len().saturating_sub(MAX_DIAGNOSTIC_LOG_BYTES)..].to_vec(),
+        Err(error) => format!("worker log unavailable: {error}\n").into_bytes(),
+    }
+}
+
+#[tauri::command]
+fn export_diagnostics(default_name: String, entries: Vec<Value>) -> Result<Option<String>, String> {
+    let mut archive_entries = Vec::with_capacity(entries.len() + 1);
+    for entry in entries {
+        let name = entry
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "diagnostic entry name is required".to_string())?
+            .to_string();
+        let content = entry
+            .get("content")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("diagnostic entry content is required: {name}"))?;
+        archive_entries.push((name, content.as_bytes().to_vec()));
+    }
+    archive_entries.push(("worker.log".to_string(), recent_worker_log()));
+    let archive = build_zip_archive(archive_entries)?;
+    let Some(path) = choose_save_path(
+        &default_name,
+        "导出诊断包",
+        "ZIP files (*.zip)|*.zip",
+    )? else {
+        return Ok(None);
+    };
+    std::fs::write(&path, archive).map_err(|error| format!("write diagnostics failed: {error}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -503,7 +686,14 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![worker_send, pick_directory, pick_file, save_text_file, open_path])
+        .invoke_handler(tauri::generate_handler![
+            worker_send,
+            pick_directory,
+            pick_file,
+            save_text_file,
+            export_diagnostics,
+            open_path
+        ])
         .build(tauri::generate_context!())
         .expect("error while building PixelFlow")
         .run(|app, event| {
@@ -561,5 +751,14 @@ mod tests {
         let payload = worker_exit_payload("boom", Some("job-7".to_string()), true);
         assert_eq!(payload["task_id"], "job-7");
         assert_eq!(payload["retryable"], true);
+    }
+
+    #[test]
+    fn diagnostic_archive_has_zip_records_and_rejects_traversal() {
+        let archive = build_zip_archive(vec![("metadata.json".to_string(), b"{}".to_vec())]).unwrap();
+        assert_eq!(&archive[..4], b"PK\x03\x04");
+        assert!(archive.windows(4).any(|window| window == b"PK\x01\x02"));
+        assert!(archive.windows(4).any(|window| window == b"PK\x05\x06"));
+        assert!(validate_zip_entry_name("../outside.txt").is_err());
     }
 }

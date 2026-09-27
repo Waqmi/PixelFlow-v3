@@ -80,6 +80,18 @@ class ClassificationAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "输出位置不是文件夹"):
                 _preflight_materials(ClassificationRequest(root, output_root=output))
 
+    def test_preflight_warns_when_output_disk_is_low(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            from PIL import Image
+
+            Image.new("RGB", (8, 8), "white").save(root / "source.jpg")
+            output = root.parent / f"{root.name}-output"
+            with patch("pixelflow_core.worker.shutil.disk_usage") as disk_usage:
+                disk_usage.return_value.free = 199 * 1024 * 1024
+                warnings = _preflight_materials(ClassificationRequest(root, output_root=output))
+            self.assertTrue(any("低于 200 MB" in warning for warning in warnings))
+
     def test_fixed_fixture_classifies_without_qt(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()

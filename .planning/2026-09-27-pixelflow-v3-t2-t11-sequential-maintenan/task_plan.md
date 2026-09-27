@@ -75,3 +75,10 @@ T11（周期 active，T2–T10 已完成当前环境可执行部分）
 
 ## Verification note
 - T9 progress composable extraction is implemented and build-verified; Vitest remains explicitly deferred because the current environment has no installable npm dependency path.
+
+## 2026-09-27 maintenance additions
+- [x] 设置页版本、Worker 哈希、规则版本和模型文件/SHA-256 状态
+- [x] 桌面诊断 ZIP：版本与模型诊断、失败报告、最近结果、最近 Worker 日志
+- [x] `tools/run_acceptance.py --full-evidence`：Worker 测试、四类输出引用、冻结 Worker/哈希清单引用和 v3 基线报告
+- [x] 同名输出复用/强制覆盖策略、确认页说明和 200 MB 磁盘预警
+- **Verification:** Worker 93/93；`npm run protocol:check`；`npm run build`；`cargo test --bin pixelflow-desktop` 4/4；`cargo check`；full evidence report `baselines/v2.6/acceptance-full-evidence-20260927-fixed/acceptance.json`

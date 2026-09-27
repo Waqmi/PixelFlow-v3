@@ -60,6 +60,45 @@ def desktop_ui_evidence() -> str:
     return "pending: run T2 host-permission regression and attach desktop-app-ui-audit-manual.json"
 
 
+def evidence_inventory() -> dict[str, object]:
+    """Collect checked-in evidence references without rerunning expensive jobs."""
+    base = ROOT / "baselines" / "v2.6" / "v3-recheck-20260927"
+    names = {
+        "four_kind_outputs": "v3-output-kind-report-20260927.json",
+        "frozen_worker": "frozen-worker-ondir-evidence.json",
+        "hash_manifest": "worker-artifact-hashes.json",
+        "baseline_compare": "../v3-current-20260927-compare-report.json",
+    }
+    return {
+        key: {
+            "path": str((base / name).resolve().relative_to(ROOT)) if (base / name).resolve().is_relative_to(ROOT) else str((base / name).resolve()),
+            "exists": (base / name).is_file(),
+        }
+        for key, name in names.items()
+    }
+
+
+def run_renderer_evidence(output: Path) -> dict[str, object]:
+    """Generate the fixed v3 output tree and compare it with the legacy tree."""
+    baseline_root = output / "v3-baseline"
+    report = output / "v3-baseline-report.json"
+    return run(
+        "renderer_baseline",
+        [
+            PYTHON,
+            "tools/run_renderer_baseline.py",
+            str(baseline_root),
+            "--mode",
+            "v3",
+            "--compare-root",
+            str(ROOT / "baselines" / "v2.6" / "legacy-current-20260927"),
+            "--report",
+            str(report),
+        ],
+        ROOT,
+    )
+
+
 def update_legacy_cycle(record_path: Path, acceptance_report: Path) -> dict[str, object]:
     """Refresh observable cycle evidence without inferring real batches or success."""
     if record_path.is_file():
@@ -126,6 +165,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--skip-desktop", action="store_true")
     parser.add_argument(
+        "--full-evidence",
+        action="store_true",
+        help="include checked-in four-kind, frozen-worker, baseline and hash evidence references",
+    )
+    parser.add_argument(
         "--legacy-cycle-record",
         type=Path,
         help="refresh a legacy compatibility cycle JSON without inferring real batches",
@@ -146,6 +190,18 @@ def main() -> int:
         checks.append(run("protocol_schema", ["npm", "run", "protocol:check"], ROOT / "apps" / "desktop"))
         checks.append(run("desktop_build", ["npm", "run", "build"], ROOT / "apps" / "desktop"))
         checks.append(run("tauri_cargo_check", ["cargo", "check"], ROOT / "apps" / "desktop" / "src-tauri"))
+    generated_evidence: dict[str, object] | None = None
+    if args.full_evidence:
+        renderer_check = run_renderer_evidence(output)
+        checks.append(renderer_check)
+        generated_evidence = {
+            "renderer_baseline_report": str((output / "v3-baseline-report.json").resolve().relative_to(ROOT))
+            if (output / "v3-baseline-report.json").resolve().is_relative_to(ROOT)
+            else str((output / "v3-baseline-report.json").resolve()),
+            "renderer_baseline_output": str((output / "v3-baseline").resolve().relative_to(ROOT))
+            if (output / "v3-baseline").resolve().is_relative_to(ROOT)
+            else str((output / "v3-baseline").resolve()),
+        }
 
     payload = {
         "schema_version": "v3-acceptance-1",
@@ -171,6 +227,8 @@ def main() -> int:
             "release": "pending: signing, notarization, Windows packaging",
         },
     }
+    if args.full_evidence:
+        payload["evidence"] = {**evidence_inventory(), **(generated_evidence or {})}
     report = output / "acceptance.json"
     report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     cycle_record = None

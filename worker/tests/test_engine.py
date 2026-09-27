@@ -145,6 +145,37 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(third["incremental_skipped"])
             self.assertEqual(third["failures"], [])
 
+    def test_v3_same_name_reuses_by_default_and_force_rerender_overwrites(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGB", (32, 32), "red").save(product_root / "sample.jpg")
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            first = adapter.run(request)
+            output = Path(first["outputs"][0])
+            Image.new("RGB", (1440, 1440), "blue").save(output)
+            second = adapter.run(request)
+            with Image.open(output) as reused:
+                reused_pixel = reused.getpixel((720, 720))
+            self.assertGreater(reused_pixel[2], 200)
+            self.assertLess(reused_pixel[0], 20)
+            self.assertLess(reused_pixel[1], 20)
+            self.assertGreater(second["incremental_reused"], 0)
+            forced = adapter.run(replace(request, force_rerender=True))
+            with Image.open(output) as rerendered:
+                rerendered_pixel = rerendered.getpixel((720, 720))
+            self.assertFalse(rerendered_pixel[2] > 200 and rerendered_pixel[0] < 20 and rerendered_pixel[1] < 20)
+            self.assertEqual(forced["incremental_reused"], 0)
+
     def test_v3_reuse_keeps_png_transparent_counts_after_vip_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"

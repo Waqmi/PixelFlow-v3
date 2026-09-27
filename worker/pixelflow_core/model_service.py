@@ -205,7 +205,7 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                             "status": STATUS_READY,
                             "fallback": False,
                             "model": Path(model_path).name,
-                            "model_version": file_version(Path(model_path)),
+                            "model_version": file_version(Path(model_path), include_digest=True),
                         }
                     except Exception as error:  # noqa: BLE001 - report each optional model
                         result[purpose] = {

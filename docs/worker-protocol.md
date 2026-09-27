@@ -95,3 +95,9 @@ error
 - `classify_materials`：已接入 v2.6 规则分类及可选 Pose/Seg 增强；进度事件按
   `规则分类`、`Pose`、`Seg` 阶段返回，最终返回 `decisions`。
 - `start_generation` / `retry_failed`：已透传 Logo 覆盖、文件夹品类覆盖和卖点图参数。
+
+### 输出安全策略
+
+- 默认 v3 生成使用固定输出路径：同名文件存在时复用，不自动改名，也不覆盖已有文件。
+- 需要覆盖同名文件时必须显式使用 `force_rerender=true`；界面将该行为称为“强制重跑”。
+- `classify_materials` 会在生成前检查输出目录所在磁盘；可用空间低于 200 MB 时返回预警，确认页显示该预警。

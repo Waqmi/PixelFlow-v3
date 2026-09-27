@@ -9,6 +9,8 @@
 - Worker 测试、鞋类 Pose/Seg 证据和 macOS arm64 `.app` 启停证据已存在。
 - 当前正式 onefile Worker 哈希为 `027a624b...`；旧 `6c5fadabe...` 仅保留为历史证据。当前 onedir `.app` Worker 哈希为 `627ebbff...`，该构建使用 Python 3.9.13，Python 3.12 正式重建仍待 CI/可用环境。
 - `.app` 分类、完整生成和增量复用回归已通过；legacy/v3 基线已完成，52 个像素差异仍需修复或登记。
+- 设置页已提供版本/Worker 哈希/规则版本、Pose/Seg 文件名与 SHA-256 状态；桌面端可导出包含诊断 JSON、失败报告、最近 Worker 日志和最近结果的 ZIP 诊断包。
+- v3 同名输出默认复用固定路径，不自动改名或覆盖；显式强制重跑才覆盖，生成前会检查输出磁盘空间并在低于 200 MB 时预警。
 
 ## 进行中
 
@@ -44,10 +46,12 @@
 - `npm run build`：通过。
 - `cargo clean && cargo check`：通过（当前 onedir 资源布局）。
 - Worker 协议测试：`worker.tests.test_contracts` 7/7 通过；预览越界拒绝、缓存和 ready 版本握手 smoke 通过。
-- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 91/91 通过。
+- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 93/93 通过。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
 - `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
+- `tools/run_acceptance.py --skip-desktop --full-evidence --output baselines/v2.6/acceptance-full-evidence-20260927-fixed`：通过（Worker 93/93、四类输出/冻结 Worker/哈希清单引用、v3 基线报告）；生成图片目录按仓库规则忽略。
+- `cargo test --bin pixelflow-desktop`：通过（4/4，包含重启预算、任务 ID 和诊断 ZIP 结构校验）。
 - onedir `.app` Worker：ping、分类/生成双跑、模型探测和 shutdown 通过；第二次生成 `incremental_reused=1`、`skipped_by_scope=0`。
 - `npm run protocol:check`：通过；契约解析、请求 ID、错误事件和超时 self-check 通过。
 - `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。
