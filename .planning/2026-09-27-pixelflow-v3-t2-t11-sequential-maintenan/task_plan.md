@@ -15,7 +15,7 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 - [ ] 分类、手动修改、生成、打开输出目录、增量复用
 - [ ] 安全取消和进程残留检查
 - [ ] 20 张鞋类素材 Pose/Seg、复核提示、模型缺失回退
-- **Status:** partial — Worker count bug fixed and regression-covered; host UI rerun and missing shoe fixture remain
+- **Status:** partial — first host-permission rerun produced 264 outputs; second same-directory classification stalls at 36/36 and safe cancel does not promptly settle; missing shoe fixture remains
 
 ### T3 legacy/v3 基线
 - [x] 双报告、逐像素指标、差异分类和 contact sheet

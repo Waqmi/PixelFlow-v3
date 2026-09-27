@@ -17,7 +17,7 @@
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
-| T2 `.app` 完整回归 | ⚠️ 已完成回归，Worker 统计已修复，宿主 UI 待复跑 | `desktop-app-ui-audit-manual-t2-20260927.json`：历史结果首次 264、第二次 252；根因是 VIP 复用提前跳过 PNG 透明图计数，Worker 与结果页统计已修复，宿主权限 UI 仍需重新实测 |
+| T2 `.app` 完整回归 | ⚠️ 首轮通过，增量复用仍需修复 | `desktop-app-ui-audit-host-rerun-20260927.json`：36 张素材首轮生成 264 个输出并完成手动分类；解锁后第二次分类在 36/36 后未进入确认页，安全取消也未及时收敛，未标记复用通过 |
 | T3 当前 legacy 基线 | ✅ 基线完成，候选修复待视觉复核 | 正式报告仍为 120/120 配对、52 个需修复；candidate2 固定 16 张素材为 120/120、0 个差异，见 `v3-t3-candidate2-compare-report-20260927.json`，未改写正式基线 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |

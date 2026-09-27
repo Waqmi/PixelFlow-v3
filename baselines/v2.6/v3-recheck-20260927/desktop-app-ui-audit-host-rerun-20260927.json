@@ -19,7 +19,7 @@
     "process_cleanup": {"status": "passed", "worker_process_observed_after_completion": false},
     "incremental_reuse": {
       "status": "blocked",
-      "reason": "宿主 Mac 在第二次 UI 操作前自动锁定，需解锁后重新执行"
+      "reason": "解锁后再次执行时分类进度到 36/36 后未进入确认页；安全取消长时间停留在‘正在安全停止’，因此未将复用结果记为通过"
     },
     "shoe_pose_seg_review_fallback": {
       "status": "blocked",
@@ -29,6 +29,6 @@
   "notes": [
     "本次使用全新输出目录，避免历史成品污染。",
     "确认页实际显示 36 张素材；手动分类后统计从商品白底图 8/细节图 28 变为 9/27。",
-    "未将第二次复用或鞋类 UI 证据标记为通过。"
+    "未将第二次复用或鞋类 UI 证据标记为通过；首次锁屏是早期阻塞，解锁后的复跑暴露了 36/36 后不收敛的问题。"
   ]
 }
