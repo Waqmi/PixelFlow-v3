@@ -29,11 +29,11 @@
 - 原生模型计划已在无模型进程的 Renderer 中重放 60 个模特图输出，typed 校验 `60/60` 通过，临时目录已清理；
 - v3 正常路径已切换到无 legacy 导入的分类与 Pose/Seg façade；模型结果转换为 typed `CompositionPlan`，缺模型时明确记录 fallback，不伪造模型证据；
 - v3 Renderer 默认读取仓库内 `worker/resources`，打包 spec 的 v3 静态资源输入已与 legacy 兼容资源分开；
-- Worker、`.app`、v3 资源目录和模型目录的逐文件 SHA-256 清单已固化到 `baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json`；包含 VIP 校验修正的新构建 Worker 已同步到 `.app`，两者哈希一致；
-- 已使用 v2.0 `.venv` 的 PyInstaller 6.22.0 重建 onefile Worker；正式 onefile 和 `.app` 内 Worker 已在允许 semaphore 的宿主权限下通过启停、分类、生成和回退，普通沙箱尝试仍会触发 `semctl: Operation not permitted`。
+- Worker、`.app`、v3 资源目录和模型目录的逐文件 SHA-256 清单已固化到 `baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json`；当前 onedir Worker 已同步到 `.app`，两者哈希均为 `627ebbff…`，正式 onefile 构建另记为 `027a624b…`；
+- 已使用 v2.0 `.venv` 的 PyInstaller 6.22.0 重建 onefile Worker；历史正式 onefile 与当前 onedir `.app` 均在允许 semaphore 的宿主权限下通过启停、分类、生成和回退，普通沙箱尝试仍会触发 `semctl: Operation not permitted`。
 - `.app` 主程序已在允许 semaphore 的宿主权限下完成受控启动审计：主进程和 `.app/Contents/Resources/pixelflow-worker` 均存活至 8 秒观察点，随后 SIGTERM 受控退出且无立即崩溃；证据见 `baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json`。该审计覆盖启动/退出链路，不替代 UI 操作和完整业务回归。
-- 正式冻结 Worker 证据以 `baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json` 为准；onefile 与 `.app` 内 Worker SHA-256 均为 `6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0`。`frozen-worker-ondir-evidence.json` 仅记录 onedir 实验。
-- 最新 `.app` 打包产物位于 `dist/PixelFlow-v3-beta.app`，Worker 哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；`ping`/`shutdown` 验收见 `app-package-evidence-20260927.json`。
+- 当前正式 onefile Worker 哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；旧 `6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0` 的完整协议报告保留在 `frozen-worker-latest-evidence.json`，作为历史证据。当前 `.app` 使用 onedir Worker，哈希为 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`；`ping`/`shutdown` 与双跑证据见 `app-package-evidence-20260927.json`。
+- 正式 onefile 产物位于 `worker/dist/pixelflow-worker`，哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；当前 `.app` onedir Worker 哈希为 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`，`ping`/`shutdown` 验收见 `app-package-evidence-20260927.json`。
 
 历史 `.app` 基线和当前仓库内置 legacy 规则可能不是同一版本。所有像素结论必须标明基线来源，不能把不同版本的结果混为一个通过条件。
 

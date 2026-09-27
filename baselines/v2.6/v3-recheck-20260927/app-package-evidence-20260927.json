@@ -1,22 +1,26 @@
 {
   "schema_version": "v3-app-package-evidence-1",
-  "generated_at": "2026-09-27T08:10:42.102538+00:00",
+  "generated_at": "2026-09-27T10:40:00+00:00",
   "app_path": "dist/PixelFlow-v3-beta.app",
   "bundle_source": "apps/desktop/src-tauri/target/release/bundle/macos/PixelFlow.app",
   "build_command": "PIXELFLOW_PYTHON=/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python npm run tauri:build -- --bundles app",
   "architecture": "arm64",
   "artifacts": {
     "worker": {
-      "path": "worker/dist/pixelflow-worker",
-      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+      "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+      "size": 3437344
     },
     "app_worker": {
-      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
-      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker",
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+      "size": 3437344
     },
     "desktop_binary": {
       "path": "dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
-      "sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976"
+      "sha256": "2b7c5bc4a9c87b719cca55bfd14e9874c39a57ad22202f1d7708be9519da5d5b",
+      "size": 9988144,
+      "previous_sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976"
     }
   },
   "hash_match": true,
@@ -28,7 +32,10 @@
       "type": "ready",
       "payload": {
         "worker": "pixelflow-v3",
-        "protocol": 1
+        "protocol": 1,
+        "worker_version": "3.0.0-beta.1",
+        "rules_version": "v3-composition-1",
+        "build_hash": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2"
       }
     },
     "ping": {
@@ -37,7 +44,10 @@
       "type": "ready",
       "payload": {
         "worker": "pixelflow-v3",
-        "protocol": 1
+        "protocol": 1,
+        "worker_version": "3.0.0-beta.1",
+        "rules_version": "v3-composition-1",
+        "build_hash": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2"
       }
     },
     "shutdown": {
@@ -49,10 +59,18 @@
       }
     },
     "returncode": 0,
-    "host_permissions": true
+    "host_permissions": true,
+    "generation_twice": {
+      "first_incremental_reused": 0,
+      "second_incremental_reused": 1,
+      "second_incremental_skipped": true,
+      "second_skipped_by_scope": 0,
+      "failures": [],
+      "returncode": 0
+    }
   },
   "limitations": [
-    "DMG target was not built; the app bundle target completed successfully.",
-    "This packaging check validates Worker ping/shutdown; full generation protocol remains in frozen-worker-latest-evidence.json."
+    "Build used available Python 3.9.13 environment; Python 3.12 rebuild remains pending.",
+    "DMG/signing/notarization and Windows installer validation remain environment dependent."
   ]
 }

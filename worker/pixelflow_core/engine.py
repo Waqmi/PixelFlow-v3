@@ -53,6 +53,7 @@ class GenerationRequest:
     include_selling_point_images: bool = False
     selling_points: tuple[str, ...] = ()
     source_filter: set[str] | None = None
+    force_rerender: bool = False
     naming_mode: str = "short"
     local_model_enabled: bool = False
     local_model_path: str | None = None
@@ -235,6 +236,8 @@ class V3EngineAdapter:
         review_items: dict[str, dict[str, object]] = {}
         fallback_items: dict[str, dict[str, object]] = {}
         skipped_outputs = 0
+        reused_outputs = 0
+        expected_outputs = 0
         main_count = model_count = transparent_count = vip_count = 0
         total = max(1, len(sources) * max(1, len(request.selected_sizes)))
         completed = 0
@@ -307,11 +310,12 @@ class V3EngineAdapter:
                         max_size_mb=request.max_size_mb, source_type=source_type,
                         background=background, assets=assets, layout=layout, summary=summary,
                     )
+                    expected_outputs += 1
                     # ponytail: reuse an existing deterministic output; add a manifest only when
                     # existence checks prove insufficient for changed-settings invalidation.
-                    if Path(typed_request.output_path).is_file():
+                    if Path(typed_request.output_path).is_file() and not request.force_rerender:
                         outputs.append(typed_request.output_path)
-                        skipped_outputs += 1
+                        reused_outputs += 1
                         main_count += 1
                         model_count += int(source_type in {"model", "model_detail"})
                         continue
@@ -347,10 +351,11 @@ class V3EngineAdapter:
                                         enable_category_template=request.enable_category_template),
                     summary=self._summary(decision, source_type),
                 )
-                if Path(vip_request.output_path).is_file():
+                expected_outputs += 1
+                if Path(vip_request.output_path).is_file() and not request.force_rerender:
                     outputs.append(vip_request.output_path)
                     vip_count += 1
-                    skipped_outputs += 1
+                    reused_outputs += 1
                     continue
                 vip_result = self._renderer.render(vip_request)
                 if vip_result.success:
@@ -370,10 +375,11 @@ class V3EngineAdapter:
                                             enable_category_template=request.enable_category_template),
                         summary=self._summary(decision, source_type),
                     )
-                    if transparent_path.is_file():
+                    expected_outputs += 1
+                    if transparent_path.is_file() and not request.force_rerender:
                         outputs.append(str(transparent_path))
                         transparent_count += 1
-                        skipped_outputs += 1
+                        reused_outputs += 1
                         continue
                     transparent_result = self._renderer.render(transparent_request)
                     if transparent_result.success:
@@ -392,6 +398,8 @@ class V3EngineAdapter:
             "outputs": outputs,
             "retried_only": request.source_filter is not None,
             "skipped_by_scope": skipped_outputs,
+            "incremental_reused": reused_outputs,
+            "incremental_skipped": bool(expected_outputs and reused_outputs == expected_outputs and not failures),
             "requires_review": sorted(review_items.values(), key=lambda item: str(item["source"])),
             "requires_review_count": len(review_items),
             "fallback_items": sorted(fallback_items.values(), key=lambda item: str(item["source"])),

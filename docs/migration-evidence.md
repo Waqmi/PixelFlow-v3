@@ -145,7 +145,7 @@ compare 结果新增 `output_kind_summary`，可分别汇总产品主图、模�
 | 产物 | 架构 | SHA-256 |
 |---|---|---|
 | `worker/dist/pixelflow-worker` | Mach-O arm64 | `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd` |
-| `dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker` | Mach-O arm64 | `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd` |
+| `dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker` | Mach-O arm64 | `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2` (onedir) |
 | `dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop` | Mach-O arm64 | `31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976` |
 
 资源与模型目录的逐文件清单及聚合 SHA-256 已保存到
@@ -154,9 +154,9 @@ compare 结果新增 `output_kind_summary`，可分别汇总产品主图、模�
 `3d27d0639aa1bd498c4de42f14a22d9a2e04839e581d55a57a95d1069058e9d5`，模型目录聚合哈希为
 `2d8086fdbcbef70fdc86fd9ed37f78e6112dbc7ab758d7eefd67ebdaa41844ff`。
 
-已将最新打包 Worker 同步到 `.app` 内资源；当前 `.app` Worker 与
-`worker/dist/pixelflow-worker` SHA-256 一致（均为
-`027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`）。本次 `.app` 打包与 Worker `ping`/`shutdown` 验证记录在
+正式 onefile Worker 的当前哈希为
+`027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；当前 `.app` 使用 onedir Worker，哈希为
+`627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`。本次 `.app` 打包与 Worker `ping`/`shutdown` 验证记录在
 [app-package-evidence-20260927.json](../baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json)；完整生成协议仍以冻结证据
 [frozen-worker-latest-evidence.json](../baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json) 为准。前一版哈希和历史 `.app` 哈希仍保存在清单的 `previous_sha256` / `historical_sha256` 字段。
 已使用 v2.0 `.venv` 的 PyInstaller 6.22.0 成功重建 `worker/dist/pixelflow-worker`；无权限

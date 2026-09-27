@@ -1,0 +1,46 @@
+{
+  "schema_version": "v3-legacy-compatibility-cycle-2",
+  "cycle_id": "v3-beta.2-legacy-compatibility",
+  "status": "active",
+  "beta_version": "3.0.0-beta.2",
+  "started_at": "2026-09-27T00:00:00+08:00",
+  "minimum_duration_days": 14,
+  "minimum_real_batches": 2,
+  "completion_gates": {
+    "natural_fallback_count": 0,
+    "t3_needs_fix_count": 0,
+    "t8_traceability": true
+  },
+  "observations": {
+    "last_checked_at": "2026-09-27T10:14:09.681789+00:00",
+    "elapsed_natural_days": 0,
+    "real_batch_count": 0,
+    "natural_fallback_count": null,
+    "t3_needs_fix_count": 52,
+    "t8_traceability": "implemented; pending real batch"
+  },
+  "real_batches": [],
+  "excluded_runs": [
+    {
+      "kind": "fault_injection",
+      "reason": "验证回退路由，不计入自然回退"
+    },
+    {
+      "kind": "explicit_legacy",
+      "reason": "显式 legacy 模式，不计入 v3 自然回退"
+    },
+    {
+      "kind": "development_smoke",
+      "reason": "开发检查，不计入真实批次"
+    }
+  ],
+  "evidence": {
+    "t3_compare_report": "baselines/v2.6/v3-current-20260927-compare-report.json",
+    "t8_result_ui": "apps/desktop/src/App.vue",
+    "acceptance_reports": [
+      "baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json"
+    ]
+  },
+  "removal_review": "not_before_cycle_complete",
+  "notes": "该记录是 beta.2 周期的起始状态；未满足时长或批次条件前不得删除 legacy_engine。"
+}

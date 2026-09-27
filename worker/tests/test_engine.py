@@ -7,6 +7,7 @@ import unittest
 import shutil
 import os
 import sys
+from dataclasses import replace
 from unittest.mock import patch
 from pathlib import Path
 
@@ -116,6 +117,55 @@ class EngineAdapterTests(unittest.TestCase):
             )
             self.assertEqual(result["model_images"], 1)
             self.assertTrue(any("模特图" in path for path in result["outputs"]))
+
+    def test_v3_reuses_existing_outputs_without_scope_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGB", (32, 32), "white").save(product_root / "sample.jpg")
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            first = adapter.run(request)
+            second = adapter.run(request)
+            self.assertEqual(first["incremental_reused"], 0)
+            self.assertGreater(second["incremental_reused"], 0)
+            self.assertTrue(second["incremental_skipped"])
+            self.assertEqual(second["skipped_by_scope"], 0)
+            self.assertEqual(second["failures"], [])
+            forced = replace(request, force_rerender=True)
+            third = adapter.run(forced)
+            self.assertEqual(third["incremental_reused"], 0)
+            self.assertFalse(third["incremental_skipped"])
+            self.assertEqual(third["failures"], [])
+
+    def test_v3_partial_reuse_is_not_reported_as_full_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGB", (32, 32), "white").save(product_root / "sample.jpg")
+            output_root = Path(temp_dir) / "output"
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=output_root,
+                selected_sizes=("1440x1440", "1440x1920"),
+                include_logo=False,
+                include_vip=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            adapter.run(request)
+            next(output_root.rglob("*.jpg")).unlink()
+            second = adapter.run(request)
+            self.assertEqual(second["incremental_reused"], 1)
+            self.assertFalse(second["incremental_skipped"])
+            self.assertEqual(second["failures"], [])
 
     def test_request_requires_existing_product_root(self) -> None:
         request = GenerationRequest(

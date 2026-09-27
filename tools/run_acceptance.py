@@ -41,10 +41,81 @@ def sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def _repo_path(value: Path) -> Path:
+    """Resolve a CLI path relative to the repository for reproducible records."""
+    return value.expanduser() if value.is_absolute() else ROOT / value
+
+
+def update_legacy_cycle(record_path: Path, acceptance_report: Path) -> dict[str, object]:
+    """Refresh observable cycle evidence without inferring real batches or success."""
+    if record_path.is_file():
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+    else:
+        record = {
+            "schema_version": "v3-legacy-compatibility-cycle-2",
+            "cycle_id": "v3-beta.2-legacy-compatibility",
+            "status": "active",
+            "minimum_duration_days": 14,
+            "minimum_real_batches": 2,
+            "completion_gates": {
+                "natural_fallback_count": 0,
+                "t3_needs_fix_count": 0,
+                "t8_traceability": True,
+            },
+            "observations": {
+                "elapsed_natural_days": 0,
+                "real_batch_count": 0,
+                "natural_fallback_count": None,
+                "t3_needs_fix_count": None,
+                "t8_traceability": "pending",
+            },
+            "real_batches": [],
+            "excluded_runs": [],
+            "evidence": {},
+        }
+    observations = record.setdefault("observations", {})
+    now = datetime.now(timezone.utc)
+    observations["last_checked_at"] = now.isoformat()
+    started_at = record.get("started_at")
+    if started_at:
+        try:
+            started = datetime.fromisoformat(str(started_at))
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            observations["elapsed_natural_days"] = max(0, (now - started).days)
+        except ValueError:
+            observations["elapsed_natural_days"] = None
+    observations["real_batch_count"] = len(record.get("real_batches") or [])
+
+    compare_path = ROOT / "baselines" / "v2.6" / "v3-current-20260927-compare-report.json"
+    if compare_path.is_file():
+        try:
+            compare = json.loads(compare_path.read_text(encoding="utf-8"))
+            summary = compare.get("classification_summary") or {}
+            if isinstance(summary.get("needs_fix"), int):
+                observations["t3_needs_fix_count"] = summary["needs_fix"]
+        except (OSError, TypeError, ValueError):
+            pass
+
+    evidence = record.setdefault("evidence", {})
+    report_ref = str(acceptance_report.relative_to(ROOT)) if acceptance_report.is_relative_to(ROOT) else str(acceptance_report)
+    reports = evidence.setdefault("acceptance_reports", [])
+    if report_ref not in reports:
+        reports.append(report_ref)
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return record
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
     parser.add_argument("--skip-desktop", action="store_true")
+    parser.add_argument(
+        "--legacy-cycle-record",
+        type=Path,
+        help="refresh a legacy compatibility cycle JSON without inferring real batches",
+    )
     args = parser.parse_args()
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -88,7 +159,15 @@ def main() -> int:
     }
     report = output / "acceptance.json"
     report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"report": str(report), "passed": all(item["passed"] for item in checks)}, ensure_ascii=False))
+    cycle_record = None
+    if args.legacy_cycle_record:
+        cycle_record = update_legacy_cycle(_repo_path(args.legacy_cycle_record), report)
+    result = {"report": str(report), "passed": all(item["passed"] for item in checks)}
+    if cycle_record is not None:
+        result["legacy_cycle_record"] = str(_repo_path(args.legacy_cycle_record))
+        result["legacy_cycle_status"] = cycle_record.get("status", "active")
+        result["legacy_real_batch_count"] = len(cycle_record.get("real_batches") or [])
+    print(json.dumps(result, ensure_ascii=False))
     return 0 if all(item["passed"] for item in checks) else 1
 
 

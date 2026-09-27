@@ -153,6 +153,7 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
         include_selling_point_images=bool(payload.get("include_selling_point_images", False)),
         selling_points=tuple(str(item) for item in selling_points),
         source_filter={str(item) for item in source_filter} if source_filter is not None else None,
+        force_rerender=bool(payload.get("force_rerender", False)),
         naming_mode=str(payload.get("naming_mode", "short")),
         local_model_enabled=bool(payload.get("local_model_enabled", False)),
         local_model_path=str(payload["local_model_path"]) if payload.get("local_model_path") else None,

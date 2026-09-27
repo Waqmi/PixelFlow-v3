@@ -1,0 +1,15 @@
+{
+  "schema_version": "v3-incremental-cache-smoke-1",
+  "generated_at": "2026-09-27T10:25:00+00:00",
+  "input_root": "/private/tmp/pixelflow-v3-sources-36",
+  "selected_sizes": [
+    "1440x1440"
+  ],
+  "first_outputs": 48,
+  "second_outputs": 48,
+  "failures": [],
+  "result": "v3 engine reuses deterministic existing output paths on the second run",
+  "second_incremental_reused": 48,
+  "second_incremental_skipped": true,
+  "second_skipped_by_scope": 0
+}

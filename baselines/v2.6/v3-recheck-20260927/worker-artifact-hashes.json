@@ -1,45 +1,49 @@
 {
-  "generated_at": "2026-09-27T07:53:32.625401+00:00",
+  "generated_at": "2026-09-27T10:40:00+00:00",
   "artifacts": [
     {
       "path": "worker/dist/pixelflow-worker",
       "exists": true,
       "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
-      "size": 32363920,
+      "size": 32362400,
       "architecture": "Mach-O 64-bit executable arm64",
-      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json",
+      "runtime_validation": "formal onefile hash verified; historical full protocol evidence remains frozen-worker-latest-evidence.json",
       "previous_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0"
     },
     {
-      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker",
       "exists": true,
-      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
-      "size": 32363920,
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+      "size": 3437344,
       "architecture": "Mach-O 64-bit executable arm64",
+      "artifact_kind": "current_onedir_app",
       "previous_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
-      "synchronized_with": "worker/dist/pixelflow-worker",
+      "synchronized_with": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "historical_onefile_path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "historical_onefile_sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
+      "historical_onefile_recorded_size": 32363920,
       "historical_sha256": "69205a84880b990d577a57cbafa17b7002dec54b11c09817d8bfdd7135a2bf50",
-      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json"
+      "runtime_validation": "current onedir app package ping/classification/generation twice/probe_models/shutdown passed"
     },
     {
       "path": "dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop",
       "exists": true,
-      "sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976",
-      "size": 9927024,
+      "sha256": "2b7c5bc4a9c87b719cca55bfd14e9874c39a57ad22202f1d7708be9519da5d5b",
+      "size": 9988144,
       "architecture": "Mach-O 64-bit executable arm64",
-      "previous_sha256": "9aefd35e5a79125d65e802a576f2740740d85f5235ec857b1e08e68f4a09a9f8",
-      "runtime_validation": "packaged app ping/shutdown passed; full protocol evidence remains frozen-worker-latest-evidence.json"
+      "previous_sha256": "31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976",
+      "runtime_validation": "current packaged app binary hash verified; onedir Worker ping/classification/generation/shutdown passed"
     }
   ],
   "experiments": {
     "experimental_onedir": {
       "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
       "exists": true,
-      "sha256": "6b4aa3da9af69ca93e1c0c8edda4444e91bbc333e9b5692494e69d9439a2c1c6",
-      "size": 3431712,
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+      "size": 3437344,
       "architecture": "Mach-O 64-bit executable arm64",
-      "build": "PyInstaller 6.22.0 onedir experiment",
-      "startup_test": "ping, v3 product+VIP generation (typed validation 2/2), probe_models fallback, shutdown passed"
+      "build": "PyInstaller 6.22.0 onedir, current source, Python 3.9.13",
+      "startup_test": "ping, classification, generation twice with incremental_reused=1, probe_models fallback, shutdown passed"
     }
   },
   "resources": {
@@ -130,5 +134,14 @@
     ]
   },
   "latest_protocol_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
-  "latest_package_evidence": "baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json"
+  "latest_protocol_evidence_kind": "historical_onefile",
+  "latest_package_evidence": "baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json",
+  "current_onedir_app": {
+    "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker",
+    "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+    "size": 3437344,
+    "matches": true,
+    "python": "3.9.13",
+    "python_3_12_pending": true
+  }
 }

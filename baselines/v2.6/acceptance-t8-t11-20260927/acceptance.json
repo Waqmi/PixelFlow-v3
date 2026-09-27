@@ -1,0 +1,42 @@
+{
+  "schema_version": "v3-acceptance-1",
+  "generated_at": "2026-09-27T10:14:09.665177+00:00",
+  "root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+  "checks": [
+    {
+      "name": "worker_tests",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "worker/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "passed": true,
+      "stdout_tail": "",
+      "stderr_tail": "../Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/legacy_engine/category_engine/source_type_classifier.py:108: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n................................................./Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/v3_classification.py:122: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(preview.getdata())\n................/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/renderer.py:303: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.\n  pixels = list(rgba.convert(\"RGB\").getdata())\n......................\n----------------------------------------------------------------------\nRan 89 tests in 11.986s\n\nOK\n"
+    }
+  ],
+  "artifacts": {
+    "bundled_worker": {
+      "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
+      "sha256": null
+    },
+    "source_worker": {
+      "path": "worker/dist/pixelflow-worker",
+      "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd"
+    },
+    "ondir_worker": {
+      "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+      "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2"
+    }
+  },
+  "manual": {
+    "desktop_ui": "pending: run T2 host-permission regression and attach desktop-app-ui-audit-manual.json",
+    "release": "pending: signing, notarization, Windows packaging"
+  }
+}

@@ -25,7 +25,7 @@
 - Seg 只有显式可靠鞋部轮廓证据时才允许改变鞋部保护框；
 - Pose/Seg 缓存版本键和模型状态接口；
 - 内置 v2.6 兼容核心，默认运行不需要外部 `PixelFlow-App-v2.0`。
-- 正式冻结 Worker 与 `.app` 资源的 SHA-256 均为 `6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0`；协议证据以 `baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json` 为准，onedir 实验另存于 `frozen-worker-ondir-evidence.json`。
+- 当前正式 onefile Worker 哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；旧 `6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0` 仅作为历史证据保留。当前 `.app` 使用 onedir Worker，哈希为 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`，详见 `app-package-evidence-20260927.json`。
 
 仍需跟踪：
 

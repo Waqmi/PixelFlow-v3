@@ -213,6 +213,7 @@ const resultShortcuts = computed(() => [
 const failures = computed(() => Array.isArray(lastResult.value.failures) ? lastResult.value.failures as Record<string, unknown>[] : [])
 const reviewItems = computed(() => Array.isArray(lastResult.value.requires_review) ? lastResult.value.requires_review as Record<string, unknown>[] : [])
 const fallbackItems = computed(() => Array.isArray(lastResult.value.fallback_items) ? lastResult.value.fallback_items as Record<string, unknown>[] : [])
+const acceptedReviewSources = computed(() => Array.isArray(lastResult.value.accepted_review_sources) ? lastResult.value.accepted_review_sources as string[] : [])
 const materialTypeLabels: Record<MaterialType, string> = {
   main_product: '商品白底图', detail: '细节图', model_detail: '模特细节图', model: '模特图',
 }
@@ -661,6 +662,21 @@ function reviewSources() {
 function reviewSizes(item: Record<string, unknown>) {
   return Array.isArray(item.sizes) ? item.sizes.map(String).join('、') : '未记录'
 }
+function reviewProtectedRegions(item: Record<string, unknown>) {
+  if (!Array.isArray(item.protected_regions) || !item.protected_regions.length) return '未记录'
+  return item.protected_regions.map((region) => {
+    const value = region as Record<string, unknown>
+    const bbox = Array.isArray(value.bbox) ? value.bbox.map((part) => Number(part).toFixed(0)).join(', ') : '未记录'
+    return `${String(value.kind || '区域')} [${bbox}]`
+  }).join('；')
+}
+function acceptReviewItems() {
+  const accepted = Array.from(new Set([...acceptedReviewSources.value, ...reviewSources()]))
+  lastResult.value = { ...lastResult.value, accepted_review_sources: accepted }
+  cacheReportSnapshot()
+  reportNotice.value = `已接受 ${accepted.length} 项复核结果`
+  reviewOpen.value = false
+}
 async function copyFailureReport() {
   try { await navigator.clipboard.writeText(failureReportText()); failureNotice.value = '失败清单已复制' } catch { failureNotice.value = '无法复制失败清单' }
 }
@@ -673,13 +689,13 @@ async function exportFailureReport() {
     failureNotice.value = String(error)
   }
 }
-function retryFailures(sourceFilterOverride?: string[]) {
+function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   const sourceFilter = sourceFilterOverride || failures.value
     .map((failure) => String(failure.retry_source || failure.source || ''))
     .filter(Boolean)
   if (!sourceFilter.length) { status.value = '失败素材没有可重试路径'; return }
   if (isReportWindow && window.__TAURI_INTERNALS__) {
-    void emit('report-action', { action: 'retry', sourceFilter })
+    void emit('report-action', { action: 'retry', sourceFilter, forceRerender })
     void closeReport()
     return
   }
@@ -687,10 +703,10 @@ function retryFailures(sourceFilterOverride?: string[]) {
   reportOpen.value = false
   failureOpen.value = false
   setProgress(0, true)
-  generationRequestId.value = worker.request('retry_failed', { ...generationPayload(sourceFilter), material_confirmation_completed: true })
+  generationRequestId.value = worker.request('retry_failed', { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true })
   status.value = `准备重试 ${sourceFilter.length} 项失败素材`
 }
-function generationPayload(sourceFilter?: string[]) {
+function generationPayload(sourceFilter?: string[], forceRerender = false) {
   const logo_overrides = Object.fromEntries(
     Object.entries(logoOverrides.value).map(([key, path]) => [
       ({ logo_square_dark: 'logo', logo_square_light: 'white_logo', logo_tall_dark: 'tall_logo', logo_tall_light: 'tall_white_logo' } as Record<string, string>)[key] || key,
@@ -710,6 +726,7 @@ function generationPayload(sourceFilter?: string[]) {
     source_type_overrides: Object.fromEntries(materials.value.map((item) => [item.source, item.source_type])),
     source_metadata_overrides: Object.fromEntries(materials.value.filter((item) => item.metadata).map((item) => [item.source, item.metadata])),
     excluded_model_sources: excludedModelSources.value, source_scale_adjustments: scaleAdjustments.value, source_filter: sourceFilter,
+    force_rerender: forceRerender,
   }
 }
 
@@ -755,8 +772,8 @@ onMounted(() => {
       .then((unlisten) => { stopSettingsChangedListener = unlisten })
     void listen('report-ready', () => { void emit('report-data', reportSnapshot()) })
       .then((unlisten) => { stopReportReadyListener = unlisten })
-    void listen<{ action?: string; sourceFilter?: string[] }>('report-action', (event) => {
-      if (event.payload?.action === 'retry') retryFailures(event.payload.sourceFilter || [])
+    void listen<{ action?: string; sourceFilter?: string[]; forceRerender?: boolean }>('report-action', (event) => {
+      if (event.payload?.action === 'retry') retryFailures(event.payload.sourceFilter || [], event.payload.forceRerender)
     }).then((unlisten) => { stopReportActionListener = unlisten })
     void listen('confirm-ready', () => { void emitTo('confirm', 'confirm-data', confirmSnapshot()) })
       .then((unlisten) => { stopConfirmReadyListener = unlisten })
@@ -1506,7 +1523,7 @@ function startGeneration() {
     <div v-if="reportOpen" class="settings-backdrop" @click.self="closeReport()">
       <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告">
         <div class="report-header"><div class="report-success-icon">✓</div><div><p class="eyebrow">PIXELFLOW · 批量任务</p><h2>{{ resultCancelled ? '已安全停止' : '生成完成' }}</h2><p>{{ resultCancelled ? '已保留已完成的输出；未开始的任务不会继续处理。' : '输出已整理完成，可直接打开文件夹检查结果。' }}</p></div></div>
-        <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div><div><b>{{ fallbackItems.length }}</b><small>兼容回退</small></div></div>
+        <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div><div><b>{{ acceptedReviewSources.length }}</b><small>已接受复核</small></div><div><b>{{ fallbackItems.length }}</b><small>兼容回退</small></div></div>
         <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
         <p v-if="lastResult.incremental_skipped" class="report-cache-hint">检测到素材和设置均未变化，本次已复用上次输出。</p><p v-else-if="Number(lastResult.incremental_reused || 0) > 0" class="report-cache-hint">本次复用 {{ lastResult.incremental_reused }} 张未变化素材，其余素材已重新生成。</p>
         <div v-if="failures.length" class="report-failures">有 {{ failures.length }} 项失败素材；成功输出已保留，可在后续任务中重试。</div>
@@ -1519,9 +1536,10 @@ function startGeneration() {
     <div v-if="reviewOpen" class="settings-backdrop" @click.self="reviewOpen = false">
       <section class="page-dialog panel failure-dialog" role="dialog" aria-modal="true" aria-label="复核与回退">
         <div class="settings-header"><div><p class="eyebrow">REVIEW QUEUE</p><h2>复核与兼容回退</h2><p>以下素材需要人工确认；已保留保护区域和回退原因。</p></div><button class="modal-close" aria-label="关闭复核列表" @click="reviewOpen = false">×</button></div>
-        <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small></article></div>
+        <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small><small>保护框：{{ reviewProtectedRegions(item) }}</small></article></div>
         <div v-if="fallbackItems.length" class="review-list"><article v-for="item in fallbackItems" :key="`fallback-${String(item.source)}`"><strong>兼容模式：{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.fallback_reason || '未提供回退原因') }}</small></article></div>
-        <div class="page-actions"><button class="outline-button" @click="reviewOpen = false">关闭</button><button v-if="reviewItems.length" class="confirm-button" @click="reviewOpen = false; retryFailures(reviewSources())">保守构图重跑</button></div>
+        <p v-if="acceptedReviewSources.length" class="dialog-notice">已接受 {{ acceptedReviewSources.length }} 项复核结果</p>
+        <div class="page-actions"><button class="outline-button" @click="reviewOpen = false">关闭</button><button v-if="reviewItems.length" class="outline-button" @click="acceptReviewItems">接受当前结果</button><button v-if="reviewItems.length" class="confirm-button" @click="reviewOpen = false; retryFailures(reviewSources(), true)">保守构图重跑</button></div>
       </section>
     </div>
     </Transition>

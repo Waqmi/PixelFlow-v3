@@ -108,6 +108,7 @@ export interface GenerationPayload {
   source_type_overrides?: Record<string, string>
   source_scale_adjustments?: Record<string, number>
   excluded_model_sources?: string[]
+  force_rerender?: boolean
 }
 
 export interface ClassificationPayload {

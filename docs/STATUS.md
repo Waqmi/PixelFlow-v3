@@ -7,21 +7,24 @@
 
 - Renderer 独立化技术退出条件已通过。
 - Worker 测试、鞋类 Pose/Seg 证据和 macOS arm64 `.app` 启停证据已存在。
-- 旧 onefile Worker 哈希 `027a624b...` 保留为历史证据；当前源码重建的 onedir Worker 哈希为 `e9cefbc2...`，待 Python 3.12 正式重建后再固化发布哈希。
-- `.app` 分类与完整生成回归已通过；当前已打包 app 的增量复用仍需重建 onedir Worker 后复跑。legacy/v3 基线已完成，52 个像素差异仍需修复或登记。
+- 当前正式 onefile Worker 哈希为 `027a624b...`；旧 `6c5fadabe...` 仅保留为历史证据。当前 onedir `.app` Worker 哈希为 `627ebbff...`，该构建使用 Python 3.9.13，Python 3.12 正式重建仍待 CI/可用环境。
+- `.app` 分类、完整生成和增量复用回归已通过；legacy/v3 基线已完成，52 个像素差异仍需修复或登记。
 
 ## 进行中
 
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
-| T2 `.app` 完整回归 | 进行中 | `v3-recheck-20260927/desktop-app-ui-audit-manual.json`：36 张分类、264 输出、0 失败；旧打包 Worker 的增量跳过待重建后复跑 |
+| T2 `.app` 完整回归 | 进行中 | 36 张分类、264 输出、0 失败；新 onedir app 双跑复用证据见 `app-package-evidence-20260927.json`，取消/鞋类完整 UI 仍待补 |
 | T3 当前 legacy 基线 | ✅ 基线完成 | `docs/v3-T3-legacy-baseline-2026-09-27.md`；120/120 配对，52 个需修复差异 |
-| T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存和 canonical scope；前端已移除 `read_file_bytes` 回退；Tauri CSP 已设置；300 张首屏实测待补 |
+| T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
 | T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
-| T7 onedir/Python 3.12 | 进行中 | onedir 资源已切换且 `cargo check` 通过；现有 onedir 证据使用旧 Python 环境，需用锁定 Python 3.12 重跑 |
-| T8–T11 | 未开始 | T3 已提供差异入口；T7/T2 收尾后继续 |
+| T7 onedir/Python 3.12 | 进行中 | onedir app 已重建并完成 ping/生成双跑/退出；当前 Python 3.9.13，需在 Python 3.12 环境重跑 |
+| T8 复核与回退可见性 | ✅ 已实现，真实批次追踪待补 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`apps/desktop/src/App.vue` |
+| T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；`App.vue` 拆分与 Vitest 仍待处理 |
+| T10 发布 | 未开始 | 签名、公证、DMG 和 Windows 安装验证仍依赖对应环境 |
+| T11 legacy 周期 | 🔄 已定义，周期进行中 | [`docs/legacy-cycle-beta.2.md`](legacy-cycle-beta.2.md) 与 [`docs/legacy-cycle-beta.2.json`](legacy-cycle-beta.2.json)；尚未满足 14 天或 2 个真实批次 |
 
 ## 版本与模型
 
@@ -41,6 +44,8 @@
 - `npm run build`：通过。
 - `cargo clean && cargo check`：通过（当前 onedir 资源布局）。
 - Worker 协议测试：`worker.tests.test_contracts` 7/7 通过；预览越界拒绝、缓存和 ready 版本握手 smoke 通过。
-- Worker 全量：`PYTHONPATH=worker PIXELFLOW_PYTHON=.../.venv/bin/python -m unittest discover` 87/87 通过。
+- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 89/89 通过。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
+- `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
+- onedir `.app` Worker：ping、分类/生成双跑、模型探测和 shutdown 通过；第二次生成 `incremental_reused=1`、`skipped_by_scope=0`。
 - `npm run protocol:check`：通过；契约解析、请求 ID、错误事件和超时 self-check 通过。

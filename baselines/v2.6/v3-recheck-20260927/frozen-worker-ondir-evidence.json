@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-27T09:50:00+00:00",
+  "generated_at": "2026-09-27T10:40:00+00:00",
   "artifact": {
     "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
     "exists": true,
-    "sha256": "e9cefbc2973c1506210fbd0ae4c776b8588abf0c0de2b2103d9ee8075e1a202a",
-    "size": 3437296,
+    "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+    "size": 3437344,
     "architecture": "Mach-O 64-bit executable arm64",
-    "build": "PyInstaller 6.22.0 onedir (current source, Python 3.9 compatibility environment)",
+    "build": "PyInstaller 6.22.0 onedir (current source, Python 3.9.13)",
     "startup_test": "ping, generation, probe_models fallback, shutdown passed"
   },
   "environment": {
@@ -80,6 +80,13 @@
       "category": "pants",
       "shutdown_returncode": 0,
       "stderr": ""
+    },
+    "generation_twice": {
+      "first_incremental_reused": 0,
+      "second_incremental_reused": 1,
+      "second_incremental_skipped": true,
+      "second_skipped_by_scope": 0,
+      "failures": []
     }
   },
   "limitations": [
@@ -195,7 +202,16 @@
     "previous_app_resource_sha256": "c5e30015525e460d9d4d9a8c10ab2d2510c6b6c8606eeb027d282f5a2b8e531b"
   },
   "latest_formal_onefile_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
-  "latest_sha256": "e9cefbc2973c1506210fbd0ae4c776b8588abf0c0de2b2103d9ee8075e1a202a",
-  "latest_app_resource_sha256": null,
-  "latest_hash_matches": false
+  "latest_sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+  "latest_app_resource_sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+  "latest_hash_matches": true,
+  "app_resource_sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
+  "app_resource_path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker",
+  "current_formal_onefile": {
+    "path": "worker/dist/pixelflow-worker",
+    "sha256": "027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd",
+    "size": 32362400,
+    "role": "current formal onefile hash; full runtime evidence remains historical frozen-worker-latest-evidence.json"
+  },
+  "formal_onefile_role": "historical protocol snapshot (6c5fadabe); current formal hash is recorded in current_formal_onefile"
 }

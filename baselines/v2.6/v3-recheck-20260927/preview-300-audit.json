@@ -1,0 +1,12 @@
+{
+  "schema_version": "v3-preview-300-audit-1",
+  "generated_at": "2026-09-27T10:15:00+00:00",
+  "worker": "source worker_entry.py",
+  "input_count": 300,
+  "preview_responses": 300,
+  "elapsed_seconds": 6.03,
+  "returncode": 0,
+  "stderr": "",
+  "scope": "allowed_roots canonical temporary input root",
+  "result": "Worker preview queue and bounded cache smoke passed; full desktop first-paint interactivity remains a UI-level check."
+}
