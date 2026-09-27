@@ -1,15 +1,75 @@
 """Qt-free PixelFlow v3 Worker contracts and runtime entry points."""
 
-from .contracts import Message, ProtocolError
+from .contracts import (
+    RUN_MODES,
+    ClassificationResult,
+    CompositionPlan,
+    RenderAssets,
+    RenderLayout,
+    Message,
+    ProtectedRegion,
+    ProtocolError,
+    RenderRequest,
+    RenderResult,
+    RenderSummary,
+    build_main_request,
+    build_model_request,
+    build_transparent_request,
+    build_vip_request,
+    validate_run_mode,
+)
 from .classification import ClassificationDecision, ClassificationRequest, V26ClassifierAdapter
-from .engine import GenerationRequest, V26EngineAdapter
+from .v3_classification import V3ClassifierAdapter
+from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
+from .model_cache import (
+    CACHE_VERSION,
+    COMPOSITION_RULES_VERSION,
+    CacheLookup,
+    build_cache_identity,
+    clear_model_result_cache,
+    load_model_result,
+    store_model_result,
+)
+from .model_service import ModelProcessError, ModelProcessService, get_model_process_service
+from .renderer import LegacyRenderResult, RenderConfig, Renderer, V3Renderer
 
 __all__ = [
     "ClassificationDecision",
+    "ClassificationResult",
     "ClassificationRequest",
+    "CompositionPlan",
+    "RenderAssets",
+    "RenderLayout",
     "GenerationRequest",
+    "ImageEngine",
     "Message",
+    "ProtectedRegion",
     "ProtocolError",
+    "RenderRequest",
+    "RenderResult",
+    "RenderSummary",
+    "build_main_request",
+    "build_model_request",
+    "build_transparent_request",
+    "build_vip_request",
+    "RUN_MODES",
     "V26ClassifierAdapter",
+    "V3ClassifierAdapter",
+    "V3EngineAdapter",
     "V26EngineAdapter",
+    "CACHE_VERSION",
+    "COMPOSITION_RULES_VERSION",
+    "CacheLookup",
+    "build_cache_identity",
+    "clear_model_result_cache",
+    "load_model_result",
+    "store_model_result",
+    "ModelProcessError",
+    "ModelProcessService",
+    "get_model_process_service",
+    "LegacyRenderResult",
+    "RenderConfig",
+    "Renderer",
+    "V3Renderer",
+    "validate_run_mode",
 ]

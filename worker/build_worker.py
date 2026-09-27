@@ -1,18 +1,37 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
+def materialize_symlinks(root: Path) -> None:
+    """Replace PyInstaller's macOS symlinks so Tauri can copy onedir resources."""
+    for path in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+        if not path.is_symlink():
+            continue
+        target = path.resolve(strict=True)
+        path.unlink()
+        if target.is_dir():
+            shutil.copytree(target, path, symlinks=False)
+        else:
+            shutil.copy2(target, path)
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent
-    output = root / "dist"
-    work = root / "build"
-    config = Path(os.environ.get("PYINSTALLER_CONFIG_DIR", root / ".pyinstaller-config"))
+    mode = os.environ.get("PIXELFLOW_WORKER_MODE", "ondir").strip().lower()
+    onedir = mode != "onefile"
+    suffix = "-ondir" if onedir else ""
+    output = root / f"dist{suffix}"
+    work = root / f"build{suffix}"
+    config = Path(os.environ.get("PYINSTALLER_CONFIG_DIR", root / f".pyinstaller-config{suffix}"))
+    python = os.environ.get("PIXELFLOW_PYTHON", sys.executable)
+    spec = root / ("pixelflow-worker-ondir.spec" if onedir else "pixelflow-worker.spec")
     command = [
-        sys.executable,
+        python,
         "-m",
         "PyInstaller",
         "--clean",
@@ -21,10 +40,13 @@ def main() -> int:
         str(output),
         "--workpath",
         str(work),
-        str(root / "pixelflow-worker.spec"),
+        str(spec),
     ]
     environment = {**os.environ, "PYINSTALLER_CONFIG_DIR": str(config)}
-    return subprocess.run(command, cwd=root, env=environment).returncode
+    result = subprocess.run(command, cwd=root, env=environment)
+    if result.returncode == 0 and onedir:
+        materialize_symlinks(output)
+    return result.returncode
 
 
 if __name__ == "__main__":

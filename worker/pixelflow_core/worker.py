@@ -1,15 +1,57 @@
 from __future__ import annotations
 
 import json
+import os
+import base64
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
+import shutil
 import sys
 import threading
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
 
-from .contracts import Message, ProtocolError, PROTOCOL_VERSION
-from .classification import ClassificationDecision, ClassificationRequest, V26ClassifierAdapter
-from .engine import GenerationRequest, V26EngineAdapter
+from .contracts import Message, ProtocolError, PROTOCOL_VERSION, validate_run_mode
+from .classification import (
+    ClassificationCancelled,
+    ClassificationDecision,
+    ClassificationRequest,
+    V26ClassifierAdapter,
+    _material_sources,
+    classification_summary,
+)
+from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
+
+
+WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0-beta.1")
+RULES_VERSION = "v3-composition-1"
+
+
+def _worker_build_hash() -> str:
+    configured = os.environ.get("PIXELFLOW_BUILD_HASH")
+    if configured:
+        return configured
+    try:
+        import hashlib
+
+        target = Path(sys.executable if getattr(sys, "frozen", False) else __file__)
+        digest = hashlib.sha256()
+        with target.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return "unknown"
+
+
+BUILD_HASH = _worker_build_hash()
+
+
+_PREVIEW_CACHE_LIMIT = 128
+_preview_cache: OrderedDict[tuple[str, int, int, int, int], dict[str, str]] = OrderedDict()
+_preview_cache_lock = threading.Lock()
 
 
 SUPPORTED_REQUESTS = {
@@ -20,12 +62,23 @@ SUPPORTED_REQUESTS = {
     "cancel_generation",
     "retry_failed",
     "clear_cache",
+    "read_preview",
     "shutdown",
 }
 
 
 def _event(request_id: str, event_type: str, payload: dict) -> str:
     return Message(PROTOCOL_VERSION, request_id, event_type, _json_safe(payload)).to_json()
+
+
+def _ready_payload() -> dict[str, Any]:
+    return {
+        "worker": "pixelflow-v3",
+        "protocol": PROTOCOL_VERSION,
+        "worker_version": WORKER_VERSION,
+        "rules_version": RULES_VERSION,
+        "build_hash": BUILD_HASH,
+    }
 
 
 def _json_safe(value: Any) -> Any:
@@ -65,6 +118,19 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
     max_size_mb = payload.get("max_size_mb")
     if max_size_mb is not None:
         max_size_mb = float(max_size_mb)
+    raw_plans = payload.get("composition_plans", [])
+    if not isinstance(raw_plans, (list, tuple)):
+        raise ValueError("composition_plans must be an array")
+    composition_plans = []
+    for value in raw_plans:
+        if not isinstance(value, dict):
+            raise ValueError("each composition plan must be an object")
+        source = Path(str(value.get("source", "")))
+        size = str(value.get("size", ""))
+        plan = V3EngineAdapter._plan(value, source, size)
+        if plan is None:
+            raise ValueError("invalid composition plan")
+        composition_plans.append(plan)
     return GenerationRequest(
         product_root=Path(str(payload.get("product_root", ""))).expanduser(),
         output_root=Path(str(payload.get("output_root", ""))).expanduser(),
@@ -91,6 +157,13 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
         local_model_enabled=bool(payload.get("local_model_enabled", False)),
         local_model_path=str(payload["local_model_path"]) if payload.get("local_model_path") else None,
         material_confirmation_completed=bool(payload.get("material_confirmation_completed", True)),
+        composition_plans=tuple(composition_plans),
+        mode=validate_run_mode(
+            payload.get(
+                "mode",
+                payload.get("run_mode", os.environ.get("PIXELFLOW_ENGINE_MODE", "v3")),
+            )
+        ),
     )
 
 
@@ -106,7 +179,133 @@ def _classification_request(payload: dict[str, Any]) -> ClassificationRequest:
         source_filter={str(item) for item in source_filter} if source_filter is not None else None,
         overrides={str(key): str(value) for key, value in overrides.items()},
         workers=int(payload.get("workers", 1) or 1),
+        category=str(payload["category"]) if payload.get("category") else None,
+        local_model_enabled=bool(payload.get("local_model_enabled", False)),
+        local_model_path=str(payload["local_model_path"]) if payload.get("local_model_path") else None,
+        output_root=Path(str(payload["output_root"])).expanduser() if payload.get("output_root") else None,
     )
+
+
+def _preflight_materials(
+    request: ClassificationRequest,
+    sources: tuple[Path, ...] | list[Path] | None = None,
+) -> list[str]:
+    from PIL import Image
+
+    sources = tuple(sources) if sources is not None else tuple(_material_sources(request.product_root))
+    if not sources:
+        raise ValueError("文件夹内没有 JPG、JPEG 或 PNG 图片")
+    unreadable: list[str] = []
+    oversized: list[str] = []
+    for source in sources:
+        try:
+            with Image.open(source) as image:
+                if image.width * image.height > 50_000_000:
+                    oversized.append(source.name)
+        except Exception:
+            unreadable.append(source.name)
+    warnings = []
+    if unreadable:
+        warnings.append(f"无法读取 {len(unreadable)} 张图片（例如：{', '.join(unreadable[:3])}）。")
+    if oversized:
+        warnings.append(f"有 {len(oversized)} 张图片超过 5000 万像素，处理时可能占用较多内存。")
+    if request.output_root is not None:
+        output = request.output_root
+        product_root = request.product_root.expanduser().resolve()
+        output_resolved = output.expanduser().resolve(strict=False)
+        if output_resolved == product_root or product_root in output_resolved.parents:
+            raise ValueError("输出目录不能与输入目录相同，也不能位于输入目录内")
+        if output.exists() and not output.is_dir():
+            raise ValueError(f"输出位置不是文件夹：{output}")
+        parent = output
+        while not parent.exists() and parent != parent.parent:
+            parent = parent.parent
+        if not os.access(parent, os.W_OK):
+            raise ValueError(f"输出位置不可写：{output}")
+        if shutil.disk_usage(parent).free < 200 * 1024 * 1024:
+            warnings.append("输出磁盘可用空间低于 200 MB，批量生成可能中途失败。")
+    return warnings
+
+
+def _preview_roots(payload: dict[str, Any]) -> tuple[Path, ...]:
+    raw_roots = payload.get("allowed_roots")
+    if raw_roots is None and payload.get("allowed_root") is not None:
+        raw_roots = [payload["allowed_root"]]
+    if isinstance(raw_roots, str):
+        raw_roots = [raw_roots]
+    if not isinstance(raw_roots, (list, tuple)):
+        raise ValueError("preview scope is required")
+    roots: list[Path] = []
+    for value in raw_roots:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        root = Path(value).expanduser().resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError("preview scope must be a directory")
+        roots.append(root)
+    if not roots:
+        raise ValueError("preview scope is required")
+    return tuple(roots)
+
+
+def _validate_preview_path(payload: dict[str, Any]) -> Path:
+    path = Path(str(payload.get("path", ""))).expanduser().resolve(strict=True)
+    if not path.is_file():
+        raise ValueError("preview file is missing")
+    if path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+        raise ValueError("preview file type is not supported")
+    roots = _preview_roots(payload)
+    if not any(path == root or root in path.parents for root in roots):
+        raise ValueError("preview path is outside the allowed scope")
+    return path
+
+
+def _read_preview(payload: dict[str, Any], require_scope: bool = False) -> dict[str, str]:
+    from PIL import Image, ImageOps
+
+    path = _validate_preview_path(payload) if require_scope else Path(str(payload.get("path", ""))).expanduser().resolve(strict=True)
+    if not path.is_file():
+        raise ValueError("preview file is missing")
+    max_width = max(1, min(198, int(payload.get("max_width", 198) or 198)))
+    max_height = max(1, min(138, int(payload.get("max_height", 138) or 138)))
+    stat = path.stat()
+    cache_key = (str(path), stat.st_mtime_ns, stat.st_size, max_width, max_height)
+    with _preview_cache_lock:
+        cached = _preview_cache.get(cache_key)
+        if cached is not None:
+            _preview_cache.move_to_end(cache_key)
+            return dict(cached)
+    with Image.open(path) as source:
+        # Ask JPEG decoders for a reduced decode before EXIF correction. This
+        # avoids materializing multi-megapixel originals just to make a card
+        # thumbnail. PNG remains on the normal decoder path.
+        if source.format in {"JPEG", "MPO"}:
+            try:
+                source.draft("RGB", (max_width, max_height))
+            except Exception:  # noqa: BLE001 - decoder-specific optimization
+                pass
+        try:
+            image = ImageOps.exif_transpose(source)
+        except Exception:  # noqa: BLE001 - keep preview usable for malformed EXIF
+            image = source.copy()
+        try:
+            image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        except Exception:  # noqa: BLE001 - match v2.6 fallback to the decoded source image
+            image = source.copy()
+        output = BytesIO()
+        if path.suffix.lower() == ".png":
+            image.save(output, format="PNG", optimize=True)
+            mime_type = "image/png"
+        else:
+            image.convert("RGB").save(output, format="JPEG", quality=85, optimize=True)
+            mime_type = "image/jpeg"
+    result = {"mime_type": mime_type, "data": base64.b64encode(output.getvalue()).decode("ascii")}
+    with _preview_cache_lock:
+        _preview_cache[cache_key] = result
+        _preview_cache.move_to_end(cache_key)
+        while len(_preview_cache) > _PREVIEW_CACHE_LIMIT:
+            _preview_cache.popitem(last=False)
+    return dict(result)
 
 
 class WorkerRuntime:
@@ -117,8 +316,15 @@ class WorkerRuntime:
         adapter: V26EngineAdapter | None = None,
         classifier: V26ClassifierAdapter | None = None,
         emit: Callable[[str, str, dict[str, Any]], None] | None = None,
+        v3_adapter: V3EngineAdapter | Any | None = None,
     ) -> None:
         self.adapter = adapter or V26EngineAdapter()
+        # Injected adapters in unit/process tests are intentional seams. Keep
+        # them on the v3 leg unless the production default is in use.
+        self.v3_adapter = v3_adapter or (
+            self.adapter if adapter is not None and not isinstance(self.adapter, V26EngineAdapter) else V3EngineAdapter()
+        )
+        self.engine = ImageEngine(self.adapter, self.v3_adapter)
         self.classifier = classifier or V26ClassifierAdapter(getattr(self.adapter, "v2_root", None))
         self._emit = emit or (lambda _request_id, _event_type, _payload: None)
         self._lock = threading.Lock()
@@ -182,36 +388,25 @@ class WorkerRuntime:
 
     def probe_models(self, model_root: str) -> dict[str, dict[str, str]]:
         """Probe optional models without starting inference when none exist."""
-        root = Path(model_root).expanduser()
-        engine_root = self.adapter.v2_root
-        if str(engine_root) not in sys.path:
-            sys.path.insert(0, str(engine_root))
-        from model_process_service import configured_model_candidates
+        from .model_service import get_model_process_service
 
-        configured = {
-            purpose: configured_model_candidates(root, purpose)
-            for purpose in ("pose", "segmentation")
-        }
-        if not any(configured.values()):
-            return {
-                purpose: {"state": "未配置", "models": ""}
-                for purpose in configured
-            }
-        from model_process_service import get_model_process_service
-
-        return get_model_process_service().probe(root)
+        return get_model_process_service().probe(Path(model_root).expanduser())
 
     def clear_cache(self) -> dict[str, int]:
-        engine_root = self.adapter.v2_root
-        if str(engine_root) not in sys.path:
-            sys.path.insert(0, str(engine_root))
-        from generate_main_images import clear_manifest_cache
-        from model_result_cache import clear_model_result_cache
+        if self.busy:
+            raise RuntimeError("请等待当前任务结束后再清理缓存")
+        from .legacy_engine.generate_main_images import clear_manifest_cache
+        from .model_cache import clear_model_result_cache
+        from .model_service import get_model_process_service
 
-        return {
+        result = {
             "manifest": clear_manifest_cache(),
             "model_results": clear_model_result_cache(),
         }
+        with _preview_cache_lock:
+            _preview_cache.clear()
+        get_model_process_service().close()
+        return result
 
     def _run(self, request_id: str, request: GenerationRequest, cancel_event: threading.Event) -> None:
         def report(completed: int, total: int, phase: str) -> None:
@@ -222,7 +417,7 @@ class WorkerRuntime:
             )
 
         try:
-            result = self.adapter.run(request, progress=report, cancel_event=cancel_event)
+            result = self.engine.run(request, progress=report, cancel_event=cancel_event)
             event_type = "cancelled" if bool(result.get("cancelled")) else "done"
             self._emit(request_id, event_type, {"result": result})
         except Exception as error:  # worker boundary must report failures, not die silently
@@ -239,9 +434,6 @@ class WorkerRuntime:
         request: ClassificationRequest,
         cancel_event: threading.Event,
     ) -> None:
-        class ClassificationCancelled(Exception):
-            pass
-
         def report(
             completed: int,
             total: int,
@@ -256,18 +448,80 @@ class WorkerRuntime:
                 {
                     "completed": completed,
                     "total": total,
-                    "phase": "分类",
+                    "phase": "规则分类",
                     "source": source,
                     "decision": decision,
                 },
             )
 
+        def report_stage(stage: str, completed: int, total: int, source: Path) -> None:
+            if cancel_event.is_set():
+                raise ClassificationCancelled()
+            self._emit(
+                request_id,
+                "progress",
+                {
+                    "completed": completed,
+                    "total": total,
+                    "phase": stage,
+                    "source": source,
+                },
+            )
+
         try:
-            decisions = self.classifier.classify(request, progress=report)
+            # Collect the source list once and share it with preflight and the
+            # classifier.  The old flow walked the input tree twice.
+            sources = tuple(_material_sources(request.product_root))
+            warnings = _preflight_materials(request, sources) if request.output_root else []
+            category_decision = None
+            v2_root = getattr(self.classifier, "v2_root", None)
+            if v2_root is not None:
+                from .legacy_engine.category_engine.category_classifier import RuleCategoryClassifier
+
+                category_decision = RuleCategoryClassifier().classify(
+                    request.product_root,
+                    request.category,
+                )
+            classified_request = replace(
+                request,
+                sources=sources,
+                category=category_decision.category if category_decision is not None else request.category,
+                cancel_event=cancel_event,
+                stage_progress=report_stage,
+            )
+            decisions = self.classifier.classify(
+                classified_request,
+                progress=report,
+            )
             if cancel_event.is_set():
                 self._emit(request_id, "cancelled", {"phase": "分类"})
             else:
-                self._emit(request_id, "done", {"result": {"decisions": decisions}})
+                result: dict[str, Any] = {
+                    "decisions": decisions,
+                    "preflight_warnings": warnings,
+                    "summary": classification_summary(decisions),
+                }
+                if v2_root is not None:
+                    from .legacy_engine.local_model_assistant import category_compatibility
+
+                    category = category_decision
+                    if category is None:
+                        from .legacy_engine.category_engine.category_classifier import RuleCategoryClassifier
+
+                        category = RuleCategoryClassifier().classify(
+                            request.product_root,
+                            request.category,
+                        )
+                    result["category"] = asdict(category)
+                    result["suggested_exclusions"] = [
+                        decision.source
+                        for decision in decisions
+                        if decision.source_type in {"model", "model_detail"}
+                        and isinstance(decision.metadata, dict)
+                        and isinstance(decision.metadata.get("body_visibility"), dict)
+                        and category_compatibility(category.category, decision.metadata["body_visibility"])[0] == "incompatible"
+                    ]
+                self._emit(request_id, "done", {"result": result})
         except ClassificationCancelled:
             self._emit(request_id, "cancelled", {"phase": "分类"})
         except Exception as error:  # worker boundary must report failures, not die silently
@@ -286,7 +540,7 @@ def handle_message(message: Message) -> tuple[str, bool]:
     if message.type == "shutdown":
         return _event(message.request_id, "done", {"action": "shutdown"}), True
     if message.type == "ping":
-        return _event(message.request_id, "ready", {"worker": "pixelflow-v3", "protocol": PROTOCOL_VERSION}), False
+        return _event(message.request_id, "ready", _ready_payload()), False
     return _event(
         message.request_id,
         "status",
@@ -296,6 +550,7 @@ def handle_message(message: Message) -> tuple[str, bool]:
 
 def main() -> int:
     output_lock = threading.Lock()
+    preview_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pixelflow-preview")
 
     def emit(request_id: str, event_type: str, payload: dict[str, Any]) -> None:
         line = _event(request_id, event_type, payload)
@@ -303,7 +558,7 @@ def main() -> int:
             print(line, flush=True)
 
     runtime = WorkerRuntime(emit=emit)
-    emit("worker", "ready", {"worker": "pixelflow-v3", "protocol": PROTOCOL_VERSION})
+    emit("worker", "ready", _ready_payload())
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -311,6 +566,7 @@ def main() -> int:
         try:
             message = Message.from_json(line)
             should_exit = False
+            response: str | None = None
             if message.type == "start_generation":
                 runtime.start(message.request_id, message.payload)
                 response = _event(message.request_id, "status", {"state": "started"})
@@ -326,6 +582,7 @@ def main() -> int:
                 )
             elif message.type == "shutdown":
                 stopped = runtime.shutdown()
+                preview_executor.shutdown(wait=True, cancel_futures=False)
                 response = _event(
                     message.request_id,
                     "done" if stopped else "error",
@@ -334,17 +591,34 @@ def main() -> int:
                 should_exit = stopped
             elif message.type == "probe_models":
                 model_root = str(message.payload.get("model_root", ""))
-                response = _event(
-                    message.request_id,
-                    "done",
-                    {"models": runtime.probe_models(model_root)},
-                )
+                emit(message.request_id, "status", {"state": "loading", "message": "正在检测外部模型…"})
+
+                def probe_models_async(request_id: str = message.request_id, root: str = model_root) -> None:
+                    try:
+                        emit(request_id, "done", {"models": runtime.probe_models(root)})
+                    except Exception as error:  # noqa: BLE001 - return probe failures through the protocol
+                        emit(request_id, "error", {"code": "model_probe_failed", "message": str(error)})
+
+                threading.Thread(
+                    target=probe_models_async,
+                    name="pixelflow-model-probe",
+                    daemon=True,
+                ).start()
+                response = None
             elif message.type == "clear_cache":
                 response = _event(
                     message.request_id,
                     "done",
                     {"cleared": runtime.clear_cache()},
                 )
+            elif message.type == "read_preview":
+                def finish_preview(future: Any, request_id: str = message.request_id) -> None:
+                    try:
+                        emit(request_id, "done", future.result())
+                    except Exception as error:  # noqa: BLE001 - return preview failures through the protocol
+                        emit(request_id, "error", {"code": "preview_failed", "message": str(error)})
+
+                preview_executor.submit(_read_preview, message.payload, True).add_done_callback(finish_preview)
             elif message.type == "retry_failed":
                 runtime.start(message.request_id, message.payload)
                 response = _event(message.request_id, "status", {"state": "started", "retry": True})
@@ -356,7 +630,8 @@ def main() -> int:
         except Exception as error:
             response = _event(message.request_id if "message" in locals() else "unknown", "error", {"code": "invalid_request", "message": str(error)})
             should_exit = False
-        print(response, flush=True)
+        if response is not None:
+            print(response, flush=True)
         if should_exit:
             return 0
     return 0

@@ -1,0 +1,27 @@
+{
+  "schema_version": "v3-desktop-app-ui-audit-manual-1",
+  "generated_at": "2026-09-27T09:40:00+00:00",
+  "app": "dist/PixelFlow-v3-beta.app",
+  "source_root": "/private/tmp/pixelflow-v3-sources-36",
+  "output_root": "/private/tmp/pixelflow-v3-output-20260927",
+  "source_count": 36,
+  "steps": {
+    "app_launch": true,
+    "source_and_output_fields_filled": true,
+    "classification_completed": true,
+    "confirmation_page_visible": true,
+    "manual_category_controls_visible": true,
+    "generation_started": true,
+    "generation_completed": true,
+    "outputs_written": 264,
+    "failures": 0,
+    "review_exceptions": 0,
+    "controlled_termination": true,
+    "output_folder_action_visible": true,
+    "incremental_skip": false
+  },
+  "classification_summary": "已识别 36 张：商品白底图 8、细节图 28、模特图 0、模特细节图 0、跳过 0",
+  "generation_summary": "结果页显示 264 成功输出、0 跳过素材、0 失败素材、0 审查异常",
+  "known_gap": "现有已打包 app 使用旧 Worker；代码已补充 v3 输出存在性复用，但需重新构建 onedir Worker 和 app 后复跑增量跳过。",
+  "process_residue": "未观察到残留 Worker；退出由 app 完成按钮控制。"
+}

@@ -1,0 +1,528 @@
+{
+  "version": 2,
+  "status": "completed_with_native_model_evidence",
+  "source_root": "../05_测试素材与输出/鞋",
+  "fixture_count": 20,
+  "classification_run": {
+    "status": "completed_rules_only",
+    "category": {
+      "category": "shoes",
+      "confidence": 0.95,
+      "source": "name",
+      "matched_keyword": "鞋"
+    },
+    "source_type_counts": {
+      "detail": 20
+    },
+    "confidence": 0.88,
+    "reason": "主体或画面内容贴近边缘",
+    "pose_model": "disabled",
+    "segmentation_model": "disabled"
+  },
+  "fixtures": [
+    {
+      "id": "shoe-01",
+      "relative_path": "2026-9-4BMAI0840.jpg",
+      "sha256": "7e3c049384ca5a848d26381992f24ebc98356be624affac14b52b9c26d5f5899",
+      "size": [
+        4638,
+        6958
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-02",
+      "relative_path": "2026-9-4BMAI0855.jpg",
+      "sha256": "95f93145824649c1bad4ca977591ad8bac22419289e5a12163b69ba9377bdc05",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-03",
+      "relative_path": "2026-9-4BMAI0861.jpg",
+      "sha256": "2237c50855eda5186d45fd62d19c6794378dd09f7c369ce30bddd103b560e4e3",
+      "size": [
+        4619,
+        6928
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-04",
+      "relative_path": "2026-9-4BMAI0998.jpg",
+      "sha256": "20a96b7dae5dcbfcd8c311a3d58474f7d777a3af5759ee741cdda2f9624d31fc",
+      "size": [
+        4638,
+        6958
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-05",
+      "relative_path": "2026-9-4BMAI1008.jpg",
+      "sha256": "d54ae6803ce3a8df8fa4c668655cd2609a868a89f990bbb824d487bcdcf607e6",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-06",
+      "relative_path": "2026-9-4BMAI1125.jpg",
+      "sha256": "fa19c49cd31c292da22c422978e6905d29f038a34b03f19eee34901cf1f28ef4",
+      "size": [
+        4620,
+        6931
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-07",
+      "relative_path": "2026-9-4BMAI1132.jpg",
+      "sha256": "56610719e5f2768676833c9d582018ac420db246750efe634c04f985e6eb9732",
+      "size": [
+        4866,
+        7299
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-08",
+      "relative_path": "2026-9-4BMAI1140.jpg",
+      "sha256": "929f2e903d38e224cec2b882f46570eaade9480b964e755bc69ed0cb5b327b30",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-09",
+      "relative_path": "2026-9-4BMAI1142.jpg",
+      "sha256": "44fceac919d0a3247f0d5b51c419214ed89174ab193703776f721ac3fe859547",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-10",
+      "relative_path": "2026-9-4BMAI1148.jpg",
+      "sha256": "47203fd977218f72e97475416f60c182d074cb170b7ff476232f6db14ffdabd8",
+      "size": [
+        3820,
+        5730
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-11",
+      "relative_path": "2026-9-4BMAI1257.jpg",
+      "sha256": "6bf53dcb4e26a7cf1429c736926a40e65fd2e43b6114c62f99d861cbdedaae5c",
+      "size": [
+        4638,
+        6958
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-12",
+      "relative_path": "2026-9-4BMAI1370.jpg",
+      "sha256": "ef8b928ee41fc65247c2e0bf226e3c3e7684d847f90f4b277dd22ecd7c10e16e",
+      "size": [
+        4866,
+        7299
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-13",
+      "relative_path": "2026-9-4BMAI1372.jpg",
+      "sha256": "401c4cae0b25d01a92fccdca4ad4f01e39e3738f7d25cbd3036f480c3bcf66d6",
+      "size": [
+        4866,
+        7299
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-14",
+      "relative_path": "2026-9-4BMAI1562.jpg",
+      "sha256": "f815c362582f05634c1aaf5d01e36fa7f94a1d9fef11b9019534e502b6078678",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-15",
+      "relative_path": "2026-9-4BMAI1568.jpg",
+      "sha256": "50a98057e689fff8abb411960419405c01937c99cdd3d1208745eaafa7c4a68b",
+      "size": [
+        4638,
+        6958
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-16",
+      "relative_path": "2026-9-4BMAI1571.jpg",
+      "sha256": "3ce67a41955b4d6b4d563b87817a1ab6c4694420ff242b7272beb7757553aca1",
+      "size": [
+        4747,
+        7120
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-17",
+      "relative_path": "2026-9-4BMAI1706.jpg",
+      "sha256": "e41d7ebd3fa77db2c9501e26927280c12074d5c777462a0241f0ef0c913b9a9c",
+      "size": [
+        4638,
+        6957
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-18",
+      "relative_path": "2026-9-4BMAI1714.jpg",
+      "sha256": "86f0a74117c28e3ff6e35140a3f145bdfe2f2ffa7af215a3b681ed6353a7f0ae",
+      "size": [
+        4637,
+        6956
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-19",
+      "relative_path": "2026-9-4BMAI1719.jpg",
+      "sha256": "36bd823e1aa6232d1588a01ddff2632aea6332f48b00beacab7227899d18d8a8",
+      "size": [
+        4638,
+        6957
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    },
+    {
+      "id": "shoe-20",
+      "relative_path": "2026-9-4BMAI2582.jpg",
+      "sha256": "f813c91b091436718042a1af560d488cf4ab9060b3c730e49826fd5c02f848b0",
+      "size": [
+        4866,
+        7299
+      ],
+      "mode": "RGB",
+      "expected_role": "model_photo"
+    }
+  ],
+  "cases": [
+    {
+      "case": "normal_stance",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-01",
+        "shoe-17",
+        "shoe-18"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [],
+      "requires_review": false,
+      "review_hint": "规则分类已完成；Pose/Seg 证据仍需补跑",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "large_bend",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-02",
+        "shoe-05",
+        "shoe-06",
+        "shoe-07",
+        "shoe-14",
+        "shoe-15",
+        "shoe-19"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "腿部动作幅度大"
+      ],
+      "requires_review": true,
+      "review_hint": "弯腿/下蹲动作需人工确认鞋部保护框和裁剪",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "single_foot",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-04",
+        "shoe-09",
+        "shoe-13",
+        "shoe-20"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "单脚或脚部遮挡"
+      ],
+      "requires_review": true,
+      "review_hint": "单脚/抬脚动作需人工确认未裁掉目标鞋",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "crossed_legs",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-12"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "交叉腿（视觉疑似，待 Pose 确认）"
+      ],
+      "requires_review": true,
+      "review_hint": "仅作视觉候选；Pose 未确认前不得作为自动通过证据",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "foot_occlusion",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-02",
+        "shoe-06",
+        "shoe-14",
+        "shoe-19"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "单脚或脚部遮挡"
+      ],
+      "requires_review": true,
+      "review_hint": "手/裤脚与鞋部有重叠，需人工确认是否被遮挡",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "sole_facing_camera",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-10",
+        "shoe-13",
+        "shoe-16"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "鞋底朝镜头"
+      ],
+      "requires_review": true,
+      "review_hint": "鞋底朝镜头需人工确认保护框和缩放上限",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "person_frame_edge",
+      "status": "observed_visual_review",
+      "source_ids": [
+        "shoe-01",
+        "shoe-17",
+        "shoe-18"
+      ],
+      "classification": {
+        "category": "shoes",
+        "confidence": 0.95,
+        "source": "name",
+        "source_type": "detail",
+        "classifier_confidence": 0.88,
+        "classifier_reason": "主体或画面内容贴近边缘"
+      },
+      "pose_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Pose model"
+      },
+      "segmentation_evidence": {
+        "status": "not_run",
+        "reason": "matrix run disabled external Seg model"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "人物框贴边（视觉候选，待 Pose 确认）"
+      ],
+      "requires_review": true,
+      "review_hint": "输入人物/腿部接触画面边缘，需 Pose bbox 确认",
+      "outputs": [],
+      "output_status": "not_generated_in_matrix_run"
+    },
+    {
+      "case": "multiple_people",
+      "status": "skipped",
+      "source_ids": [],
+      "classification": {
+        "status": "skipped"
+      },
+      "pose_evidence": {
+        "status": "skipped"
+      },
+      "segmentation_evidence": {
+        "status": "skipped"
+      },
+      "protected_regions": [],
+      "crop_ratio": null,
+      "risk_flags": [
+        "双人/多人"
+      ],
+      "requires_review": true,
+      "review_hint": "按当前验收范围暂跳过双人/多人样本；后续补充素材后再验证",
+      "outputs": [],
+      "output_status": "skipped"
+    }
+  ],
+  "plan_evidence": {
+    "status": "replayable_cached_model_evidence",
+    "path": "../baselines/v2.6/v3-recheck-20260927/shoe-composition-evidence.json",
+    "source_sha256_verified": 20,
+    "pose_entries": 20,
+    "segmentation_entries": 2,
+    "typed_plan_entries": 60,
+    "generated_at": "2026-09-27T03:41:01.114151+00:00",
+    "native_run_path": "../baselines/v2.6/v3-recheck-20260927/v3-native-model-evidence.json",
+    "native_run_status": "fresh_native_model_run",
+    "native_sources": 20,
+    "native_pose_ready": 20,
+    "native_segmentation_ready": 20,
+    "native_typed_plans": 60,
+    "native_fallback": 0,
+    "native_render_report_path": "../baselines/v2.6/v3-recheck-20260927/v3-native-model-render-report.json",
+    "native_render_outputs": 60,
+    "native_render_typed_validated": 60
+  }
+}

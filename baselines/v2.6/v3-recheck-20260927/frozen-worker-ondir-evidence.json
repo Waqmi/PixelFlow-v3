@@ -1,0 +1,201 @@
+{
+  "generated_at": "2026-09-27T09:50:00+00:00",
+  "artifact": {
+    "path": "worker/dist-ondir/pixelflow-worker/pixelflow-worker",
+    "exists": true,
+    "sha256": "e9cefbc2973c1506210fbd0ae4c776b8588abf0c0de2b2103d9ee8075e1a202a",
+    "size": 3437296,
+    "architecture": "Mach-O 64-bit executable arm64",
+    "build": "PyInstaller 6.22.0 onedir (current source, Python 3.9 compatibility environment)",
+    "startup_test": "ping, generation, probe_models fallback, shutdown passed"
+  },
+  "environment": {
+    "working_directory": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta",
+    "external_v2_path_used": false,
+    "python": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python",
+    "pyinstaller": "6.22.0",
+    "cwd_independence_test": true,
+    "environment_overrides_cleared": [
+      "PIXELFLOW_V2_ROOT",
+      "PIXELFLOW_RESOURCE_ROOT"
+    ]
+  },
+  "protocol": {
+    "ping": {
+      "type": "ready",
+      "worker": "pixelflow-v3",
+      "protocol": 1
+    },
+    "generation": {
+      "mode": "v3",
+      "renderer": "typed-v3",
+      "fallback": false,
+      "sources": 1,
+      "main_images": 1,
+      "failures": [],
+      "typed_renderer": {
+        "validated": 2,
+        "failed": 0
+      },
+      "shutdown_returncode": 0,
+      "vip_images": 1,
+      "outputs": 2,
+      "fixture": "single product source with VIP enabled"
+    },
+    "missing_model_probe": {
+      "pose": {
+        "status": "unconfigured",
+        "fallback": true
+      },
+      "segmentation": {
+        "status": "unconfigured",
+        "fallback": true
+      }
+    },
+    "shutdown": {
+      "type": "done",
+      "action": "shutdown",
+      "returncode": 0
+    },
+    "controlled_v3_failure_fallback": {
+      "injection": "source_metadata_overrides={source: {\"logo_luminance\": \"bad\"}} (controlled metadata fault injection)",
+      "mode": "v3",
+      "fallback": true,
+      "fallback_reason": "'<' not supported between instances of 'str' and 'int'",
+      "formal_output_files": 1,
+      "failures": [],
+      "shutdown_returncode": 0,
+      "stderr": ""
+    },
+    "app_worker_launch": {
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "[PYI-27412:ERROR] Failed to initialize sync semaphore! semctl: Operation not permitted",
+      "sha256_matches_build_worker": true
+    },
+    "classification": {
+      "sources": 1,
+      "decisions": 1,
+      "fallback_count": 0,
+      "category": "pants",
+      "shutdown_returncode": 0,
+      "stderr": ""
+    }
+  },
+  "limitations": [
+    "The formal onefile Worker and the identical .app Worker resource passed the full protocol chain with host permissions; an unprivileged sandbox launch still returns semctl: Operation not permitted.",
+    "The Renderer fallback record is a controlled metadata fault injection, not a claim about an organically corrupted image or resource.",
+    "Current onedir rebuild uses the available Python 3.9 environment; Python 3.12 rebuild remains pending."
+  ],
+  "formal_onefile": {
+    "path": "worker/dist/pixelflow-worker",
+    "sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "size": 32363920,
+    "architecture": "Mach-O 64-bit executable arm64",
+    "launch": {
+      "returncode": 0,
+      "stdout": "ready → ping ready → shutdown done",
+      "stderr": ""
+    },
+    "app_resource_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "app_hash_matches_onefile": true,
+    "app_launch": {
+      "returncode": 0,
+      "stdout": "ready → ping ready → shutdown done",
+      "stderr": ""
+    },
+    "protocol": {
+      "classification": {
+        "decisions": 1,
+        "fallback_count": 0,
+        "category": "pants"
+      },
+      "generation": {
+        "mode": "v3",
+        "renderer": "typed-v3",
+        "fallback": false,
+        "main_images": 1,
+        "vip_images": 1,
+        "typed_renderer_validated": 2,
+        "typed_renderer_failed": 0,
+        "failures": []
+      },
+      "missing_model_probe": {
+        "pose": {
+          "status": "unconfigured",
+          "fallback": true
+        },
+        "segmentation": {
+          "status": "unconfigured",
+          "fallback": true
+        }
+      },
+      "controlled_v3_failure_fallback": {
+        "mode": "v3",
+        "fallback": true,
+        "fallback_reason": "'<' not supported between instances of 'str' and 'int'",
+        "formal_output_files": 0,
+        "failures": []
+      },
+      "shutdown": {
+        "type": "done",
+        "returncode": 0,
+        "stderr": ""
+      }
+    },
+    "app_resource_protocol": {
+      "classification": {
+        "decisions": 1,
+        "fallback_count": 0,
+        "category": "pants"
+      },
+      "generation": {
+        "mode": "v3",
+        "renderer": "typed-v3",
+        "fallback": false,
+        "main_images": 1,
+        "vip_images": 1,
+        "typed_renderer_validated": 2,
+        "typed_renderer_failed": 0,
+        "failures": []
+      },
+      "missing_model_probe": {
+        "pose": {
+          "status": "unconfigured",
+          "fallback": true
+        },
+        "segmentation": {
+          "status": "unconfigured",
+          "fallback": true
+        }
+      },
+      "controlled_v3_failure_fallback": {
+        "mode": "v3",
+        "fallback": true,
+        "fallback_reason": "'<' not supported between instances of 'str' and 'int'",
+        "formal_output_files": 0,
+        "failures": []
+      },
+      "shutdown": {
+        "type": "done",
+        "returncode": 0,
+        "stderr": ""
+      }
+    },
+    "verified_with_host_permissions": true,
+    "app_launch_host_permissions": {
+      "returncode": 0,
+      "protocol": "app_resource_protocol",
+      "stderr": ""
+    },
+    "latest_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "latest_app_resource_sha256": "6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0",
+    "latest_hash_matches": true,
+    "previous_sha256": "c5e30015525e460d9d4d9a8c10ab2d2510c6b6c8606eeb027d282f5a2b8e531b",
+    "previous_app_resource_sha256": "c5e30015525e460d9d4d9a8c10ab2d2510c6b6c8606eeb027d282f5a2b8e531b"
+  },
+  "latest_formal_onefile_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
+  "latest_sha256": "e9cefbc2973c1506210fbd0ae4c776b8588abf0c0de2b2103d9ee8075e1a202a",
+  "latest_app_resource_sha256": null,
+  "latest_hash_matches": false
+}

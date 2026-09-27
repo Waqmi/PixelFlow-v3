@@ -1,20 +1,85 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from pixelflow_core.classification import (
     ClassificationDecision,
     ClassificationRequest,
     V26ClassifierAdapter,
+    _merge_composition_metadata,
+    classification_summary,
 )
-from pixelflow_core.worker import WorkerRuntime
+from pixelflow_core.worker import WorkerRuntime, _preflight_materials
 
 
 class ClassificationAdapterTests(unittest.TestCase):
+    def test_bundled_classifier_does_not_modify_import_path(self) -> None:
+        before = list(sys.path)
+        V26ClassifierAdapter(bundled_only=True)._load_classifier()
+        self.assertEqual(sys.path, before)
+
+    def test_missing_pose_model_is_explicit_fallback_and_typed(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/model.jpg")
+        decisions = {
+            source: SourceTypeDecision("model", 0.9, "rules", "model"),
+        }
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[]):
+            adapter._apply_optional_models(decisions, "/tmp/empty-models", "shoes", None)
+
+        metadata = decisions[source].metadata or {}
+        self.assertTrue(metadata["fallback"])
+        self.assertIn("ONNX", str(metadata["fallback_reason"]))
+        self.assertEqual(metadata["pose_evidence"]["status"], "not_run")
+        plan = metadata["composition_plans"]["1440x1440"]
+        self.assertTrue(plan["fallback"])
+        self.assertTrue(plan["fallback_reason"])
+
+    def test_typed_composition_plan_keeps_source_for_replay(self) -> None:
+        source = "/tmp/shoe.jpg"
+        metadata = _merge_composition_metadata(
+            {},
+            {"by_size": {"1440x1440": {"protected_crop_bbox": [1, 2, 10, 20]}}},
+            "shoes",
+            source=source,
+            purpose="pose",
+        )
+        self.assertEqual(metadata["composition_plans"]["1440x1440"]["source"], source)
+
+    def test_classification_summary_counts_skipped_and_fallback(self) -> None:
+        decisions = [
+            ClassificationDecision("a.jpg", "model", 0.9, "rules", "test", fallback=True),
+            ClassificationDecision("b.jpg", "model", 0.9, "rules", "test", skipped_by_scope=True),
+        ]
+        self.assertEqual(
+            classification_summary(decisions),
+            {
+                "count": 2,
+                "fallback_count": 1,
+                "skipped_by_scope_count": 1,
+                "skipped_by_scope": ["b.jpg"],
+            },
+        )
+
+    def test_preflight_warns_about_unreadable_material_and_blocks_file_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "broken.jpg").write_text("not an image", encoding="utf-8")
+            output = root.parent / f"{root.name}-output"
+            self.assertIn("无法读取 1 张图片", _preflight_materials(ClassificationRequest(root, output_root=output))[0])
+            output.write_text("file", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "输出位置不是文件夹"):
+                _preflight_materials(ClassificationRequest(root, output_root=output))
+
     def test_fixed_fixture_classifies_without_qt(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
@@ -77,6 +142,136 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual(len(decisions), 4)
         self.assertTrue(all(decision.source_type == "model" for decision in decisions))
 
+    def test_product_folder_evidence_skips_pose_and_seg(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        product = Path("SKU-1 男 暗夜黑/detail.jpg")
+        model = Path("模特图/model.jpg")
+        calls = []
+
+        class FakeService:
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                calls.append(source)
+                return {}
+
+            def segment(self, _root, source):
+                calls.append(source)
+                return {}
+
+        decisions = {
+            product: SourceTypeDecision("detail", 0.86, "rules_product_folder", "product"),
+            model: SourceTypeDecision("model", 0.96, "rules", "model"),
+        }
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch("pixelflow_core.model_service.get_model_process_service", return_value=FakeService()):
+            adapter._apply_optional_models(decisions, "/tmp/models", "long_pants", None)
+        self.assertTrue(calls)
+        self.assertTrue(all(source == model for source in calls))
+
+    def test_optional_model_stages_report_pose_before_seg(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/model.jpg")
+        stages: list[tuple[str, int, int, Path]] = []
+
+        class FakeService:
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None):
+                return {}
+
+            def segment(self, _root, _source):
+                return {}
+
+        decisions = {
+            source: SourceTypeDecision("model", 0.50, "rules", "model"),
+        }
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch("pixelflow_core.model_service.get_model_process_service", return_value=FakeService()):
+            adapter._apply_optional_models(
+                decisions,
+                "/tmp/models",
+                "long_pants",
+                None,
+                lambda stage, completed, total, path: stages.append((stage, completed, total, path)),
+            )
+
+        self.assertEqual([stage[0] for stage in stages], ["Pose", "Pose", "Pose", "Seg"])
+        self.assertEqual(
+            [(stage[1], stage[2]) for stage in stages],
+            [(0, 1), (0, 1), (1, 1), (1, 1)],
+        )
+
+    def test_homogeneous_detail_folder_uses_pose_samples(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        folder = Path("素材")
+        sources = [folder / f"image-{index}.jpg" for index in range(5)]
+        decisions = {
+            source: SourceTypeDecision("detail", 0.86, "rules", "edge")
+            for source in sources
+        }
+        calls = []
+
+        class FakeService:
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                calls.append(source)
+                return {}
+
+        def promote(decision, _composition, _category):
+            return type(decision)("model", 0.9, "mock_pose", "sample")
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ), patch("pixelflow_core.legacy_engine.local_model_assistant.resolve_model_source_type", side_effect=promote):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shirt", None)
+
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(decision.source_type == "model" for decision in decisions.values()))
+
+    def test_shoe_risk_from_nested_size_plan_is_promoted_to_metadata(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/shoe.jpg")
+        composition = {
+            "model_view": "lower_body",
+            "confidence": 0.9,
+            "person_count": 1,
+            "by_size": {
+                "1440x1440": {
+                    "composition_mode": "zoom_focus",
+                    "target_crop_height_ratio": 0.72,
+                    "protected_crop_bbox": [100.0, 900.0, 1900.0, 1990.0],
+                    "shoe_risk": True,
+                    "shoe_risk_reasons": ["腿部动作幅度大"],
+                    "review_hint": "鞋部姿态复杂，已使用保守构图，请人工确认",
+                }
+            },
+        }
+
+        class FakeService:
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None):
+                return composition
+
+        decisions = {
+            source: SourceTypeDecision("model", 0.9, "rules", "model"),
+        }
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shoes", None)
+
+        metadata = decisions[source].metadata or {}
+        self.assertTrue(metadata["shoe_risk"])
+        self.assertEqual(metadata["shoe_risk_reasons"], ["腿部动作幅度大"])
+        self.assertEqual(metadata["review_hint"], "鞋部姿态复杂，已使用保守构图，请人工确认")
+        self.assertEqual(metadata["by_size"], composition["by_size"])
+        self.assertTrue(metadata["shoe_composition"]["by_size"]["1440x1440"]["shoe_risk"])
+
 
 class ClassificationRuntimeTests(unittest.TestCase):
     def test_runtime_emits_classification_progress_and_done(self) -> None:
@@ -107,6 +302,7 @@ class ClassificationRuntimeTests(unittest.TestCase):
         self.assertFalse(runtime.busy)
         self.assertEqual([event[0] for event in events], ["progress", "done"])
         self.assertEqual(events[-1][1]["result"]["decisions"][0].source_type, "main_product")
+        self.assertEqual(events[-1][1]["result"]["summary"]["count"], 1)
 
     def test_runtime_reports_classification_errors(self) -> None:
         events: list[tuple[str, dict]] = []

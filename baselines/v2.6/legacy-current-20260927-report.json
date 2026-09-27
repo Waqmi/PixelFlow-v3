@@ -1,0 +1,1577 @@
+{
+  "mode": "legacy",
+  "sources": 16,
+  "main_images": 96,
+  "transparent_images": 8,
+  "vip_images": 16,
+  "failures": [],
+  "typed_renderer": {},
+  "output_root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/baselines/v2.6/legacy-current-20260927",
+  "legacy_engine": {
+    "path": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/legacy_engine",
+    "sha256": "fbf88815188742ce228d9f8f884c330a3c08eddf96a3071421f94098c614f830"
+  },
+  "legacy_engine_sha256": "fbf88815188742ce228d9f8f884c330a3c08eddf96a3071421f94098c614f830",
+  "output_manifest": [
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_01.jpg",
+      "sha256": "6cbc18ab3f922ce93f29f068111f5700acf786aea7fcf376e9abcf1ce0317a46",
+      "file_sha256": "6cbc18ab3f922ce93f29f068111f5700acf786aea7fcf376e9abcf1ce0317a46",
+      "pixel_sha256": "39942972bd1cc9f5e92d8296e84ed65f3d7a97f731eb5d9096e30beb7c75fa9b",
+      "rgba_pixel_sha256": "39942972bd1cc9f5e92d8296e84ed65f3d7a97f731eb5d9096e30beb7c75fa9b",
+      "bytes": 263689,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_02.jpg",
+      "sha256": "b488442c2eb6b7c1689ad772a6a6e258df0fd19eb0473aebe9e6adf98313682c",
+      "file_sha256": "b488442c2eb6b7c1689ad772a6a6e258df0fd19eb0473aebe9e6adf98313682c",
+      "pixel_sha256": "c4771bed08e0ab6d10a53e736618a004684583664f16979bbac92de67fc8d269",
+      "rgba_pixel_sha256": "c4771bed08e0ab6d10a53e736618a004684583664f16979bbac92de67fc8d269",
+      "bytes": 263592,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_03.jpg",
+      "sha256": "c6cfa720502bfa60afce85388492e1dbec61ca65a95a176a12469c21e7996440",
+      "file_sha256": "c6cfa720502bfa60afce85388492e1dbec61ca65a95a176a12469c21e7996440",
+      "pixel_sha256": "bc9384f9827ffa3d72d0b04d9cdb76c9c5c7699918822de8d77514b1d6212f06",
+      "rgba_pixel_sha256": "bc9384f9827ffa3d72d0b04d9cdb76c9c5c7699918822de8d77514b1d6212f06",
+      "bytes": 430665,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_04.jpg",
+      "sha256": "2bfce14a3a21cd53bf8a2cd0818a83f4ed4c670795b00ebc2525579e35064c75",
+      "file_sha256": "2bfce14a3a21cd53bf8a2cd0818a83f4ed4c670795b00ebc2525579e35064c75",
+      "pixel_sha256": "6bf4b839a71494bc0f506a2d1de83e785f44161579a2499fa783cd1fb4b497f6",
+      "rgba_pixel_sha256": "6bf4b839a71494bc0f506a2d1de83e785f44161579a2499fa783cd1fb4b497f6",
+      "bytes": 304650,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_05.jpg",
+      "sha256": "20cb2e0f225f96bca498097791186a709dd8783b00215620938f676254b15283",
+      "file_sha256": "20cb2e0f225f96bca498097791186a709dd8783b00215620938f676254b15283",
+      "pixel_sha256": "6be252edbeb8a7cd2d0e275fc9e9b57c4aef3b04bd3a3e26630b617f0eef253a",
+      "rgba_pixel_sha256": "6be252edbeb8a7cd2d0e275fc9e9b57c4aef3b04bd3a3e26630b617f0eef253a",
+      "bytes": 567002,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_06.jpg",
+      "sha256": "f1d6985873407bfbd6612e6a845c55c3baf863e225bf59f1f17454314201c6d4",
+      "file_sha256": "f1d6985873407bfbd6612e6a845c55c3baf863e225bf59f1f17454314201c6d4",
+      "pixel_sha256": "879529be0ed434b0603ae9844b94a404b5cab233bb65e618ad5fa249d5951077",
+      "rgba_pixel_sha256": "879529be0ed434b0603ae9844b94a404b5cab233bb65e618ad5fa249d5951077",
+      "bytes": 528298,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_07.jpg",
+      "sha256": "8deded596f78ac2cc1064e57178e1e191525e281ba4e05e18181a29aaeb8f5b2",
+      "file_sha256": "8deded596f78ac2cc1064e57178e1e191525e281ba4e05e18181a29aaeb8f5b2",
+      "pixel_sha256": "74a9efe477a26725030fea26f4a2b692bcd1926d5ec6599ebb00d49863d76c3f",
+      "rgba_pixel_sha256": "74a9efe477a26725030fea26f4a2b692bcd1926d5ec6599ebb00d49863d76c3f",
+      "bytes": 122198,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/含Logo/女_暗夜黑_08.jpg",
+      "sha256": "a4a94085370e5e86322ab220bb8e99d2f8f25cfdca9f5ff33ba9f2df4fc47cf0",
+      "file_sha256": "a4a94085370e5e86322ab220bb8e99d2f8f25cfdca9f5ff33ba9f2df4fc47cf0",
+      "pixel_sha256": "56a5574436b337cf0edfa0502061c4087c451767a76fec210fa2bae13cad1f76",
+      "rgba_pixel_sha256": "56a5574436b337cf0edfa0502061c4087c451767a76fec210fa2bae13cad1f76",
+      "bytes": 119548,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_01.jpg",
+      "sha256": "fe2d73eb4f7b79d76de72dc0e372b6ec60dc6e4d2ddf97641ca318507774b260",
+      "file_sha256": "fe2d73eb4f7b79d76de72dc0e372b6ec60dc6e4d2ddf97641ca318507774b260",
+      "pixel_sha256": "19320f80e0393d064b66a6405ec8b92fd3f166a3a5781c5c435b94d343bf841a",
+      "rgba_pixel_sha256": "19320f80e0393d064b66a6405ec8b92fd3f166a3a5781c5c435b94d343bf841a",
+      "bytes": 258229,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_02.jpg",
+      "sha256": "708785e9fad4c94a9092eae9d52b0cc9f2db9ca4739f71be5a8db45e7cf6e63c",
+      "file_sha256": "708785e9fad4c94a9092eae9d52b0cc9f2db9ca4739f71be5a8db45e7cf6e63c",
+      "pixel_sha256": "15296484b23d96a0f5beb3827ea811cfb9f6066dff78088e244191290cb3b47a",
+      "rgba_pixel_sha256": "15296484b23d96a0f5beb3827ea811cfb9f6066dff78088e244191290cb3b47a",
+      "bytes": 258210,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_03.jpg",
+      "sha256": "63adc06a9075cb9919a523a32d33ba85ba87e5ae9081c2ec7603bc976674f809",
+      "file_sha256": "63adc06a9075cb9919a523a32d33ba85ba87e5ae9081c2ec7603bc976674f809",
+      "pixel_sha256": "f409c32f95aa9f05d871c3b313401b03826059c5ecb61be237894be86e51b764",
+      "rgba_pixel_sha256": "f409c32f95aa9f05d871c3b313401b03826059c5ecb61be237894be86e51b764",
+      "bytes": 427075,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_04.jpg",
+      "sha256": "c322899ccbe52ba7db703c520aef4674c7b7bb602812cbe615cb9bb1d89e247b",
+      "file_sha256": "c322899ccbe52ba7db703c520aef4674c7b7bb602812cbe615cb9bb1d89e247b",
+      "pixel_sha256": "ea0f156df1e364f8fe5bf7b52dfb81bd165a2b8c111066ab3d44730fd3bcf1c7",
+      "rgba_pixel_sha256": "ea0f156df1e364f8fe5bf7b52dfb81bd165a2b8c111066ab3d44730fd3bcf1c7",
+      "bytes": 299272,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_05.jpg",
+      "sha256": "6871b6527d4abf90bb445d2a0446a9b650799dba85e15de1ad967fe48939ce00",
+      "file_sha256": "6871b6527d4abf90bb445d2a0446a9b650799dba85e15de1ad967fe48939ce00",
+      "pixel_sha256": "64ceb0927d5159cbf6c2458af489152fc4e4adf777153512f0d16d8f02a852c6",
+      "rgba_pixel_sha256": "64ceb0927d5159cbf6c2458af489152fc4e4adf777153512f0d16d8f02a852c6",
+      "bytes": 563201,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_06.jpg",
+      "sha256": "960e3eca5145c942d686a69fc011c03038dbac8c64ff5a21cb23f4f17dda3055",
+      "file_sha256": "960e3eca5145c942d686a69fc011c03038dbac8c64ff5a21cb23f4f17dda3055",
+      "pixel_sha256": "3ef92283575a53d296e9d280a3ecdfc5e7828a93c424172fa523c7b1dd6de1cc",
+      "rgba_pixel_sha256": "3ef92283575a53d296e9d280a3ecdfc5e7828a93c424172fa523c7b1dd6de1cc",
+      "bytes": 524625,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_07.jpg",
+      "sha256": "86240f697841dd3726392dad5468bf88d1446743d0d5a774078c79f277027922",
+      "file_sha256": "86240f697841dd3726392dad5468bf88d1446743d0d5a774078c79f277027922",
+      "pixel_sha256": "a0535d96ffe7837a233d21e8a5e497bf0a669a5e0baa4977fc70b9fdd38e5675",
+      "rgba_pixel_sha256": "a0535d96ffe7837a233d21e8a5e497bf0a669a5e0baa4977fc70b9fdd38e5675",
+      "bytes": 116614,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1125x1500/无Logo/女_暗夜黑_08.jpg",
+      "sha256": "5a33c704270ac570c8f381d51e5efe3086bff4bee82b3fe7b3470de13c3b0324",
+      "file_sha256": "5a33c704270ac570c8f381d51e5efe3086bff4bee82b3fe7b3470de13c3b0324",
+      "pixel_sha256": "09163a607953e9bb27d99d139563abc6b747f98be26af9930981f4ee719b9936",
+      "rgba_pixel_sha256": "09163a607953e9bb27d99d139563abc6b747f98be26af9930981f4ee719b9936",
+      "bytes": 114013,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_01.jpg",
+      "sha256": "ba495849892a28e71fec72057f6a4db893cd38bca6fa6e2f67b4fb2b09ef3709",
+      "file_sha256": "ba495849892a28e71fec72057f6a4db893cd38bca6fa6e2f67b4fb2b09ef3709",
+      "pixel_sha256": "0dae977bba910465f16a68eda1616e4c067ec044cae5615713902ea0418c374d",
+      "rgba_pixel_sha256": "0dae977bba910465f16a68eda1616e4c067ec044cae5615713902ea0418c374d",
+      "bytes": 381072,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_02.jpg",
+      "sha256": "8fbc15c1bb1f26fecfbfd043ae075dd9c05931867282d80ce4fdb4c220abd81d",
+      "file_sha256": "8fbc15c1bb1f26fecfbfd043ae075dd9c05931867282d80ce4fdb4c220abd81d",
+      "pixel_sha256": "da501f80a25f321777b8ecf490164253a2382c594c405c590ee7503ffaef2419",
+      "rgba_pixel_sha256": "da501f80a25f321777b8ecf490164253a2382c594c405c590ee7503ffaef2419",
+      "bytes": 369146,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_03.jpg",
+      "sha256": "ba716d0af7f7048bcbc6be4016243fbc008d2cd277454938a58f52485ea12627",
+      "file_sha256": "ba716d0af7f7048bcbc6be4016243fbc008d2cd277454938a58f52485ea12627",
+      "pixel_sha256": "5489441317cbfcc276eec52adf19323bd671768949ec54cdc64263b7d40270d4",
+      "rgba_pixel_sha256": "5489441317cbfcc276eec52adf19323bd671768949ec54cdc64263b7d40270d4",
+      "bytes": 589224,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_04.jpg",
+      "sha256": "60356c8c7df4c6dd28c0643abcc4f00c6100c294afdc4ac6317624669f6bca3a",
+      "file_sha256": "60356c8c7df4c6dd28c0643abcc4f00c6100c294afdc4ac6317624669f6bca3a",
+      "pixel_sha256": "74664d52ce00c08aba7cca8eecd381c227f8a5531b4fb3727a39a96f0e0bd994",
+      "rgba_pixel_sha256": "74664d52ce00c08aba7cca8eecd381c227f8a5531b4fb3727a39a96f0e0bd994",
+      "bytes": 430739,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_05.jpg",
+      "sha256": "0b9e45c0eca17f08547fee47a585625d89fb18c654c3672eddd5b160799c1979",
+      "file_sha256": "0b9e45c0eca17f08547fee47a585625d89fb18c654c3672eddd5b160799c1979",
+      "pixel_sha256": "0c35dfd975bee5b2b374ed25c8e0bcf246364ed7278fe441ef7bc2761800bf2a",
+      "rgba_pixel_sha256": "0c35dfd975bee5b2b374ed25c8e0bcf246364ed7278fe441ef7bc2761800bf2a",
+      "bytes": 771027,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_06.jpg",
+      "sha256": "91249f07518c97419210a97183475c5cfca8a6e576ecef99b952d3cec325edc1",
+      "file_sha256": "91249f07518c97419210a97183475c5cfca8a6e576ecef99b952d3cec325edc1",
+      "pixel_sha256": "9355159b674d6c6747cb3ae0f41f0c745e5cee7b72c85e4afdec6991262b49ec",
+      "rgba_pixel_sha256": "9355159b674d6c6747cb3ae0f41f0c745e5cee7b72c85e4afdec6991262b49ec",
+      "bytes": 708291,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_07.jpg",
+      "sha256": "b1ff4a083eed1ca22cde4a9120604b9934dcda1ff7496dbeabdc82b593f4eb34",
+      "file_sha256": "b1ff4a083eed1ca22cde4a9120604b9934dcda1ff7496dbeabdc82b593f4eb34",
+      "pixel_sha256": "93aaf06ef07ab331e3a6c32367d6becd37666d968c1b39866792915186e308e7",
+      "rgba_pixel_sha256": "93aaf06ef07ab331e3a6c32367d6becd37666d968c1b39866792915186e308e7",
+      "bytes": 126439,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/含Logo/女_暗夜黑_08.jpg",
+      "sha256": "d7e3ced6b67989d2f98546575c8ac9c54478c88c50de6b57014dcb9f67af697d",
+      "file_sha256": "d7e3ced6b67989d2f98546575c8ac9c54478c88c50de6b57014dcb9f67af697d",
+      "pixel_sha256": "f568225aa54bf3e3c9e6b05e68bc16ac2621f3b337b4edfd2c90d266c3c048e9",
+      "rgba_pixel_sha256": "f568225aa54bf3e3c9e6b05e68bc16ac2621f3b337b4edfd2c90d266c3c048e9",
+      "bytes": 124401,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_01.jpg",
+      "sha256": "8754640b778ce160481de7b9eb0b63e7a7d600378864bd851c08966d67117c2b",
+      "file_sha256": "8754640b778ce160481de7b9eb0b63e7a7d600378864bd851c08966d67117c2b",
+      "pixel_sha256": "9c486b5f37dc05c3065c7ab5ca226991693066942ce172385ac8e6793c731e51",
+      "rgba_pixel_sha256": "9c486b5f37dc05c3065c7ab5ca226991693066942ce172385ac8e6793c731e51",
+      "bytes": 374211,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_02.jpg",
+      "sha256": "deaea11bd383cea6f43586fb2fc212fe3c836c4ea86184cfa941639f513e2cbb",
+      "file_sha256": "deaea11bd383cea6f43586fb2fc212fe3c836c4ea86184cfa941639f513e2cbb",
+      "pixel_sha256": "6eedfa04ab58f8af098bba0ff8b9846f0177d88a55bd14ed86c62beca83d6e0f",
+      "rgba_pixel_sha256": "6eedfa04ab58f8af098bba0ff8b9846f0177d88a55bd14ed86c62beca83d6e0f",
+      "bytes": 362383,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_03.jpg",
+      "sha256": "2756190fbca144a3c69ed42fcccf7f1101f8660d5fda0f0d3482663f099885a3",
+      "file_sha256": "2756190fbca144a3c69ed42fcccf7f1101f8660d5fda0f0d3482663f099885a3",
+      "pixel_sha256": "0ac529e6e8f797d15df5599b17eab14bf9980a17e40772cc89402ee2f112469f",
+      "rgba_pixel_sha256": "0ac529e6e8f797d15df5599b17eab14bf9980a17e40772cc89402ee2f112469f",
+      "bytes": 584033,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_04.jpg",
+      "sha256": "620ba9469b117b80fa6e2cd1e0f03c0e1ee05b50071a34cdcebd0b8ad0c70835",
+      "file_sha256": "620ba9469b117b80fa6e2cd1e0f03c0e1ee05b50071a34cdcebd0b8ad0c70835",
+      "pixel_sha256": "36ee7bf2834b94a9bba9bda667d47b1ff2d81aa1e34f7bcb6b9b9473906f9934",
+      "rgba_pixel_sha256": "36ee7bf2834b94a9bba9bda667d47b1ff2d81aa1e34f7bcb6b9b9473906f9934",
+      "bytes": 423922,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_05.jpg",
+      "sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "file_sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "pixel_sha256": "d7ff91430047e0cfd7e8920f1f7bbb4e35ac59aed93765997ea880a555704760",
+      "rgba_pixel_sha256": "d7ff91430047e0cfd7e8920f1f7bbb4e35ac59aed93765997ea880a555704760",
+      "bytes": 765963,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_06.jpg",
+      "sha256": "4aca774d54222e66cf29e739b2136d56bdb79b039a3d38853877385ed720f1be",
+      "file_sha256": "4aca774d54222e66cf29e739b2136d56bdb79b039a3d38853877385ed720f1be",
+      "pixel_sha256": "5102753ce79ca2d065f87f82b1c50110d5c33bc59170cb6c7b7e630f959a7159",
+      "rgba_pixel_sha256": "5102753ce79ca2d065f87f82b1c50110d5c33bc59170cb6c7b7e630f959a7159",
+      "bytes": 702752,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_07.jpg",
+      "sha256": "2162d1b87abd3cdaf99b6c181c098921da3ad783908c8e075207b0c30851304d",
+      "file_sha256": "2162d1b87abd3cdaf99b6c181c098921da3ad783908c8e075207b0c30851304d",
+      "pixel_sha256": "2aa64e914c584633cc1e726889a6ae45e423a448a55dd4d436c9ee31b66c807c",
+      "rgba_pixel_sha256": "2aa64e914c584633cc1e726889a6ae45e423a448a55dd4d436c9ee31b66c807c",
+      "bytes": 119264,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1440/无Logo/女_暗夜黑_08.jpg",
+      "sha256": "4a541a721e24d1a1998042814c7ec9cd7d410c214b541acc289eb16c0c6adcc9",
+      "file_sha256": "4a541a721e24d1a1998042814c7ec9cd7d410c214b541acc289eb16c0c6adcc9",
+      "pixel_sha256": "18b43ea585c647c61fd781e55620878ccc2abf65cb2c9fe2753d95df255a80f2",
+      "rgba_pixel_sha256": "18b43ea585c647c61fd781e55620878ccc2abf65cb2c9fe2753d95df255a80f2",
+      "bytes": 117314,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_01.jpg",
+      "sha256": "33d3e4082c14a9301a8a9d7d81ad63f239ca631f3732c141f0910202a8d95bee",
+      "file_sha256": "33d3e4082c14a9301a8a9d7d81ad63f239ca631f3732c141f0910202a8d95bee",
+      "pixel_sha256": "d5f34a3e13b49452cf42dc3945bec266ce07b200841ddd79b4c104a8faa8e709",
+      "rgba_pixel_sha256": "d5f34a3e13b49452cf42dc3945bec266ce07b200841ddd79b4c104a8faa8e709",
+      "bytes": 447759,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_02.jpg",
+      "sha256": "28b930c234415e70c7e4f95925ad2ded413a5a901945d14ab6a34a09c5f0c02f",
+      "file_sha256": "28b930c234415e70c7e4f95925ad2ded413a5a901945d14ab6a34a09c5f0c02f",
+      "pixel_sha256": "69d305c941d80709c4235fcc8e699af33bce77ef592f1b44a44ab65b7b74e64d",
+      "rgba_pixel_sha256": "69d305c941d80709c4235fcc8e699af33bce77ef592f1b44a44ab65b7b74e64d",
+      "bytes": 425509,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_03.jpg",
+      "sha256": "7b36d539240ff486906bd58eb872f3283daec7cdb731d94c2c1807119d465348",
+      "file_sha256": "7b36d539240ff486906bd58eb872f3283daec7cdb731d94c2c1807119d465348",
+      "pixel_sha256": "8fb01928b08aaa351b1f9af260dba33b58fd4211e927923aac6f8105ee0c5410",
+      "rgba_pixel_sha256": "8fb01928b08aaa351b1f9af260dba33b58fd4211e927923aac6f8105ee0c5410",
+      "bytes": 692232,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_04.jpg",
+      "sha256": "9df09620f36cae86fdd6586dcac1b4b228ffd51f1b736ff63db3cee383e2ece7",
+      "file_sha256": "9df09620f36cae86fdd6586dcac1b4b228ffd51f1b736ff63db3cee383e2ece7",
+      "pixel_sha256": "5f4fd9b24adf8f9bfd541bd05fecf394070e5b1fcc5c998dec40be190a26c58b",
+      "rgba_pixel_sha256": "5f4fd9b24adf8f9bfd541bd05fecf394070e5b1fcc5c998dec40be190a26c58b",
+      "bytes": 505670,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_05.jpg",
+      "sha256": "0d2203203b40789a7e8f8ecadbd423793a8ba5e1d2469ffe5d76e1e181a145e7",
+      "file_sha256": "0d2203203b40789a7e8f8ecadbd423793a8ba5e1d2469ffe5d76e1e181a145e7",
+      "pixel_sha256": "ecf86634e4f5fa62f35d6437863ec84551a88687a26e3656e04f2727abc4d33b",
+      "rgba_pixel_sha256": "ecf86634e4f5fa62f35d6437863ec84551a88687a26e3656e04f2727abc4d33b",
+      "bytes": 887948,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_06.jpg",
+      "sha256": "3a1c28795e5fedc18577048c0c4b27db6a98b9546765379ee5188469ac7ffe37",
+      "file_sha256": "3a1c28795e5fedc18577048c0c4b27db6a98b9546765379ee5188469ac7ffe37",
+      "pixel_sha256": "ed4ca5e7625bdeb306c347470f1d9e74cb999cb8c9650f0c1fd79158ff68464a",
+      "rgba_pixel_sha256": "ed4ca5e7625bdeb306c347470f1d9e74cb999cb8c9650f0c1fd79158ff68464a",
+      "bytes": 834564,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_07.jpg",
+      "sha256": "95cd74eff0a2d98e1df06911f778fbe03db442b75259ee33481f7b78fbf574a9",
+      "file_sha256": "95cd74eff0a2d98e1df06911f778fbe03db442b75259ee33481f7b78fbf574a9",
+      "pixel_sha256": "ee8abe3c9dcc925e3c272e7fad3fe16c4b91901779178468dacc06c22a2283ec",
+      "rgba_pixel_sha256": "ee8abe3c9dcc925e3c272e7fad3fe16c4b91901779178468dacc06c22a2283ec",
+      "bytes": 204332,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/含Logo/女_暗夜黑_08.jpg",
+      "sha256": "713a5d27bc8abd6a89ffa3ac3bba8e10d67f67c5f5f02e94abc7102e06fcfd8d",
+      "file_sha256": "713a5d27bc8abd6a89ffa3ac3bba8e10d67f67c5f5f02e94abc7102e06fcfd8d",
+      "pixel_sha256": "4d4c9f1db534019f5e121f2c124df70463750a9c4062a1a0194d89e10738b735",
+      "rgba_pixel_sha256": "4d4c9f1db534019f5e121f2c124df70463750a9c4062a1a0194d89e10738b735",
+      "bytes": 197080,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_01.jpg",
+      "sha256": "ef48c9d7205ba7517ff0e31659b2d57dbb68e09df7788ee73bf1502434789cc4",
+      "file_sha256": "ef48c9d7205ba7517ff0e31659b2d57dbb68e09df7788ee73bf1502434789cc4",
+      "pixel_sha256": "c345801001492c1f040ca616b87a7b98ac04f43e31cb354eca0819d1eae6a2c7",
+      "rgba_pixel_sha256": "c345801001492c1f040ca616b87a7b98ac04f43e31cb354eca0819d1eae6a2c7",
+      "bytes": 440582,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_02.jpg",
+      "sha256": "b1b333ed9efbc94796383a44564bb87d35c881e93860d5b99abbe29a1b1e6d2a",
+      "file_sha256": "b1b333ed9efbc94796383a44564bb87d35c881e93860d5b99abbe29a1b1e6d2a",
+      "pixel_sha256": "d6a4da2612c133bf7a4988466d9c521106c246e9628e69725b16849473aaaae3",
+      "rgba_pixel_sha256": "d6a4da2612c133bf7a4988466d9c521106c246e9628e69725b16849473aaaae3",
+      "bytes": 418475,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_03.jpg",
+      "sha256": "add517ca2e7317222e83fbfa246b6e569f17699635bddede53134f6291374686",
+      "file_sha256": "add517ca2e7317222e83fbfa246b6e569f17699635bddede53134f6291374686",
+      "pixel_sha256": "3f162e563c43f202852e3c05e1837c783c6e416145c3697aa1a9a4d37d508b9b",
+      "rgba_pixel_sha256": "3f162e563c43f202852e3c05e1837c783c6e416145c3697aa1a9a4d37d508b9b",
+      "bytes": 687214,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_04.jpg",
+      "sha256": "50f41ebf3387188dd19478f9a51cc557b04f14e1bbc47e3737e986284c9d4e21",
+      "file_sha256": "50f41ebf3387188dd19478f9a51cc557b04f14e1bbc47e3737e986284c9d4e21",
+      "pixel_sha256": "b9c3461cae0ccb2e447f929401d1e77265bca97cfc0b87362864ce7b1ae09594",
+      "rgba_pixel_sha256": "b9c3461cae0ccb2e447f929401d1e77265bca97cfc0b87362864ce7b1ae09594",
+      "bytes": 498679,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_05.jpg",
+      "sha256": "7149ea377ecce3145a9afb937fa66c4cbcb762312126d2131c217a2965d04d76",
+      "file_sha256": "7149ea377ecce3145a9afb937fa66c4cbcb762312126d2131c217a2965d04d76",
+      "pixel_sha256": "40dd22a2b0bed7c16f93d44c7a606a36d28ee6f10c0a65a7cb73c40c3c120f0e",
+      "rgba_pixel_sha256": "40dd22a2b0bed7c16f93d44c7a606a36d28ee6f10c0a65a7cb73c40c3c120f0e",
+      "bytes": 882534,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_06.jpg",
+      "sha256": "8d4f31b2c51038c7b9266b9b408298e51d589945a85af8a58b4569beb60ddb20",
+      "file_sha256": "8d4f31b2c51038c7b9266b9b408298e51d589945a85af8a58b4569beb60ddb20",
+      "pixel_sha256": "15ecc1347a87e4c9fe266913b93a91867e1b664286bdafaa9afad8068f3e126a",
+      "rgba_pixel_sha256": "15ecc1347a87e4c9fe266913b93a91867e1b664286bdafaa9afad8068f3e126a",
+      "bytes": 829434,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_07.jpg",
+      "sha256": "0cbdc1752fc4d19c06fec4058bc926f3d0a7496e6554ca46c5e05915fe4dcf48",
+      "file_sha256": "0cbdc1752fc4d19c06fec4058bc926f3d0a7496e6554ca46c5e05915fe4dcf48",
+      "pixel_sha256": "815d18b3f37cff13bed686479c5908bbebd41a90ca5a2746d7002e3476fd558e",
+      "rgba_pixel_sha256": "815d18b3f37cff13bed686479c5908bbebd41a90ca5a2746d7002e3476fd558e",
+      "bytes": 197469,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/女_暗夜黑/1440x1920/无Logo/女_暗夜黑_08.jpg",
+      "sha256": "dcdd46101938b904754cf448fc683354be3cd13591f47a5c377a32a921594341",
+      "file_sha256": "dcdd46101938b904754cf448fc683354be3cd13591f47a5c377a32a921594341",
+      "pixel_sha256": "ddd9ed384b30a03b1dac8a037c0214d893ba15c65a94b4612bbb474a668c9120",
+      "rgba_pixel_sha256": "ddd9ed384b30a03b1dac8a037c0214d893ba15c65a94b4612bbb474a668c9120",
+      "bytes": 190204,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_01.jpg",
+      "sha256": "cca0628bc905b9a3938da6059b29fe4f841b26f43cd56fa372bf281950ffe887",
+      "file_sha256": "cca0628bc905b9a3938da6059b29fe4f841b26f43cd56fa372bf281950ffe887",
+      "pixel_sha256": "e948c65eec9a7b702b0f708ce27ab60296787ad4776d59122259eb0e97b34b3e",
+      "rgba_pixel_sha256": "e948c65eec9a7b702b0f708ce27ab60296787ad4776d59122259eb0e97b34b3e",
+      "bytes": 262885,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_02.jpg",
+      "sha256": "5b4b443cedbc38f243dea75a2669f880b9e7c0f94c80d9b79ee007309867dbc4",
+      "file_sha256": "5b4b443cedbc38f243dea75a2669f880b9e7c0f94c80d9b79ee007309867dbc4",
+      "pixel_sha256": "796f8d951499652eb597330efe720b65fd49f61ab667b9573d91042e815e0be1",
+      "rgba_pixel_sha256": "796f8d951499652eb597330efe720b65fd49f61ab667b9573d91042e815e0be1",
+      "bytes": 275543,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_03.jpg",
+      "sha256": "f0864ad1ea6f68952dcf708afcc39b4aece09a01530bccb98334a49b373757b7",
+      "file_sha256": "f0864ad1ea6f68952dcf708afcc39b4aece09a01530bccb98334a49b373757b7",
+      "pixel_sha256": "1226dd706bbef6327fe78a4b6098ba74b20a838ce99712533c8662483f9d80fc",
+      "rgba_pixel_sha256": "1226dd706bbef6327fe78a4b6098ba74b20a838ce99712533c8662483f9d80fc",
+      "bytes": 450998,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_04.jpg",
+      "sha256": "06f429ee6d37cf86e2d6ce7c0b5e9e6f9cc58065dfb0e29737328c3025385ec3",
+      "file_sha256": "06f429ee6d37cf86e2d6ce7c0b5e9e6f9cc58065dfb0e29737328c3025385ec3",
+      "pixel_sha256": "c5f3e02adc288fa440c12eaa9e0f6b4d66a61557190a0ce90eba021eeea79108",
+      "rgba_pixel_sha256": "c5f3e02adc288fa440c12eaa9e0f6b4d66a61557190a0ce90eba021eeea79108",
+      "bytes": 305121,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_05.jpg",
+      "sha256": "20cb2e0f225f96bca498097791186a709dd8783b00215620938f676254b15283",
+      "file_sha256": "20cb2e0f225f96bca498097791186a709dd8783b00215620938f676254b15283",
+      "pixel_sha256": "6be252edbeb8a7cd2d0e275fc9e9b57c4aef3b04bd3a3e26630b617f0eef253a",
+      "rgba_pixel_sha256": "6be252edbeb8a7cd2d0e275fc9e9b57c4aef3b04bd3a3e26630b617f0eef253a",
+      "bytes": 567002,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_06.jpg",
+      "sha256": "07ebd735b06817734c80e7821c6ee3ce4f04b1d82fc68a377e8c367d0347b242",
+      "file_sha256": "07ebd735b06817734c80e7821c6ee3ce4f04b1d82fc68a377e8c367d0347b242",
+      "pixel_sha256": "3f16c9eef4847b23108e1319c188e820b8b33008f670028e3693ca1abbea9814",
+      "rgba_pixel_sha256": "3f16c9eef4847b23108e1319c188e820b8b33008f670028e3693ca1abbea9814",
+      "bytes": 528383,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_07.jpg",
+      "sha256": "e7a0a7717fa1498689cd28519f0c7de3d43b1d2299d68dc48b30f436b256464b",
+      "file_sha256": "e7a0a7717fa1498689cd28519f0c7de3d43b1d2299d68dc48b30f436b256464b",
+      "pixel_sha256": "b2455c77ad91594e51420849219badcbe532726bd4886cd99e1830985fb84103",
+      "rgba_pixel_sha256": "b2455c77ad91594e51420849219badcbe532726bd4886cd99e1830985fb84103",
+      "bytes": 123317,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/含Logo/男_暗夜黑_08.jpg",
+      "sha256": "792694c68aabaa33d2591cc7a8123774a0af3c40ac14bf5ca4ed36c5461630c7",
+      "file_sha256": "792694c68aabaa33d2591cc7a8123774a0af3c40ac14bf5ca4ed36c5461630c7",
+      "pixel_sha256": "cbc800695ed3ce24cb3b5e4e3f826b72d9fc1d18ce2debe01d331cc705be4294",
+      "rgba_pixel_sha256": "cbc800695ed3ce24cb3b5e4e3f826b72d9fc1d18ce2debe01d331cc705be4294",
+      "bytes": 124210,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_01.jpg",
+      "sha256": "41b171c010048d97d1b65598060d72ceba25cd5b515e35017ea9cb41e876a777",
+      "file_sha256": "41b171c010048d97d1b65598060d72ceba25cd5b515e35017ea9cb41e876a777",
+      "pixel_sha256": "a281eee66943bde48c736d7546af1c0bf74767580ca91eb09cd9661bc887f85a",
+      "rgba_pixel_sha256": "a281eee66943bde48c736d7546af1c0bf74767580ca91eb09cd9661bc887f85a",
+      "bytes": 257417,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_02.jpg",
+      "sha256": "e927d1e47f07b06f7574d6cd1a8385b3c78cb23ae5f2c3fb21cb931fd1201f30",
+      "file_sha256": "e927d1e47f07b06f7574d6cd1a8385b3c78cb23ae5f2c3fb21cb931fd1201f30",
+      "pixel_sha256": "c395e54f631f55d1b63dc9c414a87f1723570e086f79e93e6e797e12f7ac6a64",
+      "rgba_pixel_sha256": "c395e54f631f55d1b63dc9c414a87f1723570e086f79e93e6e797e12f7ac6a64",
+      "bytes": 270250,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_03.jpg",
+      "sha256": "d9510630a45d007430a10f3d650a7c9ce6c4d7193a80ed8fb8ee927867701f1c",
+      "file_sha256": "d9510630a45d007430a10f3d650a7c9ce6c4d7193a80ed8fb8ee927867701f1c",
+      "pixel_sha256": "abc914105a8f4778b347cdfba741328eaf4996f3607e39e03075e85af3fa6894",
+      "rgba_pixel_sha256": "abc914105a8f4778b347cdfba741328eaf4996f3607e39e03075e85af3fa6894",
+      "bytes": 447449,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_04.jpg",
+      "sha256": "1c83b90a30999d7eecd95a71970eb266ac0a485831e9a1a200d74f2751e65041",
+      "file_sha256": "1c83b90a30999d7eecd95a71970eb266ac0a485831e9a1a200d74f2751e65041",
+      "pixel_sha256": "b14de34612af82ea3f8360cd4c203ee5fe0b84b0afb5d98cb21acd056078937b",
+      "rgba_pixel_sha256": "b14de34612af82ea3f8360cd4c203ee5fe0b84b0afb5d98cb21acd056078937b",
+      "bytes": 299692,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_05.jpg",
+      "sha256": "6871b6527d4abf90bb445d2a0446a9b650799dba85e15de1ad967fe48939ce00",
+      "file_sha256": "6871b6527d4abf90bb445d2a0446a9b650799dba85e15de1ad967fe48939ce00",
+      "pixel_sha256": "64ceb0927d5159cbf6c2458af489152fc4e4adf777153512f0d16d8f02a852c6",
+      "rgba_pixel_sha256": "64ceb0927d5159cbf6c2458af489152fc4e4adf777153512f0d16d8f02a852c6",
+      "bytes": 563201,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_06.jpg",
+      "sha256": "a996eadbe2b976c86a6290a3f37a6077d4fbe9ac928103305795569352e79259",
+      "file_sha256": "a996eadbe2b976c86a6290a3f37a6077d4fbe9ac928103305795569352e79259",
+      "pixel_sha256": "9b5f15353140d2e3dbb402434fe9894949961017fdb8c22b6dfd195ca7d78168",
+      "rgba_pixel_sha256": "9b5f15353140d2e3dbb402434fe9894949961017fdb8c22b6dfd195ca7d78168",
+      "bytes": 524732,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_07.jpg",
+      "sha256": "98c5bca39b2ea9cd16a90d6fe6353d854294fd56ad9850bb7dbd749ba872ab0d",
+      "file_sha256": "98c5bca39b2ea9cd16a90d6fe6353d854294fd56ad9850bb7dbd749ba872ab0d",
+      "pixel_sha256": "d9594c05cd6e563bba4964c1938c128ce72f5035d1a7c95c5759ac6f5c511295",
+      "rgba_pixel_sha256": "d9594c05cd6e563bba4964c1938c128ce72f5035d1a7c95c5759ac6f5c511295",
+      "bytes": 117703,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1125x1500/无Logo/男_暗夜黑_08.jpg",
+      "sha256": "c4aafe3be1ca546f6338ecded96d339c905dc19b3d8755ac25e93ee30a7ddb2a",
+      "file_sha256": "c4aafe3be1ca546f6338ecded96d339c905dc19b3d8755ac25e93ee30a7ddb2a",
+      "pixel_sha256": "ff75db4fd951455bcba746323b0f109e964799065f9a24e415e6fe47ecb7e4eb",
+      "rgba_pixel_sha256": "ff75db4fd951455bcba746323b0f109e964799065f9a24e415e6fe47ecb7e4eb",
+      "bytes": 118985,
+      "size": [
+        1125,
+        1500
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_01.jpg",
+      "sha256": "4152e09d131fd95f531a0fc12ab308e04353904729d21bc679f16cf955eef53c",
+      "file_sha256": "4152e09d131fd95f531a0fc12ab308e04353904729d21bc679f16cf955eef53c",
+      "pixel_sha256": "676a9bdc305f43339be5d6c80142ae1328e086bf256129366e05114d381cff29",
+      "rgba_pixel_sha256": "676a9bdc305f43339be5d6c80142ae1328e086bf256129366e05114d381cff29",
+      "bytes": 380197,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_02.jpg",
+      "sha256": "03f1d07690aa0bc1ec3fd127f8a3f0a8cd9f38e3d86deb3ed59e8d9b60b5c935",
+      "file_sha256": "03f1d07690aa0bc1ec3fd127f8a3f0a8cd9f38e3d86deb3ed59e8d9b60b5c935",
+      "pixel_sha256": "ec0c755e1dfa5201d54aece86fdd26b88ec6486ffbacb6b727da8102269f32e2",
+      "rgba_pixel_sha256": "ec0c755e1dfa5201d54aece86fdd26b88ec6486ffbacb6b727da8102269f32e2",
+      "bytes": 384176,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_03.jpg",
+      "sha256": "f7f8d1f14d0cf7a89dcba313c2f0b8461e41265c5cbdfc47ba2882dd52c06f65",
+      "file_sha256": "f7f8d1f14d0cf7a89dcba313c2f0b8461e41265c5cbdfc47ba2882dd52c06f65",
+      "pixel_sha256": "ccd9415d1c96a56a28bcb59d86d9f73d8183a3fea502f66de99506ae012e3e7d",
+      "rgba_pixel_sha256": "ccd9415d1c96a56a28bcb59d86d9f73d8183a3fea502f66de99506ae012e3e7d",
+      "bytes": 611314,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_04.jpg",
+      "sha256": "915f2640a57c5e9a9e0d94468cd5552b6976c8e5a639f30bd6ac1c060dc6b312",
+      "file_sha256": "915f2640a57c5e9a9e0d94468cd5552b6976c8e5a639f30bd6ac1c060dc6b312",
+      "pixel_sha256": "7caf23f2c49cad713d3171d76ec0e2f176d989591a4227fab7f09353933f4c39",
+      "rgba_pixel_sha256": "7caf23f2c49cad713d3171d76ec0e2f176d989591a4227fab7f09353933f4c39",
+      "bytes": 431337,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_05.jpg",
+      "sha256": "0b9e45c0eca17f08547fee47a585625d89fb18c654c3672eddd5b160799c1979",
+      "file_sha256": "0b9e45c0eca17f08547fee47a585625d89fb18c654c3672eddd5b160799c1979",
+      "pixel_sha256": "0c35dfd975bee5b2b374ed25c8e0bcf246364ed7278fe441ef7bc2761800bf2a",
+      "rgba_pixel_sha256": "0c35dfd975bee5b2b374ed25c8e0bcf246364ed7278fe441ef7bc2761800bf2a",
+      "bytes": 771027,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_06.jpg",
+      "sha256": "79d4d2e9bffb75980a77612e35ec3975519b6d9bad4b9e751200b23e5a11a7a5",
+      "file_sha256": "79d4d2e9bffb75980a77612e35ec3975519b6d9bad4b9e751200b23e5a11a7a5",
+      "pixel_sha256": "ca5b6d4239797d13ceb149d61c41b88f2276dfb774056229351b3181898a3c62",
+      "rgba_pixel_sha256": "ca5b6d4239797d13ceb149d61c41b88f2276dfb774056229351b3181898a3c62",
+      "bytes": 707972,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_07.jpg",
+      "sha256": "950b5d5214f87520386798ade9ea74d8902fe20db1373f9435d1808f553685ea",
+      "file_sha256": "950b5d5214f87520386798ade9ea74d8902fe20db1373f9435d1808f553685ea",
+      "pixel_sha256": "a835ab3e1faa044518d7271bc716e34e5048205246ec3e8eed325cb4ea1db940",
+      "rgba_pixel_sha256": "a835ab3e1faa044518d7271bc716e34e5048205246ec3e8eed325cb4ea1db940",
+      "bytes": 127080,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/含Logo/男_暗夜黑_08.jpg",
+      "sha256": "a58f9d4977e7c621b75460538dfacd10b3b7dde8c3f1c5220a61992c51cd4487",
+      "file_sha256": "a58f9d4977e7c621b75460538dfacd10b3b7dde8c3f1c5220a61992c51cd4487",
+      "pixel_sha256": "c516440c8d2120bf0f7960c4472f88114d0a371f27c2884706522cf0b090aebe",
+      "rgba_pixel_sha256": "c516440c8d2120bf0f7960c4472f88114d0a371f27c2884706522cf0b090aebe",
+      "bytes": 129160,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_01.jpg",
+      "sha256": "c33f5e50d694096c80f8c3d73a44f625ec573973b4b99949fa3718f79e2344ac",
+      "file_sha256": "c33f5e50d694096c80f8c3d73a44f625ec573973b4b99949fa3718f79e2344ac",
+      "pixel_sha256": "bc47a0f9504ccdaf620aab9c8454e72809ceac7fcf72df257f119c0e2a35ed24",
+      "rgba_pixel_sha256": "bc47a0f9504ccdaf620aab9c8454e72809ceac7fcf72df257f119c0e2a35ed24",
+      "bytes": 373366,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_02.jpg",
+      "sha256": "90b3d2fd9edbbf4adee5a640309a26f5e7ea2ff518e736ebabc68a9551df980a",
+      "file_sha256": "90b3d2fd9edbbf4adee5a640309a26f5e7ea2ff518e736ebabc68a9551df980a",
+      "pixel_sha256": "86d13c39255c80e93f7f8193998de6b6d8ed21701a131dd650cd7a75f00b9164",
+      "rgba_pixel_sha256": "86d13c39255c80e93f7f8193998de6b6d8ed21701a131dd650cd7a75f00b9164",
+      "bytes": 377308,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_03.jpg",
+      "sha256": "222b0500b538ed9e584847eee1aaba3505de002f8a32bc93215767f999b76d9b",
+      "file_sha256": "222b0500b538ed9e584847eee1aaba3505de002f8a32bc93215767f999b76d9b",
+      "pixel_sha256": "789c3b0468ff50f6bc64931fac8ce2ce78e97edfa94513332c3e43da2b10aa9b",
+      "rgba_pixel_sha256": "789c3b0468ff50f6bc64931fac8ce2ce78e97edfa94513332c3e43da2b10aa9b",
+      "bytes": 606045,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_04.jpg",
+      "sha256": "3f846d3636eff46d59c5abd5ab8f819319ca2c63a724cf0ee20da386e71be14d",
+      "file_sha256": "3f846d3636eff46d59c5abd5ab8f819319ca2c63a724cf0ee20da386e71be14d",
+      "pixel_sha256": "c780bc54dff6b26578d2bfaee782bad2d08ea75b7469238342c11fb30bc5d339",
+      "rgba_pixel_sha256": "c780bc54dff6b26578d2bfaee782bad2d08ea75b7469238342c11fb30bc5d339",
+      "bytes": 424393,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_05.jpg",
+      "sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "file_sha256": "4466465ca1cb07da506b231e7c8fb92224c76401ed4120b15ddd38474639cf57",
+      "pixel_sha256": "d7ff91430047e0cfd7e8920f1f7bbb4e35ac59aed93765997ea880a555704760",
+      "rgba_pixel_sha256": "d7ff91430047e0cfd7e8920f1f7bbb4e35ac59aed93765997ea880a555704760",
+      "bytes": 765963,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_06.jpg",
+      "sha256": "7827b15306b2bacec186da27d275b2d909377a373b2887ac6e3fbf8902e1e8c5",
+      "file_sha256": "7827b15306b2bacec186da27d275b2d909377a373b2887ac6e3fbf8902e1e8c5",
+      "pixel_sha256": "bc48a5391460598db2de0dfd18cfad6c7ca1255b2c8c8e6c9afd29f87da807b1",
+      "rgba_pixel_sha256": "bc48a5391460598db2de0dfd18cfad6c7ca1255b2c8c8e6c9afd29f87da807b1",
+      "bytes": 702833,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_07.jpg",
+      "sha256": "68969d39822f7c1ea4ac3226549c0a0d56fbdc3168f88626fd290311e185b3d9",
+      "file_sha256": "68969d39822f7c1ea4ac3226549c0a0d56fbdc3168f88626fd290311e185b3d9",
+      "pixel_sha256": "c059fa937403b201cb6a1a5f9c4854c8360a9045c56188fa7b79fd2cf0ad49e2",
+      "rgba_pixel_sha256": "c059fa937403b201cb6a1a5f9c4854c8360a9045c56188fa7b79fd2cf0ad49e2",
+      "bytes": 119963,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1440/无Logo/男_暗夜黑_08.jpg",
+      "sha256": "a6a71dfbae3fe125d7c7d48fd83474b4ea34b732b09938994d42500aada05265",
+      "file_sha256": "a6a71dfbae3fe125d7c7d48fd83474b4ea34b732b09938994d42500aada05265",
+      "pixel_sha256": "1b4ae2a24efda0ab9832145cea2ea46874ae610cedf46438b62a2ee995595909",
+      "rgba_pixel_sha256": "1b4ae2a24efda0ab9832145cea2ea46874ae610cedf46438b62a2ee995595909",
+      "bytes": 121949,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_01.jpg",
+      "sha256": "a4c07078166d1baca681f5df8b60449bf0b6ce7083095eb209d2ef96d517d9db",
+      "file_sha256": "a4c07078166d1baca681f5df8b60449bf0b6ce7083095eb209d2ef96d517d9db",
+      "pixel_sha256": "59b2125876157a9aefe36359a217603093b7cfc8b8e3c60428ec9bed13594453",
+      "rgba_pixel_sha256": "59b2125876157a9aefe36359a217603093b7cfc8b8e3c60428ec9bed13594453",
+      "bytes": 446547,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_02.jpg",
+      "sha256": "9023e71cb5c396594c34beed90b45e9bdaf7d4c99655057538dd41def8d0132b",
+      "file_sha256": "9023e71cb5c396594c34beed90b45e9bdaf7d4c99655057538dd41def8d0132b",
+      "pixel_sha256": "f14e840818ae1593121fc4ee3573e1c0dfd6b67b45b2270ba28e8143fa2240d5",
+      "rgba_pixel_sha256": "f14e840818ae1593121fc4ee3573e1c0dfd6b67b45b2270ba28e8143fa2240d5",
+      "bytes": 444499,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_03.jpg",
+      "sha256": "0c5cd650b95ff9fe969fdda0db3d6c222e18f37ca66a7ce60f0682a9befb9ccd",
+      "file_sha256": "0c5cd650b95ff9fe969fdda0db3d6c222e18f37ca66a7ce60f0682a9befb9ccd",
+      "pixel_sha256": "aea5ab97e295763bbacdeee505f065292a104e390c37ea691736cd985881a8ed",
+      "rgba_pixel_sha256": "aea5ab97e295763bbacdeee505f065292a104e390c37ea691736cd985881a8ed",
+      "bytes": 722850,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_04.jpg",
+      "sha256": "08fdc01267242c46a558131e2e21d15f3c074b61619bd23318b6dc2a9d303dff",
+      "file_sha256": "08fdc01267242c46a558131e2e21d15f3c074b61619bd23318b6dc2a9d303dff",
+      "pixel_sha256": "df414acc7460d26ee991412c0d7c5463337cd3f99f5ca04429f6a1de61155894",
+      "rgba_pixel_sha256": "df414acc7460d26ee991412c0d7c5463337cd3f99f5ca04429f6a1de61155894",
+      "bytes": 506388,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_05.jpg",
+      "sha256": "0d2203203b40789a7e8f8ecadbd423793a8ba5e1d2469ffe5d76e1e181a145e7",
+      "file_sha256": "0d2203203b40789a7e8f8ecadbd423793a8ba5e1d2469ffe5d76e1e181a145e7",
+      "pixel_sha256": "ecf86634e4f5fa62f35d6437863ec84551a88687a26e3656e04f2727abc4d33b",
+      "rgba_pixel_sha256": "ecf86634e4f5fa62f35d6437863ec84551a88687a26e3656e04f2727abc4d33b",
+      "bytes": 887948,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_06.jpg",
+      "sha256": "8570a09451d0c1f2e76b7434d379301039080326565e114b4aa9dd5daff59877",
+      "file_sha256": "8570a09451d0c1f2e76b7434d379301039080326565e114b4aa9dd5daff59877",
+      "pixel_sha256": "def6a512e23546dbb916c536554abf025d7d1df1a4740a444ba1a57fb3d30393",
+      "rgba_pixel_sha256": "def6a512e23546dbb916c536554abf025d7d1df1a4740a444ba1a57fb3d30393",
+      "bytes": 834932,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_07.jpg",
+      "sha256": "410bea62df2955ef838b1e9e6d931b15cda8372204f56cd2ff8aa87b7f44843b",
+      "file_sha256": "410bea62df2955ef838b1e9e6d931b15cda8372204f56cd2ff8aa87b7f44843b",
+      "pixel_sha256": "889e1ca10de94ac71b454449f33ccb11acf72cb21a1c2d529c5883ad72547dde",
+      "rgba_pixel_sha256": "889e1ca10de94ac71b454449f33ccb11acf72cb21a1c2d529c5883ad72547dde",
+      "bytes": 205037,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/含Logo/男_暗夜黑_08.jpg",
+      "sha256": "b21ef0b35c7cc0bf33503d75a0316b1310ad8803b9c327f45beb243c3f981852",
+      "file_sha256": "b21ef0b35c7cc0bf33503d75a0316b1310ad8803b9c327f45beb243c3f981852",
+      "pixel_sha256": "e91c9897bb41bcf1d55cd444842e570893cff91d7185ceadee360131fac5e476",
+      "rgba_pixel_sha256": "e91c9897bb41bcf1d55cd444842e570893cff91d7185ceadee360131fac5e476",
+      "bytes": 206799,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_01.jpg",
+      "sha256": "63bd6f3020685822751e3438f89737e85d912f39413160300532b4927164f502",
+      "file_sha256": "63bd6f3020685822751e3438f89737e85d912f39413160300532b4927164f502",
+      "pixel_sha256": "32f82b44b1bea90fcaef82151c7431b59d57f8c249216d10303cc0aaa3ee85ba",
+      "rgba_pixel_sha256": "32f82b44b1bea90fcaef82151c7431b59d57f8c249216d10303cc0aaa3ee85ba",
+      "bytes": 439395,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_02.jpg",
+      "sha256": "3efb3d9fffc2b66bc4dbbcc9b6dfaea401830d9a12407f5d685c8f918c678aa1",
+      "file_sha256": "3efb3d9fffc2b66bc4dbbcc9b6dfaea401830d9a12407f5d685c8f918c678aa1",
+      "pixel_sha256": "4a803d65be575a80e0928c04b6f045da04d24c79c4b7bb4d3988194aaf0737d4",
+      "rgba_pixel_sha256": "4a803d65be575a80e0928c04b6f045da04d24c79c4b7bb4d3988194aaf0737d4",
+      "bytes": 437575,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_03.jpg",
+      "sha256": "849b359c26a72ebdb650d1ca90399b43885be5440c81f03e29180050d71c3454",
+      "file_sha256": "849b359c26a72ebdb650d1ca90399b43885be5440c81f03e29180050d71c3454",
+      "pixel_sha256": "43f4da944591e2b53395502ba136a32144924fd579fe3a72590c68e7ce7ae9e9",
+      "rgba_pixel_sha256": "43f4da944591e2b53395502ba136a32144924fd579fe3a72590c68e7ce7ae9e9",
+      "bytes": 717912,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_04.jpg",
+      "sha256": "08bc1ed4fc71e270d821dd8f0e809708a35396fa125c3866b6752f0f260a1bae",
+      "file_sha256": "08bc1ed4fc71e270d821dd8f0e809708a35396fa125c3866b6752f0f260a1bae",
+      "pixel_sha256": "f937f17391cd8347cb5fd2d6ec0209b75e5c31835fa2ab18899ef6846e412f38",
+      "rgba_pixel_sha256": "f937f17391cd8347cb5fd2d6ec0209b75e5c31835fa2ab18899ef6846e412f38",
+      "bytes": 499331,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_05.jpg",
+      "sha256": "7149ea377ecce3145a9afb937fa66c4cbcb762312126d2131c217a2965d04d76",
+      "file_sha256": "7149ea377ecce3145a9afb937fa66c4cbcb762312126d2131c217a2965d04d76",
+      "pixel_sha256": "40dd22a2b0bed7c16f93d44c7a606a36d28ee6f10c0a65a7cb73c40c3c120f0e",
+      "rgba_pixel_sha256": "40dd22a2b0bed7c16f93d44c7a606a36d28ee6f10c0a65a7cb73c40c3c120f0e",
+      "bytes": 882534,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_06.jpg",
+      "sha256": "adff8dc1242950a5cd3f29654ad9991a4f685aa6de0f7e3d9935794bfe169f1b",
+      "file_sha256": "adff8dc1242950a5cd3f29654ad9991a4f685aa6de0f7e3d9935794bfe169f1b",
+      "pixel_sha256": "45f43a6bdd107daa700aa0db694e6dc9388592b562f8eec985747e0632282851",
+      "rgba_pixel_sha256": "45f43a6bdd107daa700aa0db694e6dc9388592b562f8eec985747e0632282851",
+      "bytes": 829557,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_07.jpg",
+      "sha256": "c4ac1e42ad509c86a229cfe825df1322a327cbda338ce1c77373d422553c5494",
+      "file_sha256": "c4ac1e42ad509c86a229cfe825df1322a327cbda338ce1c77373d422553c5494",
+      "pixel_sha256": "72f7dce15b1eae1530bd4ce4d4a67c681c3101ce7782d9ba9e16df68fccb55b1",
+      "rgba_pixel_sha256": "72f7dce15b1eae1530bd4ce4d4a67c681c3101ce7782d9ba9e16df68fccb55b1",
+      "bytes": 198043,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "产品主图/男_暗夜黑/1440x1920/无Logo/男_暗夜黑_08.jpg",
+      "sha256": "9aa8ee4547ff470f2f6c8e7eb12cb206f2cfd6e25a47f4b7cc4d1f27de956f92",
+      "file_sha256": "9aa8ee4547ff470f2f6c8e7eb12cb206f2cfd6e25a47f4b7cc4d1f27de956f92",
+      "pixel_sha256": "44a53f82d71eb612e2ba445c9692131406cea47be3a1bc973c638bb72c96d301",
+      "rgba_pixel_sha256": "44a53f82d71eb612e2ba445c9692131406cea47be3a1bc973c638bb72c96d301",
+      "bytes": 199993,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_01.jpg",
+      "sha256": "ec437264cc965d3430e35b986ba57592fcecf551acc6307f75935db9eb693477",
+      "file_sha256": "ec437264cc965d3430e35b986ba57592fcecf551acc6307f75935db9eb693477",
+      "pixel_sha256": "33053eb8b222cbd04de7d557d026c7bb18e5ad81fe356fc51bf607c93a663aca",
+      "rgba_pixel_sha256": "33053eb8b222cbd04de7d557d026c7bb18e5ad81fe356fc51bf607c93a663aca",
+      "bytes": 366371,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_02.jpg",
+      "sha256": "db0c440b4e939dfa1ea3efa5d770af01912325c7f22a7602db988732aebdd6b4",
+      "file_sha256": "db0c440b4e939dfa1ea3efa5d770af01912325c7f22a7602db988732aebdd6b4",
+      "pixel_sha256": "ee93434fdadfd410f6b40b98f08cf0fcf026602cd01b116ed4e60e3f9105a7a8",
+      "rgba_pixel_sha256": "ee93434fdadfd410f6b40b98f08cf0fcf026602cd01b116ed4e60e3f9105a7a8",
+      "bytes": 351974,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_03.jpg",
+      "sha256": "f7c7d757491835c26fae11b84f7f0a7c5cfa5ad75e719ffb8daabb8e0131bf47",
+      "file_sha256": "f7c7d757491835c26fae11b84f7f0a7c5cfa5ad75e719ffb8daabb8e0131bf47",
+      "pixel_sha256": "138dee036925c360d46d8072997a0b4393d612c272a9ee6c23b66f0d2dd28b57",
+      "rgba_pixel_sha256": "138dee036925c360d46d8072997a0b4393d612c272a9ee6c23b66f0d2dd28b57",
+      "bytes": 554196,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_04.jpg",
+      "sha256": "3028f80a9e202d074069245ad659249933cd34b17ae68e2feca352c227b3b340",
+      "file_sha256": "3028f80a9e202d074069245ad659249933cd34b17ae68e2feca352c227b3b340",
+      "pixel_sha256": "ee914d5f52682dff6ad846ea0fe6b4ecc614f172cdb5d0b2892f8622419d7a0b",
+      "rgba_pixel_sha256": "ee914d5f52682dff6ad846ea0fe6b4ecc614f172cdb5d0b2892f8622419d7a0b",
+      "bytes": 411337,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_05.jpg",
+      "sha256": "ba888d232f5960a7f80a5234d0834cd694b83cdef4b83caacf1d8edcb077f817",
+      "file_sha256": "ba888d232f5960a7f80a5234d0834cd694b83cdef4b83caacf1d8edcb077f817",
+      "pixel_sha256": "94ae0bfe282b66874f7a5aa5dff42635d14d4e5dcbbbc76c2f198702685afc4d",
+      "rgba_pixel_sha256": "94ae0bfe282b66874f7a5aa5dff42635d14d4e5dcbbbc76c2f198702685afc4d",
+      "bytes": 719916,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_06.jpg",
+      "sha256": "a72e5b23724fd982732d3e6911b61150052b07c8c150dbf7d6409a278054efc0",
+      "file_sha256": "a72e5b23724fd982732d3e6911b61150052b07c8c150dbf7d6409a278054efc0",
+      "pixel_sha256": "1fa6fdd3ac2d4f71662b0416fcb45ab58526ce294c6b5315c2f0ad01c630566b",
+      "rgba_pixel_sha256": "1fa6fdd3ac2d4f71662b0416fcb45ab58526ce294c6b5315c2f0ad01c630566b",
+      "bytes": 658495,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_07.jpg",
+      "sha256": "2c5fb3dabaca32835a06bb2f71d6d2cb55a6e4f507eda858bd0ac5f61f111505",
+      "file_sha256": "2c5fb3dabaca32835a06bb2f71d6d2cb55a6e4f507eda858bd0ac5f61f111505",
+      "pixel_sha256": "daadf1e816ba92b69d393f43646363eaa5440fde999c1bf276952869c1542dc6",
+      "rgba_pixel_sha256": "daadf1e816ba92b69d393f43646363eaa5440fde999c1bf276952869c1542dc6",
+      "bytes": 119436,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/女_暗夜黑_08.jpg",
+      "sha256": "9fbf2f9601b9b8bcea88508c397e0f065dd40a2d9dcbdd1a4f88ebfe059b36d7",
+      "file_sha256": "9fbf2f9601b9b8bcea88508c397e0f065dd40a2d9dcbdd1a4f88ebfe059b36d7",
+      "pixel_sha256": "58f7129a98f34c47b255696b3de0e7d5cb0fdf52a3b956c56bc1f217ae16144c",
+      "rgba_pixel_sha256": "58f7129a98f34c47b255696b3de0e7d5cb0fdf52a3b956c56bc1f217ae16144c",
+      "bytes": 117479,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_01.jpg",
+      "sha256": "c8e60e61626390ab6be265130928514c66f88bb8f00427273064a4f030d9f0e5",
+      "file_sha256": "c8e60e61626390ab6be265130928514c66f88bb8f00427273064a4f030d9f0e5",
+      "pixel_sha256": "af6c52c07cc92679a2409b9f040e488f9769193c06c40f6060ce5d33a29f6fe0",
+      "rgba_pixel_sha256": "af6c52c07cc92679a2409b9f040e488f9769193c06c40f6060ce5d33a29f6fe0",
+      "bytes": 365708,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_02.jpg",
+      "sha256": "16e376a5e3ceacbb29c1180fbf47ebeded0c830e29770d40114750eca3f516a0",
+      "file_sha256": "16e376a5e3ceacbb29c1180fbf47ebeded0c830e29770d40114750eca3f516a0",
+      "pixel_sha256": "902dfe1269a147d673a046d88488f0379b63d4c9bf10e184d789c040b5903bca",
+      "rgba_pixel_sha256": "902dfe1269a147d673a046d88488f0379b63d4c9bf10e184d789c040b5903bca",
+      "bytes": 365704,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_03.jpg",
+      "sha256": "148fdb6f10b82acd53d09a710d9b9edea0f8412ac3eb9d0e9870890d2b2edf1b",
+      "file_sha256": "148fdb6f10b82acd53d09a710d9b9edea0f8412ac3eb9d0e9870890d2b2edf1b",
+      "pixel_sha256": "e05a2045c41905d9288a338bcae4c646ea3b2ce37d1a99457abfa96aedfbd1a3",
+      "rgba_pixel_sha256": "e05a2045c41905d9288a338bcae4c646ea3b2ce37d1a99457abfa96aedfbd1a3",
+      "bytes": 573490,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_04.jpg",
+      "sha256": "e58eda3e8f432d671eb91332aae315c86c7c2b3f14aec81611e80e98a92955ee",
+      "file_sha256": "e58eda3e8f432d671eb91332aae315c86c7c2b3f14aec81611e80e98a92955ee",
+      "pixel_sha256": "c17723d0a79fd844256452e2fd87c3c9413f8b2a67a5887adf5ad8bbe843da7e",
+      "rgba_pixel_sha256": "c17723d0a79fd844256452e2fd87c3c9413f8b2a67a5887adf5ad8bbe843da7e",
+      "bytes": 411711,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_05.jpg",
+      "sha256": "ba888d232f5960a7f80a5234d0834cd694b83cdef4b83caacf1d8edcb077f817",
+      "file_sha256": "ba888d232f5960a7f80a5234d0834cd694b83cdef4b83caacf1d8edcb077f817",
+      "pixel_sha256": "94ae0bfe282b66874f7a5aa5dff42635d14d4e5dcbbbc76c2f198702685afc4d",
+      "rgba_pixel_sha256": "94ae0bfe282b66874f7a5aa5dff42635d14d4e5dcbbbc76c2f198702685afc4d",
+      "bytes": 719916,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_06.jpg",
+      "sha256": "e5805460bd50f642f127b4c597ead676b40c11c1e12f6931acaf0c9defd5f7ef",
+      "file_sha256": "e5805460bd50f642f127b4c597ead676b40c11c1e12f6931acaf0c9defd5f7ef",
+      "pixel_sha256": "f649f1580c41fbfecdb3aef2f404e2e9f8ce49995c843bec6e0d39e80fafc39d",
+      "rgba_pixel_sha256": "f649f1580c41fbfecdb3aef2f404e2e9f8ce49995c843bec6e0d39e80fafc39d",
+      "bytes": 658649,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_07.jpg",
+      "sha256": "a8f19b2d602613c114e487ddfee8719e59918541b73fbde088d0aa06fd8da8c2",
+      "file_sha256": "a8f19b2d602613c114e487ddfee8719e59918541b73fbde088d0aa06fd8da8c2",
+      "pixel_sha256": "b0a94aa0f9af15404522538e64fcb7f3a931b18d6cdce1a28f31a76aeedb7bb7",
+      "rgba_pixel_sha256": "b0a94aa0f9af15404522538e64fcb7f3a931b18d6cdce1a28f31a76aeedb7bb7",
+      "bytes": 120116,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "唯品专享1440/无Logo/男_暗夜黑_08.jpg",
+      "sha256": "9235a6fc597394f9f3dd7200a4c1a1df49c094d823ebb7f3e3a530946cb30957",
+      "file_sha256": "9235a6fc597394f9f3dd7200a4c1a1df49c094d823ebb7f3e3a530946cb30957",
+      "pixel_sha256": "127b4c0c441da9b89f9ff2b973ecffe2395c192f1ce4fe6ee0a8c7e968c27ae1",
+      "rgba_pixel_sha256": "127b4c0c441da9b89f9ff2b973ecffe2395c192f1ce4fe6ee0a8c7e968c27ae1",
+      "bytes": 122123,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "透明产品图/1440x1440/女_暗夜黑_08_透明.png",
+      "sha256": "d39e4dbc64d2aa6515264719ba2f5cfc6059d7bb939e15537169dfeefc4acfa8",
+      "file_sha256": "d39e4dbc64d2aa6515264719ba2f5cfc6059d7bb939e15537169dfeefc4acfa8",
+      "pixel_sha256": "91329ecb6ed6796e875eca9121d6e1971432e25fbdfd40da9bd6ed57c8d58ee9",
+      "rgba_pixel_sha256": "91329ecb6ed6796e875eca9121d6e1971432e25fbdfd40da9bd6ed57c8d58ee9",
+      "bytes": 326184,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/1440x1440/男_暗夜黑_08_透明.png",
+      "sha256": "fb603953e99d03b705a05d6d9b6c7167b164d77ad04de7560c1a32f6312026dc",
+      "file_sha256": "fb603953e99d03b705a05d6d9b6c7167b164d77ad04de7560c1a32f6312026dc",
+      "pixel_sha256": "1b5a837d6dea8190e58a42b644630a526b44e93a171f932810aeaf64e4aa4a5e",
+      "rgba_pixel_sha256": "1b5a837d6dea8190e58a42b644630a526b44e93a171f932810aeaf64e4aa4a5e",
+      "bytes": 340856,
+      "size": [
+        1440,
+        1440
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/1440x1920/女_暗夜黑_08_透明.png",
+      "sha256": "efbaea52e0a54ff979e0136b84a51a6f93d286b6b2e4f12120fe171d69793bc5",
+      "file_sha256": "efbaea52e0a54ff979e0136b84a51a6f93d286b6b2e4f12120fe171d69793bc5",
+      "pixel_sha256": "84d446d03bbc643b37f04b679396dbc0300605f1b97b1657cbf90fb5ef4d59eb",
+      "rgba_pixel_sha256": "84d446d03bbc643b37f04b679396dbc0300605f1b97b1657cbf90fb5ef4d59eb",
+      "bytes": 534819,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/1440x1920/男_暗夜黑_08_透明.png",
+      "sha256": "a600b2953f1da8a45058456fe356f8f04ce0b572c5e49ac4c427ae4271b064f9",
+      "file_sha256": "a600b2953f1da8a45058456fe356f8f04ce0b572c5e49ac4c427ae4271b064f9",
+      "pixel_sha256": "7fd09227f582872e090a4081d3ec3fc216745228efacedf113a05460a17cc2ad",
+      "rgba_pixel_sha256": "7fd09227f582872e090a4081d3ec3fc216745228efacedf113a05460a17cc2ad",
+      "bytes": 565231,
+      "size": [
+        1440,
+        1920
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/1440x2160/女_暗夜黑_08_透明.png",
+      "sha256": "d6e04210e70566f854e4a52caf4a562b486ce41424f3b4c46362ed93e8e84bf1",
+      "file_sha256": "d6e04210e70566f854e4a52caf4a562b486ce41424f3b4c46362ed93e8e84bf1",
+      "pixel_sha256": "e54153df2145db7be043641c5ca8dd1d7ce91a1146c422649c5b4421a052767b",
+      "rgba_pixel_sha256": "e54153df2145db7be043641c5ca8dd1d7ce91a1146c422649c5b4421a052767b",
+      "bytes": 664725,
+      "size": [
+        1440,
+        2160
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/1440x2160/男_暗夜黑_08_透明.png",
+      "sha256": "8a136c1a2e1fcf523cad15677837a34da8e0d8f18e8b4d3477e1c8eb84222261",
+      "file_sha256": "8a136c1a2e1fcf523cad15677837a34da8e0d8f18e8b4d3477e1c8eb84222261",
+      "pixel_sha256": "72062ab6af6fd15606a6e2be438802db64b3c4c6d1d8d3c1e84c858a3d840a07",
+      "rgba_pixel_sha256": "72062ab6af6fd15606a6e2be438802db64b3c4c6d1d8d3c1e84c858a3d840a07",
+      "bytes": 704763,
+      "size": [
+        1440,
+        2160
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/800x800/女_暗夜黑_08_透明.png",
+      "sha256": "acb3c7f3db1f27f91de961bbd1f076b92d433eba2773bbd20b6f168076fa1b1b",
+      "file_sha256": "acb3c7f3db1f27f91de961bbd1f076b92d433eba2773bbd20b6f168076fa1b1b",
+      "pixel_sha256": "d86fe7a0e2d4f41c44bdc5791d7338fe702436e5e38327090396835ada30b166",
+      "rgba_pixel_sha256": "d86fe7a0e2d4f41c44bdc5791d7338fe702436e5e38327090396835ada30b166",
+      "bytes": 101532,
+      "size": [
+        800,
+        800
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "透明产品图/800x800/男_暗夜黑_08_透明.png",
+      "sha256": "c102c6c49c67b802583942cc7194bd0028fc5aa018f48e503bf72b7bf7b929e6",
+      "file_sha256": "c102c6c49c67b802583942cc7194bd0028fc5aa018f48e503bf72b7bf7b929e6",
+      "pixel_sha256": "491b21a145017dadc7d2814fa1e14d868c579489aab3d07c716a412ffc4e71c0",
+      "rgba_pixel_sha256": "491b21a145017dadc7d2814fa1e14d868c579489aab3d07c716a412ffc4e71c0",
+      "bytes": 104545,
+      "size": [
+        800,
+        800
+      ],
+      "mode": "RGBA"
+    }
+  ]
+}

@@ -5,22 +5,33 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
 
 worker_root = Path(SPECPATH)
-v2_root = worker_root.parent.parent / "PixelFlow-App-v2.0"
+v3_resource_root = worker_root / "resources"
+legacy_root = worker_root / "pixelflow_core" / "legacy_engine"
 hiddenimports = [
-    "generate_main_images",
-    "local_model_assistant",
-    "model_process_service",
-    "model_result_cache",
-    "output_validator",
-    "ai_image_assistant",
-    *collect_submodules("category_engine"),
+    "pixelflow_core.renderer",
+    "pixelflow_core.model_assistant",
+    "pixelflow_core.legacy_engine.generate_main_images",
+    "pixelflow_core.legacy_engine.local_model_assistant",
+    "pixelflow_core.legacy_engine.model_process_service",
+    "pixelflow_core.legacy_engine.model_result_cache",
+    "pixelflow_core.legacy_engine.output_validator",
+    "pixelflow_core.legacy_engine.ai_image_assistant",
+    *collect_submodules("pixelflow_core.legacy_engine.category_engine"),
+    *collect_submodules("pixelflow_core"),
 ]
+
+datas = []
+if v3_resource_root.is_dir():
+    datas.append((str(v3_resource_root), "resources"))
+if legacy_root.is_dir() and (legacy_root / "resources").is_dir():
+    datas.append((str(legacy_root / "resources"), "pixelflow_core/legacy_engine/resources"))
+pathex = [str(worker_root), str(legacy_root)]
 
 a = Analysis(
     [str(worker_root / "worker_entry.py")],
-    pathex=[str(worker_root), str(v2_root)],
+    pathex=pathex,
     binaries=collect_dynamic_libs("onnxruntime"),
-    datas=[(str(v2_root / "resources"), "v2_engine/resources")],
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
