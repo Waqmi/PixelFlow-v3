@@ -59,9 +59,9 @@ def _file_version(path: Optional[Path], *, include_digest: bool = False) -> Opti
     return version
 
 
-def file_version(path: Optional[Path]) -> Optional[Dict[str, Any]]:
+def file_version(path: Optional[Path], *, include_digest: bool = False) -> Optional[Dict[str, Any]]:
     """Public read-only source/model version helper."""
-    return _file_version(path)
+    return _file_version(path, include_digest=include_digest)
 
 
 def _purpose(value: str) -> str:

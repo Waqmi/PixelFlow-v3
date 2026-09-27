@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import tempfile
 import unittest
@@ -21,6 +22,7 @@ from pixelflow_core.model_service import (
     STATUS_FALLBACK,
     STATUS_UNCONFIGURED,
     ModelProcessService,
+    _worker_main,
 )
 
 
@@ -112,6 +114,42 @@ class ModelCacheTests(unittest.TestCase):
 
 
 class ModelServiceTests(unittest.TestCase):
+    def test_probe_returns_sha256_for_configured_models(self) -> None:
+        class Queue:
+            def __init__(self, items=()):
+                self.items = list(items)
+
+            def get(self):
+                return self.items.pop(0)
+
+            def put(self, item):
+                self.items.append(item)
+
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model_bytes = {"pose": b"pose-model", "segmentation": b"seg-model"}
+            for purpose, content in model_bytes.items():
+                model_dir = root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(content)
+
+            requests = Queue([
+                {"task_id": "probe-1", "action": "probe", "model_root": str(root)},
+                {"action": "shutdown"},
+            ])
+            responses = Queue()
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant)):
+                _worker_main(requests, responses)
+
+            result = responses.items[0]["result"]
+            for purpose, content in model_bytes.items():
+                self.assertEqual(result[purpose]["state"], "已就绪")
+                self.assertEqual(result[purpose]["model_version"]["sha256"], hashlib.sha256(content).hexdigest())
+
     def test_missing_models_report_unconfigured_without_starting_process(self) -> None:
         service = ModelProcessService(timeout=1)
         try:
