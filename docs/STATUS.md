@@ -50,7 +50,7 @@
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
 - `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
-- `tools/run_acceptance.py --skip-desktop --full-evidence --output baselines/v2.6/acceptance-full-evidence-20260927-fixed`：通过（Worker 93/93、四类输出/冻结 Worker/哈希清单引用、v3 基线报告）；生成图片目录按仓库规则忽略。
+- `tools/run_acceptance.py --skip-desktop --full-evidence --output baselines/v2.6/acceptance-full-evidence-20260927-final`：通过（Worker 93/93、四类输出/冻结 Worker/哈希清单引用、candidate2 v3 基线报告）；生成图片目录按仓库规则忽略。
 - `cargo test --bin pixelflow-desktop`：通过（4/4，包含重启预算、任务 ID 和诊断 ZIP 结构校验）。
 - T3 candidate2 compare：120/120 配对、`different_files=0`、`max_diff=0`、`MAE=0`、PSNR 无穷；正式报告保持 52，未用候选结果替代正式基线。
 - onedir `.app` Worker：ping、分类/生成双跑、模型探测和 shutdown 通过；第二次生成 `incremental_reused=1`、`skipped_by_scope=0`。

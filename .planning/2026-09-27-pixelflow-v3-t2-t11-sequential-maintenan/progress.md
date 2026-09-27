@@ -117,3 +117,7 @@
 - 在前一候选 28 个差异基础上，新增 `_07` 前景框/背景延展（含 square 尺寸）和 `_08` RGBA 品类模板分支。
 - 固定 16 张素材重新生成 120 个输出，与 legacy 逐像素比较为 0 个差异（`max_diff=0`、`MAE=0`、PSNR=∞、`needs_fix=0`）。
 - 正式 `v3-current-20260927` 基线仍为 52，candidate2 仅作为待人工视觉复核的候选证据；Worker 相关测试 47/47、全量 93/93 通过。
+
+### Full evidence refresh after T3 candidate2
+- 重新运行 `tools/run_acceptance.py --skip-desktop --full-evidence`，报告 `baselines/v2.6/acceptance-full-evidence-20260927-final/acceptance.json` 通过。
+- Worker 93/93 和 renderer baseline 检查均通过；最新候选报告为 120/120 配对、0 个差异。生成图片目录按 `.gitignore` 保持不入 Git。
