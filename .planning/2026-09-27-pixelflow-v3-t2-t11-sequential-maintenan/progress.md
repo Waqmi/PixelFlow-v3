@@ -136,3 +136,9 @@
 - 使用已配置的 `/opt/homebrew/bin/python3.14` 重跑 Worker 全量测试：93/93 通过（26.4 秒）。本轮 acceptance runner 受 30 秒工具上限中断，未生成新的全量报告，继续引用此前已完成的 `acceptance-full-evidence-20260927-final/acceptance.json`。
 - 窄验证确认：源码 Worker 与当前 onedir Worker 在同一 36 张输入、`workers=4`、同一输出目录下连续两次均约 1.1 秒返回 `done`（36 条 progress，最后 36/36）；旧 `.app` 卡住不能归因到分类算法。`test_worker_process` 5/5、Vue build、protocol check 均通过；新的宿主 UI 复用证据仍未伪造。
 - 取消窄验证：分类开始后立即发送 `cancel_generation`，约 1.12 秒收到原分类 request 的 `cancelled`，随后 shutdown 正常退出且无 stderr；取消请求自身的 `cancelling` status 可能重复出现，前端按 request ID 幂等处理。
+
+### Latest macOS .app packaging
+- 在 `worker/.venv` 安装 PyInstaller 6.22.0、Pillow 12.3.0 和可用于 Python 3.14 的 onnxruntime 1.30.0；本机没有 Python 3.12。默认 `npm run tauri:build` 成功构建 Worker、Vue 和 `.app`，随后 DMG bundler 失败；app-only Tauri bundle 成功。
+- 对 `.app` 做 ad-hoc 签名并通过 `codesign --verify --deep --strict`；将已验证包复制到 `dist/PixelFlow-v3-beta.app`。包内 Worker 哈希 `17f6ef32...`，ready/ping/shutdown、exit code 0、stderr empty 均通过。
+- 使用宿主权限打开新 `.app`，主窗口显示“准备就绪”；通过菜单退出后，新 App 与其子 Worker 进程均消失。证据 `baselines/v2.6/v3-recheck-20260927/mac-app-package-latest-20260927.json`。
+- 这是本地 arm64 测试包；T2 的 264→264 UI 复用、模型推理与 T10 Developer ID 签名/公证/DMG/Windows 均未因此变为通过。

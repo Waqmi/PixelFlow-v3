@@ -1,0 +1,26 @@
+{
+  "schema_version": "v3-mac-app-package-1",
+  "generated_at": "2026-09-27T13:34:14Z",
+  "source_commit": "0097bd9",
+  "app_path": "dist/PixelFlow-v3-beta.app",
+  "app_version": "3.0.0-beta.1",
+  "architecture": "arm64",
+  "worker_python": "3.14.5",
+  "worker_pyinstaller": "6.22.0",
+  "worker_onnxruntime": "1.30.0",
+  "app_executable_sha256": "10475db36764a6261f8a91bf1413717e8e600fcb78aa1d84fc57e963e622361e",
+  "worker_executable_sha256": "17f6ef3259bf1d238b6be70df26cf32558822c7c00fdc53f7c34c8f06b82ab69",
+  "signing": "ad-hoc; not Developer ID signed or notarized",
+  "checks": {
+    "tauri_app_bundle": "passed",
+    "codesign_verify_deep_strict": "passed",
+    "bundled_worker_ready_ping_shutdown": "passed; exit code 0; stderr empty",
+    "host_app_launch": "passed; main window showed ready state",
+    "host_app_quit": "passed; launched app and its child Worker exited",
+    "dmg": "failed in bundle_dmg.sh; app-only build passed"
+  },
+  "limitations": [
+    "Python 3.12 was unavailable on this host; this test bundle uses Python 3.14.5 and onnxruntime 1.30.0 rather than the locked Python 3.12 dependency set.",
+    "This app bundle has not completed the full T2 same-directory 264-to-264 UI regression or model inference regression."
+  ]
+}

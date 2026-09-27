@@ -4,7 +4,7 @@
 按既定计划依次完成 T2 到 T11；每阶段只在有真实实现和可复核证据时标记完成，受环境或真实批次约束的阶段保留明确延期记录。
 
 ## Next Step
-T2 第二次同目录增量复用回归：宿主 Mac 解锁后复跑并确认 264 输出保持一致；随后按顺序复核 T3–T10。
+使用最新 `dist/PixelFlow-v3-beta.app` 做 T2 第二次同目录增量复用回归，确认 264 输出保持一致；随后按顺序复核 T3–T10。
 
 ## Current Phase
 T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张素材仍缺失）
@@ -15,7 +15,7 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 - [ ] 分类、手动修改、生成、打开输出目录、增量复用
 - [ ] 安全取消和进程残留检查
 - [ ] 20 张鞋类素材 Pose/Seg、复核提示、模型缺失回退
-- **Status:** partial — first host-permission rerun produced 264 outputs; added stale confirm-window recovery, classification timeout, and cancellation idle/timeout handling; host rerun is still required to confirm 264→264; missing shoe fixture remains
+- **Status:** partial — first host-permission rerun produced 264 outputs; latest app has been rebuilt and launch/quit verified; host rerun is still required to confirm 264→264; missing shoe fixture remains
 
 ### T3 legacy/v3 基线
 - [x] 双报告、逐像素指标、差异分类和 contact sheet
