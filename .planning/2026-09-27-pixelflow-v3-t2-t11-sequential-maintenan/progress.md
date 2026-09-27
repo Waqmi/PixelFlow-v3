@@ -122,3 +122,7 @@
 ### Full evidence refresh after T3 candidate2
 - 重新运行 `tools/run_acceptance.py --skip-desktop --full-evidence`，报告 `baselines/v2.6/acceptance-full-evidence-20260927-final/acceptance.json` 通过。
 - Worker 93/93 和 renderer baseline 检查均通过；最新候选报告为 120/120 配对、0 个差异。生成图片目录按 `.gitignore` 保持不入 Git。
+
+### T2 rebuild attempt
+- 为避免使用 18:02 的旧 `.app`，尝试 `npm run tauri:build` 重建当前包；`beforeBuildCommand` 在 Python 3.9 阶段因缺少 PyInstaller 失败。
+- 未将旧包的第二次分类卡住归因到当前源码，也未伪造新 `.app` 证据；该重建继续归入 T7 Python/独立环境阻塞。

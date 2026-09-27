@@ -71,6 +71,7 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 |-------|------------|
 | planning directory not found | Initialized selected plan with init-session.sh |
 | Baseline probe command typo/timeout | Corrected the command; kept the independently generated candidate evidence and did not alter the formal baseline |
+| `npm run tauri:build` failed because Python 3.9 has no PyInstaller | Kept existing onedir artifact authoritative; did not fabricate a rebuilt `.app`; Python 3.12/venv rebuild remains a T7 dependency |
 
 
 ## Verification note

@@ -103,6 +103,7 @@
 - 本轮使用的输出目录是全新目录，避免了历史产物污染；可作为宿主权限重新生成的事实证据。
 - 第二次增量复用需要解锁宿主 Mac 后才能继续，当前不能据此声称 264→264 UI 复用通过。
 - 解锁后复跑暴露出更具体的 UI 问题：分类进度显示 36/36 但没有发出可见的完成/确认状态；安全取消也未在观察窗口内收敛。应优先检查第二次分类请求的 Worker done/error 事件和前端 request id 过滤，确认是否为多实例 Worker 或旧请求残留。
+- 当前 `.app` 构建时间为 18:02；重建当前源码时 `npm run tauri:build` 在 `worker/build_worker.py` 阶段因 Python 3.9 缺少 PyInstaller 失败。因此旧包 UI 卡住不能作为当前源码回归结论。
 
 ## T4/T6 review
 - T4 现有实现和 Worker 证据一致：IntersectionObserver 懒加载、并发队列、198×138 预览限制、LRU 128 缓存、canonical scope；300/300 响应耗时 6.03 秒。宿主首屏 1 秒交互仍没有可核实数据。
