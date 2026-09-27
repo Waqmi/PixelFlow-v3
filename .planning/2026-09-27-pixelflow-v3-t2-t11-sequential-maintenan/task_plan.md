@@ -4,7 +4,7 @@
 按既定计划依次完成 T2 到 T11；每阶段只在有真实实现和可复核证据时标记完成，受环境或真实批次约束的阶段保留明确延期记录。
 
 ## Next Step
-使用最新 `dist/PixelFlow-v3-beta.app` 做 T2 第二次同目录增量复用回归，确认 264 输出保持一致；随后按顺序复核 T3–T10。
+使用最新修复包 `dist/PixelFlow-v3-beta-model-fix.app` 做 T2 第二次同目录增量复用回归，确认 264 输出保持一致；随后按顺序复核 T3–T10。
 
 ## Current Phase
 T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张素材仍缺失）
@@ -38,7 +38,7 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 ### T7 onedir 与独立 Python
 - [x] onedir 资源、哈希清单、Worker 测试和启动/双跑/退出证据
 - [ ] Python 3.12 重建
-- **Status:** partial（当前构建使用 Python 3.9.13；本机无 Python 3.12 和 `worker/.venv`）
+- **Status:** partial（最新本地测试包使用 `worker/.venv`/Python 3.14.5；本机无 Python 3.12，正式锁定依赖构建仍未完成）
 
 ### T8 复核与回退可见性
 - [ ] review_hint、保护框、接受/保守重跑、统计
@@ -52,7 +52,7 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 ### T10 发布
 - [ ] macOS DMG/签名/公证/首次启动
 - [ ] Windows x64 安装和中文/长路径验证
-- **Status:** blocked by platform credentials/runners; 未签名 arm64 `.app` 仅完成启动/Worker 证据
+- **Status:** blocked by platform credentials/runners; ad-hoc 签名 arm64 `.app` 已完成启动、Worker 和真实模型探测证据，Developer ID 签名/公证/DMG/Windows 仍未完成
 
 ### T11 legacy 周期
 - [ ] beta.2 至少 14 天或 2 个真实批次

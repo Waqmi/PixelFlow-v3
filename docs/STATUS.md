@@ -7,9 +7,10 @@
 
 - Renderer 独立化技术退出条件已通过。
 - Worker 测试、鞋类 Pose/Seg 证据和 macOS arm64 `.app` 启停证据已存在。
-- 当前正式 onefile Worker 哈希为 `027a624b...`；旧 `6c5fadabe...` 仅保留为历史证据。最新本地测试 `.app` 的 onedir Worker 哈希为 `17f6ef32...`，使用 Python 3.14.5；Python 3.12 正式重建仍待 CI/可用环境。此前 `627ebbff...` 为旧 `.app` 历史构建。
+- 当前正式 onefile Worker 哈希为 `027a624b...`；旧 `6c5fadabe...` 仅保留为历史证据。最新本地修复包 `dist/PixelFlow-v3-beta-model-fix.app` 的 onedir Worker 哈希为 `e6f28644...`，使用 Python 3.14.5；Python 3.12 正式重建仍待 CI/可用环境。`17f6ef32...` 和 `627ebbff...` 为此前测试构建。
 - `.app` 分类、完整生成和增量复用首轮回归已通过；第二次 UI 复用因宿主自动锁定待重跑。正式 legacy/v3 基线仍保留 52 个差异；最新候选 renderer 在固定 16 张素材上达到 0 个像素差异，但尚未改写正式基线，需人工视觉复核后再收口。
 - 设置页已提供版本/Worker 哈希/规则版本、Pose/Seg 文件名与 SHA-256 状态；桌面端可导出包含诊断 JSON、失败报告、最近 Worker 日志和最近结果的 ZIP 诊断包。
+- 已修复模型检测的 `file_version(include_digest=True)` 参数错误；最新修复包在宿主设置页显示 Pose、Seg 均“已就绪”且 SHA-256 匹配。
 - v3 同名输出默认复用固定路径，不自动改名或覆盖；显式强制重跑才覆盖，生成前会检查输出磁盘空间并在低于 200 MB 时预警。
 
 ## 进行中
@@ -57,3 +58,4 @@
 - `npm run protocol:check`：通过；契约解析、请求 ID、错误事件和超时 self-check 通过。
 - `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。
 - 最新本地 `.app`：`dist/PixelFlow-v3-beta.app`，源码提交 `0097bd9`，Worker 哈希 `17f6ef32...`；证据见 `baselines/v2.6/v3-recheck-20260927/mac-app-package-latest-20260927.json`。Tauri app-only bundle、ad-hoc codesign 校验、宿主启动/退出和 Worker ready/ping/shutdown 通过；默认 DMG bundler 仍失败。
+- 模型检测修复包：`dist/PixelFlow-v3-beta-model-fix.app`，源码提交 `3359911`，Worker 哈希 `e6f28644...`；Worker 94/94 通过，源码/冻结 Worker 对真实 Pose/Seg 模型均返回“已就绪”和完整匹配 SHA-256，宿主设置页点击“测试模型”得到相同结果。见 `baselines/v2.6/v3-recheck-20260927/model-probe-fix-20260927.json`。旧 `dist/PixelFlow-v3-beta.app` 仍在运行，未覆盖。

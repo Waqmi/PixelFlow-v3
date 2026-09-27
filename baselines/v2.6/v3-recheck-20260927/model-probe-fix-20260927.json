@@ -1,0 +1,37 @@
+{
+  "schema_version": "v3-model-probe-fix-1",
+  "generated_at": "2026-09-27T13:52:52Z",
+  "source_commit": "3359911",
+  "artifact": "dist/PixelFlow-v3-beta-model-fix.app",
+  "app_version": "3.0.0-beta.1",
+  "architecture": "arm64",
+  "python_version": "3.14.5",
+  "onnxruntime_version": "1.30.0",
+  "app_executable_sha256": "8d36a1669dbfd782174bd01d2473b476c4a98239247d8dde3058371e812d9931",
+  "worker_executable_sha256": "e6f28644e8c41eead737b16ab93bec5992172c301eafa8c8bec3e9ce101055c5",
+  "original_error": "file_version() got an unexpected keyword argument 'include_digest'",
+  "checks": {
+    "worker_unittest": "94/94 passed",
+    "source_worker_real_model_probe": "Pose and Seg ready; SHA-256 matched",
+    "frozen_worker_real_model_probe": "Pose and Seg ready; SHA-256 matched; shutdown exit code 0",
+    "app_codesign_verify_deep_strict": "passed (ad-hoc signature)",
+    "host_app_settings_model_test": "Pose 已就绪；Seg 已就绪；both SHA-256 matched"
+  },
+  "models": {
+    "pose": {
+      "file": "models/pose/yolo11n-pose.onnx",
+      "sha256": "86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8",
+      "status": "ready"
+    },
+    "segmentation": {
+      "file": "models/segmentation/yolo11n-seg.onnx",
+      "sha256": "52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55",
+      "status": "ready"
+    }
+  },
+  "limitations": [
+    "The previous dist/PixelFlow-v3-beta.app was still running and was left untouched; use the new artifact path.",
+    "The app is ad-hoc signed for local testing, not Developer ID signed or notarized.",
+    "The model probe loads both ONNX sessions; image inference and full T2 batch regression remain separate checks."
+  ]
+}

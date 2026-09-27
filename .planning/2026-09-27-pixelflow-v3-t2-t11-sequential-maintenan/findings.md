@@ -114,6 +114,11 @@
 ## 2026-09-27 acceptance environment failure
 - 当前默认 `python3` 为 `/Library/Frameworks/Python.framework/Versions/3.9/bin/python3`，未安装 Pillow；本轮 acceptance runner 的 Worker 进程测试与 renderer baseline 失败，错误为 `ModuleNotFoundError: No module named 'PIL'`。此前 Python 3.14 环境的 93/93 报告仍是有效基线，本轮不覆盖或伪造通过结果。
 
+## Latest .app model probe failure
+- 用户截图显示 Pose/Seg `file_version() got an unexpected keyword argument 'include_digest'`。直接调用最新 `dist/PixelFlow-v3-beta.app` 包内 Worker 的 `probe_models`，两个模型均返回相同错误；因此不是前端显示问题。
+- `model_service.py` 在 probe 成功加载后调用 `file_version(Path(model_path), include_digest=True)`；`model_cache.py` 内部 `_file_version` 支持该参数，但公开包装 `file_version` 不接受，属于调用接口不一致。
+- 两个 ONNX 文件都在当前 `models/` 目录，SHA-256 与 `models/README.md` 完全一致。修复后须用重新打包的 Worker 现场验证状态和校验哈希，不能只看单测。
+
 ## T4/T6 review
 - T4 现有实现和 Worker 证据一致：IntersectionObserver 懒加载、并发队列、198×138 预览限制、LRU 128 缓存、canonical scope；300/300 响应耗时 6.03 秒。宿主首屏 1 秒交互仍没有可核实数据。
 - T6 人工延期项仍合理；JOB-06 仅 Worker 264/264 已通过，宿主增量 UI 仍等待解锁后复跑。

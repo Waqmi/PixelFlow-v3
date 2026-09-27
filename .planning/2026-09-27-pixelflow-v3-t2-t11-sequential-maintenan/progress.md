@@ -142,3 +142,12 @@
 - 对 `.app` 做 ad-hoc 签名并通过 `codesign --verify --deep --strict`；将已验证包复制到 `dist/PixelFlow-v3-beta.app`。包内 Worker 哈希 `17f6ef32...`，ready/ping/shutdown、exit code 0、stderr empty 均通过。
 - 使用宿主权限打开新 `.app`，主窗口显示“准备就绪”；通过菜单退出后，新 App 与其子 Worker 进程均消失。证据 `baselines/v2.6/v3-recheck-20260927/mac-app-package-latest-20260927.json`。
 - 这是本地 arm64 测试包；T2 的 264→264 UI 复用、模型推理与 T10 Developer ID 签名/公证/DMG/Windows 均未因此变为通过。
+
+### Model probe regression from latest .app
+- 用户截图报告 Pose/Seg 均“不可用”，错误 `file_version() got an unexpected keyword argument 'include_digest'`。
+- 包内 Worker `probe_models` 已独立复现同一错误；本地两个 ONNX 文件存在，SHA-256 均与 `models/README.md` 一致。
+- 已将模型层最小修复和回归测试交给 `luna-worker`；主线程负责重新打包、冻结 Worker 现场检测和宿主 UI 验收。
+- 根因修复提交 `3359911`：公开 `file_version` 接受并转发 `include_digest`；新增直接覆盖 Pose/Seg 探测和 SHA-256 的回归测试。Worker 全量 94/94 通过。
+- 使用 `worker/.venv`/Python 3.14.5 重建 onedir Worker 和 app-only `.app`；`dist/PixelFlow-v3-beta-model-fix.app` 已通过 ad-hoc codesign 校验，Worker 哈希 `e6f28644...`。
+- 重新打包后的冻结 Worker 对真实 Pose/Seg ONNX 均返回 `state=已就绪`、`fallback=false` 和正确 SHA-256；宿主设置页点击“测试模型”也显示“Pose 已就绪；Seg 已就绪”，两项均“SHA-256 匹配”。
+- 旧 `dist/PixelFlow-v3-beta.app` 当时仍在运行，为避免覆盖用户正在使用的应用，修复包采用独立路径；旧包状态未变。证据 `baselines/v2.6/v3-recheck-20260927/model-probe-fix-20260927.json`。
