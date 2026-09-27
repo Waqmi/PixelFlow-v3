@@ -101,3 +101,19 @@
 - v3 输出策略固定为同名复用；`force_rerender=true` 才覆盖，分类预检检查输出磁盘并在低于 200 MB 时警告；补充了复用/覆盖/低磁盘回归测试。
 - `tools/run_acceptance.py --full-evidence` 首次运行因 `Path.relative_to(ROOT)` 对相对输出路径抛错；已改为先 resolve 并安全记录仓库内/外路径，随后成功生成 full evidence 报告。
 - 本轮最终验证：Worker 93/93；协议检查、Vue 构建、Cargo 检查通过；Rust 桌面单测 4/4；full evidence report 已持久化。全量 runner 生成的图片保持忽略，不纳入提交。
+
+### T2 host-permission rerun (2026-09-27)
+- 使用宿主权限启动已构建 `PixelFlow`，输入 `/private/tmp/pixelflow-v3-sources-36`（36 张）和全新输出目录 `/private/tmp/pixelflow-v3-ui-rerun-output-20260927`。
+- 分类确认页显示 36 张，手动将首张从“细节图”改为“商品白底图”，统计从商品白底图 8/细节图 28 变为 9/27；确认并生成完成，输出目录实际包含 264 个文件。
+- 生成过程中进度从 15/108 到 42/108，随后应用回到“准备就绪”，未观察到 Worker 残留。
+- 第二次同目录复用尚未完成：UI 继续操作时宿主 Mac 自动锁定，CUA 返回“Mac is locked”；不把该次标记为通过，保留为当前阻塞。
+
+### T4/T6/T9 ordered review
+- T4 继续保持 partial：Worker 300/300 预览证据和安全边界通过，宿主 300 张首屏交互时间没有实测。
+- T6 parity 文档已修正 SET-06，删除未被证据支持的 “.dmg 启停” 表述；CONF/JOB/SET 人工项继续保留延期状态。
+- T9 维持最小拆分：关于页已抽出为 `components/SettingsAboutView.vue`，props/emits 保留版本和诊断操作；Vitest 仍因离线依赖条件延期。
+
+### T3 candidate2 renderer review
+- 在前一候选 28 个差异基础上，新增 `_07` 前景框/背景延展（含 square 尺寸）和 `_08` RGBA 品类模板分支。
+- 固定 16 张素材重新生成 120 个输出，与 legacy 逐像素比较为 0 个差异（`max_diff=0`、`MAE=0`、PSNR=∞、`needs_fix=0`）。
+- 正式 `v3-current-20260927` 基线仍为 52，candidate2 仅作为待人工视觉复核的候选证据；Worker 相关测试 47/47、全量 93/93 通过。

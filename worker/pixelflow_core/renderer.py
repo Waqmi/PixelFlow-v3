@@ -15,7 +15,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any, Iterable
 
-from PIL import Image, ImageOps, ImageStat
+from PIL import Image, ImageDraw, ImageFilter, ImageOps, ImageStat
 
 from .contracts import CompositionPlan, RenderRequest, RenderResult
 
@@ -244,6 +244,107 @@ def _template_crop(image: Image.Image, target: tuple[int, int], template: tuple[
     return canvas
 
 
+def _corner_background_colors(
+    image: Image.Image,
+    product_box: tuple[int, int, int, int] | None,
+    sample_ratio: float,
+) -> tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]:
+    """Sample four corner colours while excluding the detected product."""
+    rgb = image.convert("RGB")
+    sample_width = max(2, round(rgb.width * sample_ratio))
+    sample_height = max(2, round(rgb.height * sample_ratio))
+    excluded = None
+    if product_box is not None:
+        margin_x = round((product_box[2] - product_box[0]) * 0.02)
+        margin_y = round((product_box[3] - product_box[1]) * 0.02)
+        excluded = (
+            max(0, product_box[0] - margin_x),
+            max(0, product_box[1] - margin_y),
+            min(rgb.width, product_box[2] + margin_x),
+            min(rgb.height, product_box[3] + margin_y),
+        )
+
+    def sample(left: int, top: int) -> tuple[int, int, int]:
+        values: list[tuple[int, int, int]] = []
+        step = max(1, min(sample_width, sample_height) // 12)
+        for y in range(top, min(rgb.height, top + sample_height), step):
+            for x in range(left, min(rgb.width, left + sample_width), step):
+                if excluded and excluded[0] <= x < excluded[2] and excluded[1] <= y < excluded[3]:
+                    continue
+                values.append(rgb.getpixel((x, y)))
+        if not values:
+            return _edge_color(rgb)
+        return tuple(int(median(channel)) for channel in zip(*values))
+
+    return (
+        sample(0, 0),
+        sample(max(0, rgb.width - sample_width), 0),
+        sample(0, max(0, rgb.height - sample_height)),
+        sample(max(0, rgb.width - sample_width), max(0, rgb.height - sample_height)),
+    )
+
+
+def _corner_gradient(
+    size: tuple[int, int],
+    colors: tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]],
+) -> Image.Image:
+    gradient = Image.new("RGB", (2, 2))
+    gradient.putdata(colors)
+    return gradient.resize(size, Image.Resampling.BILINEAR)
+
+
+def _outer_background_blend_mask(
+    size: tuple[int, int],
+    product_box: tuple[int, int, int, int] | None,
+    blend_ratio: float,
+) -> Image.Image:
+    edge = max(1, round(min(size) * blend_ratio))
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle((edge, edge, max(edge, size[0] - edge - 1), max(edge, size[1] - edge - 1)), fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(max(1, edge // 2)))
+    if product_box is not None:
+        ImageDraw.Draw(mask).rectangle(product_box, fill=255)
+    return mask
+
+
+def _scaled_opaque_canvas(
+    image: Image.Image,
+    target: tuple[int, int],
+    category_template: tuple[float, float, float] | None,
+    product_box: tuple[int, int, int, int] | None,
+    edge_color: tuple[int, int, int],
+    portrait_padding: float,
+) -> Image.Image:
+    """Match the legacy light-background foreground extension path."""
+    source = image.convert("RGB")
+    if product_box is None:
+        return _resize_contain(source, target, edge_color, portrait_padding)
+    base_scale = category_template[0] if category_template is not None else 1 - portrait_padding * 2
+    box_width = max(1, product_box[2] - product_box[0])
+    box_height = max(1, product_box[3] - product_box[1])
+    photo_scale = min(target[0] * base_scale / box_width, target[1] * base_scale / box_height)
+    scaled_size = (
+        max(1, round(source.width * photo_scale)),
+        max(1, round(source.height * photo_scale)),
+    )
+    scaled = source.resize(scaled_size, Image.Resampling.LANCZOS)
+    scaled_box = tuple(round(value * photo_scale) for value in product_box)
+    position_x = category_template[1] if category_template is not None else 0.5
+    position_y = category_template[2] if category_template is not None else 0.5
+    product_center_x = (scaled_box[0] + scaled_box[2]) / 2
+    product_center_y = (scaled_box[1] + scaled_box[3]) / 2
+    position = (
+        round(target[0] * position_x - product_center_x),
+        round(target[1] * position_y - product_center_y),
+    )
+    colors = _corner_background_colors(source, product_box, 0.04)
+    canvas = _corner_gradient(target, colors)
+    blend_mask = _outer_background_blend_mask(scaled_size, scaled_box, 0.03)
+    canvas.paste(scaled, position, blend_mask)
+    return canvas
+
+
 def _light_foreground_bbox(image: Image.Image, background: tuple[int, int, int]) -> tuple[int, int, int, int] | None:
     """Find the edge-connected light background bounds used by legacy."""
     rgb = image.convert("RGB")
@@ -451,16 +552,25 @@ class Renderer:
                     return _mirror_extend(image, target, focus[0], focus[1])
             return _resize_cover(image, target, focus, protected)
         if image.mode in {"RGBA", "LA"} and image.getchannel("A").getbbox():
+            if category_template is not None:
+                return _template_crop(image, target, category_template, False, background)
             composed = _resize_contain(image.convert("RGBA"), target, background, 0.05 if target[1] > target[0] else 0.04)
             return composed
         image = image.convert("RGB")
         if _is_light_background(image):
-            if _light_foreground_touches_edge(image, background):
+            edge_color = _edge_color(image)
+            if _light_foreground_touches_edge(image, edge_color):
                 return _resize_cover(image, target, focus, protected)
-            # Keep light product pixels inside the canvas and extend only when
-            # a portrait output would otherwise enlarge them too aggressively.
-            if target[1] > target[0] or plan is not None:
-                return _resize_contain(image, target, _edge_color(image), 0.05 if target[1] > target[0] else 0.04)
+            # Match legacy's foreground-aware extension for light products.
+            if category_template is not None or target[1] > target[0] or plan is not None:
+                return _scaled_opaque_canvas(
+                    image,
+                    target,
+                    category_template,
+                    _light_foreground_bbox(image, edge_color),
+                    edge_color,
+                    0.12 if size_name == "1125x1500" else 0.05,
+                )
             return _resize_cover(image, target, focus, protected)
         return _resize_cover(image, target, focus, protected)
 

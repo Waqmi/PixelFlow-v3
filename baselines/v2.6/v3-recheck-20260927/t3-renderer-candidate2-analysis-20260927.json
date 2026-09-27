@@ -1,0 +1,44 @@
+{
+  "schema_version": "v3-t3-renderer-candidate-analysis-2",
+  "generated_at_utc": "2026-09-27T11:52:08Z",
+  "formal_baseline_report": "baselines/v2.6/v3-current-20260927-compare-report.json",
+  "prior_candidate_analysis": "baselines/v2.6/v3-recheck-20260927/t3-edge-path-candidate-analysis-20260927.json",
+  "candidate_compare_report": "baselines/v2.6/v3-recheck-20260927/v3-t3-candidate2-compare-report-20260927.json",
+  "candidate_patch": "worker/pixelflow_core/renderer.py",
+  "scope": {
+    "legacy_files": 120,
+    "v3_files": 120,
+    "compared_files": 120,
+    "output_kinds": {
+      "product_main": 96,
+      "transparent": 8,
+      "vip": 16
+    }
+  },
+  "formal_baseline": {
+    "needs_fix": 52,
+    "formal_baseline_unchanged": true
+  },
+  "candidate": {
+    "needs_fix": 0,
+    "different_files": 0,
+    "max_diff": 0,
+    "mae": 0.0,
+    "psnr_is_infinite": true,
+    "classification_summary": {
+      "version_difference": 0,
+      "acceptable_implementation_difference": 0,
+      "needs_fix": 0
+    }
+  },
+  "changes": [
+    "Use foreground-aware opaque light-background extension when a category template or portrait output requires it.",
+    "Apply the loaded category template to RGBA main-image composition before the generic contain path.",
+    "Keep the formal v3 baseline unchanged until the candidate is reviewed and accepted."
+  ],
+  "interpretation": {
+    "status": "candidate_only",
+    "result": "The fixed 16-source renderer replay is pixel-identical to the recorded legacy tree.",
+    "formal_gate": "The formal baseline remains at 52 needs_fix until the parent acceptance step updates it."
+  }
+}

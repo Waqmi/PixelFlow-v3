@@ -1,0 +1,34 @@
+{
+  "schema_version": "v3-desktop-ui-audit-1",
+  "generated_at": "2026-09-27T11:45:00+00:00",
+  "app": "PixelFlow",
+  "host_permission": true,
+  "input_root": "/private/tmp/pixelflow-v3-sources-36",
+  "input_file_count": 36,
+  "output_root": "/private/tmp/pixelflow-v3-ui-rerun-output-20260927",
+  "steps": {
+    "classification": {"status": "passed", "observed_count": 36},
+    "manual_classification_change": {
+      "status": "passed",
+      "source": "00_5B3A7456.jpg",
+      "from": "detail",
+      "to": "main_product"
+    },
+    "confirmation": {"status": "passed", "summary": "商品白底图 9、细节图 27、模特细节图 0、模特图 0、跳过 0"},
+    "generation": {"status": "passed", "progress_total": 108, "output_file_count": 264, "failures": 0},
+    "process_cleanup": {"status": "passed", "worker_process_observed_after_completion": false},
+    "incremental_reuse": {
+      "status": "blocked",
+      "reason": "宿主 Mac 在第二次 UI 操作前自动锁定，需解锁后重新执行"
+    },
+    "shoe_pose_seg_review_fallback": {
+      "status": "blocked",
+      "reason": "当前 checkout 没有 20 张鞋类源图；仅有历史 JSON 证据"
+    }
+  },
+  "notes": [
+    "本次使用全新输出目录，避免历史成品污染。",
+    "确认页实际显示 36 张素材；手动分类后统计从商品白底图 8/细节图 28 变为 9/27。",
+    "未将第二次复用或鞋类 UI 证据标记为通过。"
+  ]
+}

@@ -8,7 +8,7 @@
 - Renderer 独立化技术退出条件已通过。
 - Worker 测试、鞋类 Pose/Seg 证据和 macOS arm64 `.app` 启停证据已存在。
 - 当前正式 onefile Worker 哈希为 `027a624b...`；旧 `6c5fadabe...` 仅保留为历史证据。当前 onedir `.app` Worker 哈希为 `627ebbff...`，该构建使用 Python 3.9.13，Python 3.12 正式重建仍待 CI/可用环境。
-- `.app` 分类、完整生成和增量复用回归已通过；legacy/v3 基线已完成，52 个像素差异仍需修复或登记。
+- `.app` 分类、完整生成和增量复用首轮回归已通过；第二次 UI 复用因宿主自动锁定待重跑。正式 legacy/v3 基线仍保留 52 个差异；最新候选 renderer 在固定 16 张素材上达到 0 个像素差异，但尚未改写正式基线，需人工视觉复核后再收口。
 - 设置页已提供版本/Worker 哈希/规则版本、Pose/Seg 文件名与 SHA-256 状态；桌面端可导出包含诊断 JSON、失败报告、最近 Worker 日志和最近结果的 ZIP 诊断包。
 - v3 同名输出默认复用固定路径，不自动改名或覆盖；显式强制重跑才覆盖，生成前会检查输出磁盘空间并在低于 200 MB 时预警。
 
@@ -18,7 +18,7 @@
 |---|---|---|
 | T1 仓库整理 | 进行中 | `.gitignore`、模型 SHA、未跟踪文件清单 |
 | T2 `.app` 完整回归 | ⚠️ 已完成回归，Worker 统计已修复，宿主 UI 待复跑 | `desktop-app-ui-audit-manual-t2-20260927.json`：历史结果首次 264、第二次 252；根因是 VIP 复用提前跳过 PNG 透明图计数，Worker 与结果页统计已修复，宿主权限 UI 仍需重新实测 |
-| T3 当前 legacy 基线 | ✅ 基线完成，候选修复进行中 | 正式报告仍为 120/120 配对、52 个需修复；边缘前景候选将差异降至 28，见 `t3-edge-path-candidate-analysis-20260927.json`，未改写正式基线 |
+| T3 当前 legacy 基线 | ✅ 基线完成，候选修复待视觉复核 | 正式报告仍为 120/120 配对、52 个需修复；candidate2 固定 16 张素材为 120/120、0 个差异，见 `v3-t3-candidate2-compare-report-20260927.json`，未改写正式基线 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
 | T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
@@ -52,6 +52,7 @@
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
 - `tools/run_acceptance.py --skip-desktop --full-evidence --output baselines/v2.6/acceptance-full-evidence-20260927-fixed`：通过（Worker 93/93、四类输出/冻结 Worker/哈希清单引用、v3 基线报告）；生成图片目录按仓库规则忽略。
 - `cargo test --bin pixelflow-desktop`：通过（4/4，包含重启预算、任务 ID 和诊断 ZIP 结构校验）。
+- T3 candidate2 compare：120/120 配对、`different_files=0`、`max_diff=0`、`MAE=0`、PSNR 无穷；正式报告保持 52，未用候选结果替代正式基线。
 - onedir `.app` Worker：ping、分类/生成双跑、模型探测和 shutdown 通过；第二次生成 `incremental_reused=1`、`skipped_by_scope=0`。
 - `npm run protocol:check`：通过；契约解析、请求 ID、错误事件和超时 self-check 通过。
 - `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。

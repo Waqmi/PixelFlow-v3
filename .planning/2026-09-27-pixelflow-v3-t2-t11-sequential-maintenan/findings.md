@@ -97,3 +97,18 @@
 - `probe_models` 对已发现模型返回 `model_version.sha256`；前端把它与 `models/README.md` 中的期望值比较并展示匹配状态。模型二进制仍被 `.gitignore` 排除。
 - 输出目录策略已在协议、确认页和设置页统一为“同名复用；强制重跑覆盖；不自动重命名”；预检沿现有输出路径的已存在父目录检查可写性和剩余空间。
 - full evidence runner 失败原因是 CLI 相对输出路径在 `Path.relative_to(ROOT)` 前未 resolve；修复后报告成功生成，正式 T3 报告仍保留 52，runner 生成的 candidate baseline report 记录 28 项差异。
+
+## T2 host-permission rerun findings
+- 当前宿主回归实际走通：36 张素材分类、手动分类变更、确认、108 项任务生成，输出文件数为 264。
+- 本轮使用的输出目录是全新目录，避免了历史产物污染；可作为宿主权限重新生成的事实证据。
+- 第二次增量复用需要解锁宿主 Mac 后才能继续，当前不能据此声称 264→264 UI 复用通过。
+
+## T4/T6 review
+- T4 现有实现和 Worker 证据一致：IntersectionObserver 懒加载、并发队列、198×138 预览限制、LRU 128 缓存、canonical scope；300/300 响应耗时 6.03 秒。宿主首屏 1 秒交互仍没有可核实数据。
+- T6 人工延期项仍合理；JOB-06 仅 Worker 264/264 已通过，宿主增量 UI 仍等待解锁后复跑。
+- 修正文档中的 SET-06 过度表述：当前只有 macOS arm64 `.app` 启停/Worker 双跑和 onedir 资源证据；没有可核实的 DMG、签名、公证或 Windows 安装产物。
+
+## T3 candidate2 findings
+- candidate2 在固定 16 张素材、120 个输出上把前一候选剩余的 14 个 `_07` 和 14 个 `_08` 差异全部消除：`different_files=0`、`max_diff=0`、`MAE=0`、PSNR 为无穷。
+- 改动仅在 `renderer.py`：不透明浅色背景前景框/背景延展（含 1125x1500 square 条件）和 RGBA 主图品类模板分支；相关 compare/analysis JSON 已持久化。
+- 这不是正式基线替换：`v3-current-20260927-compare-report.json` 仍保留 52 个 needs_fix，candidate2 需人工视觉复核后才能决定是否更新正式基线。
