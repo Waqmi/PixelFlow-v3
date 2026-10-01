@@ -1090,6 +1090,8 @@ class EngineAdapterTests(unittest.TestCase):
     def test_adapter_reuses_unchanged_output_manifest(self) -> None:
         source_root = Path(__file__).resolve().parents[3] / "05_测试素材与输出/冲锋裤主图"
         source = source_root / "FRPN015-1 男 暗夜黑/5B3A7456.jpg"
+        if not source.is_file():
+            self.skipTest("external fixture file is not present: {}".format(source))
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict("os.environ", {"HOME": temp_dir}):
             product_root = Path(temp_dir) / "product"
             product_root.joinpath("样本").mkdir(parents=True)
@@ -1112,6 +1114,8 @@ class EngineAdapterTests(unittest.TestCase):
     def test_adapter_skips_excluded_model_source(self) -> None:
         source_root = Path(__file__).resolve().parents[3] / "05_测试素材与输出/冲锋裤主图"
         source = source_root / "FRPN015-1 男 暗夜黑/5B3A7456.jpg"
+        if not source.is_file():
+            self.skipTest("external fixture file is not present: {}".format(source))
         with tempfile.TemporaryDirectory() as temp_dir:
             result = V26EngineAdapter().run(
                 GenerationRequest(
@@ -1131,9 +1135,17 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(result["failures"], [])
 
     def test_runtime_clear_cache_only_removes_private_cache_files(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir, patch.dict("os.environ", {"HOME": temp_dir}):
-            manifest_dir = Path(temp_dir) / "Library/Caches/PixelFlow/manifests"
-            model_dir = Path(temp_dir) / "Library/Caches/PixelFlow/model-results"
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            "os.environ", {"HOME": temp_dir, "USERPROFILE": temp_dir, "XDG_CACHE_HOME": str(Path(temp_dir) / ".cache")}
+        ):
+            runtime = WorkerRuntime(adapter=V26EngineAdapter())
+            # The adapter sets up the legacy import path; resolve the dirs the
+            # way the cache code does, so the test holds on every platform.
+            from pixelflow_core.legacy_engine.generate_main_images import _manifest_cache_path
+            from pixelflow_core.model_cache import model_cache_dir
+
+            manifest_dir = _manifest_cache_path(Path.cwd()).parent
+            model_dir = model_cache_dir()
             manifest_dir.mkdir(parents=True)
             model_dir.mkdir(parents=True)
             (manifest_dir / "manifest.json").write_text("{}", encoding="utf-8")
@@ -1141,7 +1153,7 @@ class EngineAdapterTests(unittest.TestCase):
             output_file = Path(temp_dir) / "user-output.jpg"
             output_file.write_bytes(b"keep")
 
-            cleared = WorkerRuntime(adapter=V26EngineAdapter()).clear_cache()
+            cleared = runtime.clear_cache()
 
             self.assertEqual(cleared, {"manifest": 1, "model_results": 1})
             self.assertTrue(output_file.exists())

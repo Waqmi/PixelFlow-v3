@@ -95,6 +95,8 @@ class ClassificationAdapterTests(unittest.TestCase):
     def test_fixed_fixture_classifies_without_qt(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
+        if not source_root.is_dir():
+            self.skipTest("external fixture folder is not present: {}".format(source_root))
         manifest = json.loads((root / "fixtures/manifest.json").read_text(encoding="utf-8"))
         sources = [source_root / item["relative_path"] for item in manifest["fixtures"]]
         progress: list[tuple[int, int, str]] = []
@@ -113,6 +115,8 @@ class ClassificationAdapterTests(unittest.TestCase):
     def test_existing_generated_output_is_not_reclassified(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
+        if not source_root.is_dir():
+            self.skipTest("external fixture folder is not present: {}".format(source_root))
         decisions = V26ClassifierAdapter().classify(ClassificationRequest(source_root))
 
         self.assertEqual(len(decisions), 36)
@@ -127,6 +131,8 @@ class ClassificationAdapterTests(unittest.TestCase):
     def test_manual_overrides_support_all_four_material_roles(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source_root = (root / "../05_测试素材与输出/冲锋裤主图").resolve()
+        if not source_root.is_dir():
+            self.skipTest("external fixture folder is not present: {}".format(source_root))
         sources = sorted(source_root.glob("FRPN015-1 男 暗夜黑/*"))[:4]
         roles = ("main_product", "detail", "model", "model_detail")
         decisions = V26ClassifierAdapter().classify(

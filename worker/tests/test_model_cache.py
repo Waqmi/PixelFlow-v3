@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -226,6 +227,9 @@ class ModelServiceTests(unittest.TestCase):
             try:
                 first = service.model_versions(root)["pose"]
                 model.write_bytes(b"v2")
+                # Same size and a coarse filesystem clock (Windows) can keep mtime equal; move it on.
+                stat = model.stat()
+                os.utime(model, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
                 second = service.model_versions(root)["pose"]
                 self.assertNotEqual(first, second)
             finally:
