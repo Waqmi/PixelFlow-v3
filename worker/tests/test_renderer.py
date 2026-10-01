@@ -3,10 +3,11 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
-from pixelflow_core.contracts import RenderRequest
+from pixelflow_core.contracts import CompositionPlan, ProtectedRegion, RenderRequest
 from pixelflow_core.renderer import RenderConfig, Renderer, _light_foreground_touches_edge
 
 
@@ -102,6 +103,47 @@ class RendererTests(unittest.TestCase):
             self.assertTrue(result.success, result.errors)
             self.assertIn("无Logo", Path(result.outputs[0]).parts)
 
+    def test_source_batch_reuses_analysis_and_reports_stage_timings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.jpg"
+            Image.new("RGB", (800, 600), "white").save(source)
+            renderer = Renderer()
+            with patch.object(renderer, "_analyze_source", wraps=Renderer._analyze_source) as analyze:
+                results, timings = renderer.render_source_batch(
+                    (
+                        RenderRequest(str(source), str(root / "out"), "1440x1440", include_logo=False),
+                        RenderRequest(str(source), str(root / "out"), "1440x1920", include_logo=False),
+                        RenderRequest(
+                            str(source),
+                            str(root / "out"),
+                            "800x800",
+                            transparent=True,
+                            output_kind="transparent",
+                        ),
+                    )
+                )
+            self.assertEqual(analyze.call_count, 1)
+            self.assertEqual(len(results), 3)
+            self.assertTrue(all(result.success for result in results), [result.errors for result in results])
+            for key in ("decode_seconds", "analysis_seconds", "compose_seconds", "overlay_seconds", "encode_seconds", "write_seconds", "total_seconds"):
+                self.assertIn(key, timings)
+
+    def test_source_batch_keeps_per_output_write_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.jpg"
+            Image.new("RGB", (100, 100), "red").save(source)
+            requests = (
+                RenderRequest(str(source), str(root / "out"), "1440x1440", include_logo=False),
+                RenderRequest(str(source), str(root / "out"), "1440x1920", include_logo=False),
+            )
+            with patch("pathlib.Path.write_bytes", side_effect=OSError("disk full")):
+                results, _timings = Renderer().render_source_batch(requests)
+            self.assertEqual(len(results), 2)
+            self.assertTrue(all(not result.success for result in results))
+            self.assertTrue(all("write failed" in result.errors[0] for result in results))
+
     def test_png_size_limit_is_enforced_when_compression_can_meet_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -162,6 +204,150 @@ class RendererTests(unittest.TestCase):
             result = Renderer().render(RenderRequest(str(source), str(root / "out"), "1440x1440", output_kind="vip", include_vip=True, include_logo=False))
             self.assertTrue(result.success, result.errors)
             self.assertIn("唯品专享1440", Path(result.outputs[0]).parts)
+
+    def test_model_plan_scales_protected_region_with_pre_scale(self) -> None:
+        captured = {}
+
+        def capture(image, target, focus, protected, extra_scale):
+            captured.update(
+                image_size=image.size,
+                focus=focus,
+                protected=protected,
+                extra_scale=extra_scale,
+            )
+            return Image.new("RGB", target, "white")
+
+        plan = CompositionPlan(
+            source="model.jpg",
+            size="100x100",
+            composition_mode="zoom_focus",
+            scale=1.5,
+            position_x=0.4,
+            position_y=0.6,
+            protected_regions=(
+                ProtectedRegion("subject", (10, 20, 90, 160)),
+            ),
+        )
+        request = RenderRequest(
+            source="model.jpg",
+            output_root="/tmp/output",
+            size="100x100",
+            mode="v3",
+            plan=plan,
+            source_type="model",
+            include_logo=False,
+        )
+        with patch("pixelflow_core.renderer._resize_cover", side_effect=capture):
+            Renderer()._compose(Image.new("RGB", (100, 200), "white"), request, (100, 100), False)
+
+        self.assertEqual(captured["image_size"], (100, 200))
+        self.assertEqual(captured["focus"], (0.4, 0.6))
+        self.assertEqual(captured["protected"], (10.0, 20.0, 90.0, 160.0))
+        self.assertEqual(captured["extra_scale"], 1.5)
+
+    def test_model_square_crop_ratio_matches_v26_direct_scale(self) -> None:
+        image = Image.new("RGB", (100, 200), "red")
+        image.paste("blue", (0, 100, 100, 200))
+        plan = CompositionPlan(
+            source="model.jpg",
+            size="100x100",
+            composition_mode="zoom_focus",
+            crop_ratio=0.5,
+            position_y=0.5,
+        )
+        result = Renderer()._compose(
+            image,
+            RenderRequest(
+                source="model.jpg",
+                output_root="/tmp/output",
+                size="100x100",
+                mode="v3",
+                plan=plan,
+                source_type="model",
+                include_logo=False,
+            ),
+            (100, 100),
+            False,
+        )
+        self.assertEqual(result.size, (100, 100))
+        self.assertEqual(result.getpixel((50, 0)), (255, 0, 0))
+        self.assertEqual(result.getpixel((50, 99)), (0, 0, 255))
+
+    def test_model_detail_uses_detail_cover_path(self) -> None:
+        with patch("pixelflow_core.renderer._resize_cover", return_value=Image.new("RGB", (100, 100), "green")) as cover:
+            result = Renderer()._compose(
+                Image.new("RGB", (100, 200), "white"),
+                RenderRequest(
+                    source="model-detail.jpg",
+                    output_root="/tmp/output",
+                    size="100x100",
+                    mode="v3",
+                    source_type="model_detail",
+                    include_logo=False,
+                ),
+                (100, 100),
+                False,
+            )
+        self.assertEqual(result.getpixel((0, 0)), (0, 128, 0))
+        self.assertEqual(len(cover.call_args.args), 2)
+
+    def test_model_square_crop_ratio_caps_protected_region(self) -> None:
+        plan = CompositionPlan(
+            source="model.jpg",
+            size="100x100",
+            composition_mode="zoom_focus",
+            crop_ratio=0.5,
+            protected_regions=(ProtectedRegion("subject", (10, 20, 90, 180)),),
+        )
+        result = Renderer()._compose(
+            Image.new("RGB", (100, 200), "white"),
+            RenderRequest(
+                source="model.jpg",
+                output_root="/tmp/output",
+                size="100x100",
+                mode="v3",
+                plan=plan,
+                source_type="model",
+                include_logo=False,
+            ),
+            (100, 100),
+            False,
+        )
+        self.assertEqual(result.size, (100, 100))
+
+    def test_product_source_scale_adjustment_changes_foreground_size(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "product.jpg"
+            image = Image.new("RGB", (100, 100), "white")
+            image.paste((220, 30, 30), (30, 30, 70, 70))
+            image.save(source)
+            renderer = Renderer()
+            widths = []
+            for adjustment in (0, 50):
+                result = renderer.render(
+                    RenderRequest(
+                        source=str(source),
+                        output_root=str(root / f"out-{adjustment}"),
+                        size="200x200",
+                        mode="v3",
+                        source_type="main_product",
+                        include_logo=False,
+                        metadata={"source_scale_adjustment": adjustment},
+                    )
+                )
+                self.assertTrue(result.success, result.errors)
+                with Image.open(result.outputs[0]) as output:
+                    pixels = output.convert("RGB")
+                    foreground = [
+                        (x, y)
+                        for y in range(pixels.height)
+                        for x in range(pixels.width)
+                        if pixels.getpixel((x, y))[0] > 120
+                        and pixels.getpixel((x, y))[0] > pixels.getpixel((x, y))[1] * 1.8
+                    ]
+                widths.append(max(x for x, _ in foreground) - min(x for x, _ in foreground))
+            self.assertGreater(widths[1], widths[0])
 
 
 if __name__ == "__main__":

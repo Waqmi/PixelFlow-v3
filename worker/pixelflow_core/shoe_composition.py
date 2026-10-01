@@ -44,6 +44,7 @@ class ShoeCompositionPlan:
     confidence: float = 0.0
     target_crop_height_ratio: float | None = None
     protected_crop_bbox: BBox | None = None
+    crop_box: BBox | None = None
     shoe_risk: bool = False
     shoe_risk_reasons: tuple[str, ...] = ()
     review_hint: str | None = None
@@ -127,6 +128,7 @@ def _plan_from_mapping(value: object) -> ShoeCompositionPlan:
             else None
         ),
         protected_crop_bbox=_as_bbox(value.get("protected_crop_bbox")),
+        crop_box=_as_bbox(value.get("crop_box")),
         shoe_risk=risk,
         shoe_risk_reasons=reasons,
         review_hint=review_hint,
@@ -200,6 +202,7 @@ def _typed_plan(
         position_x=plan.position_x,
         position_y=plan.position_y,
         crop_ratio=plan.target_crop_height_ratio,
+        crop_box=plan.crop_box,
         protected_regions=protected_regions,
         risk_flags=plan.shoe_risk_reasons,
         requires_review=bool(plan.shoe_risk or plan.review_hint),

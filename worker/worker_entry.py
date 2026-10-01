@@ -24,4 +24,12 @@ from pixelflow_core.worker import main  # noqa: E402
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    raise SystemExit(main())
+    code = main()
+    # Skip native teardown: onnxruntime's telemetry thread can abort the
+    # process while static objects are destroyed.
+    import logging
+
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

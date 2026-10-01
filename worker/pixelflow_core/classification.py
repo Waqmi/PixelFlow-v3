@@ -79,18 +79,44 @@ def _typed_plan_from_mapping(source: Path, size: str, value: object) -> Composit
                 regions.append(ProtectedRegion(**item))
             except (TypeError, ValueError):
                 continue
+    if not regions and isinstance(value.get("protected_crop_bbox"), (list, tuple)):
+        try:
+            regions.append(
+                ProtectedRegion(
+                    kind="subject",
+                    bbox=value["protected_crop_bbox"],
+                    source="pose",
+                    required=True,
+                    confidence=(float(value["confidence"]) if value.get("confidence") is not None else None),
+                )
+            )
+        except (TypeError, ValueError):
+            pass
+    scale = value.get("scale")
+    if scale is None and value.get("scale_adjustment_percent") is not None:
+        try:
+            scale = 1.0 + float(value["scale_adjustment_percent"]) / 100.0
+        except (TypeError, ValueError):
+            scale = 1.0
+    crop_ratio = value.get("crop_ratio")
+    if crop_ratio is None:
+        crop_ratio = value.get("target_crop_height_ratio")
+    risk_flags = value.get("risk_flags")
+    if risk_flags is None:
+        risk_flags = value.get("shoe_risk_reasons", ())
     try:
         return CompositionPlan(
             source=str(value.get("source") or source),
             size=str(value.get("size") or size),
             composition_mode=str(value.get("composition_mode", "fallback")),
-            scale=float(value.get("scale", 1.0)),
+            scale=float(scale if scale is not None else 1.0),
             position_x=float(value.get("position_x", 0.5)),
             position_y=float(value.get("position_y", 0.5)),
-            crop_ratio=value.get("crop_ratio"),
+            crop_ratio=crop_ratio,
+            crop_box=value.get("crop_box"),
             protected_regions=tuple(regions),
-            risk_flags=tuple(value.get("risk_flags", ())),
-            requires_review=bool(value.get("requires_review", False)),
+            risk_flags=tuple(risk_flags or ()),
+            requires_review=bool(value.get("requires_review", False) or value.get("review_hint") or value.get("shoe_risk")),
             review_hint=str(value.get("review_hint", "")),
             fallback_reason=str(value.get("fallback_reason", "")),
             skipped_by_scope=bool(value.get("skipped_by_scope", False)),
@@ -103,9 +129,11 @@ def _typed_plan_from_mapping(source: Path, size: str, value: object) -> Composit
 
 def _typed_plans_from_metadata(source: Path, metadata: dict[str, object]) -> dict[str, CompositionPlan]:
     values = metadata.get("composition_plans")
-    if not isinstance(values, dict):
+    if not isinstance(values, dict) or not values:
         shoe = metadata.get("shoe_composition")
         values = shoe.get("composition_plans") if isinstance(shoe, dict) else None
+    if not isinstance(values, dict) or not values:
+        values = metadata.get("by_size")
     if not isinstance(values, dict):
         return {}
     return {
@@ -196,6 +224,39 @@ def _merge_composition_metadata(
         )
         if shoe.review_hint:
             result["review_hint"] = shoe.review_hint
+    # Pose returns one crop plan per output size. Keep that typed plan for all
+    # model-photo categories; without this bridge the renderer only receives
+    # the source type and silently falls back to a generic crop.
+    if purpose == "pose" and category not in {"shoes", "socks"} and isinstance(raw.get("by_size"), dict):
+        plans: dict[str, dict[str, object]] = {}
+        for size, value in raw["by_size"].items():
+            if not isinstance(value, dict):
+                continue
+            plan = dict(value)
+            percent = plan.pop("scale_adjustment_percent", None)
+            if "scale" not in plan and percent is not None:
+                try:
+                    plan["scale"] = max(0.05, 1.0 + float(percent) / 100.0)
+                except (TypeError, ValueError):
+                    pass
+            if "crop_ratio" not in plan and "target_crop_height_ratio" in plan:
+                plan["crop_ratio"] = plan.get("target_crop_height_ratio")
+            protected = plan.pop("protected_crop_bbox", None)
+            if protected is not None and "protected_regions" not in plan:
+                plan["protected_regions"] = [{"kind": "model_subject", "bbox": protected}]
+            plan["source"] = str(source or "")
+            plan["size"] = str(size)
+            plan["evidence"] = {
+                "detector": raw.get("detector"),
+                "model_view": raw.get("model_view"),
+                **plan.get("evidence", {}),
+            }
+            plans[str(size)] = plan
+        if plans:
+            result["composition_plans"] = plans
+            hint = next((str(plan["review_hint"]) for plan in plans.values() if plan.get("review_hint")), "")
+            if hint and not result.get("review_hint"):
+                result["review_hint"] = hint
     if isinstance(raw, dict):
         result.setdefault(
             f"{purpose}_evidence",
@@ -400,8 +461,12 @@ class V26ClassifierAdapter:
                 for source in ordered
             ):
                 continue
-            sample_count = 1 if len(ordered) <= 4 else 2
-            samples = [ordered[0]] if sample_count == 1 else [ordered[0], ordered[-1]]
+            # Up to five evenly spaced samples, always including both ends.
+            sample_count = min(len(ordered), 5)
+            samples = list(dict.fromkeys(
+                ordered[round(index * (len(ordered) - 1) / max(1, sample_count - 1))]
+                for index in range(sample_count)
+            ))
             sampled_groups[folder] = (ordered, samples)
             pose_sources.extend(samples)
         pose_sources = list(dict.fromkeys(pose_sources))
@@ -461,6 +526,45 @@ class V26ClassifierAdapter:
                         pass
                 if stage_progress is not None:
                     stage_progress("Pose", 0, len(pose_sources), Path("Pose 模型已就绪"))
+            seg_models = configured_model_candidates(root_text, "segmentation")
+            anchor_seg_path = Path(seg_models[0]) if seg_models else None
+
+            def anchor_segmentation(source: Path, composition: dict[str, object]) -> dict[str, object] | None:
+                """Seg outline for shoe/shirt model photos (head top and sole)."""
+                from .model_assistant import ANCHOR_CATEGORIES
+
+                if (
+                    anchor_seg_path is None
+                    or category not in ANCHOR_CATEGORIES
+                    or composition.get("model_view") in {None, "detail"}
+                ):
+                    return None
+                try:
+                    evidence = load_model_result(
+                        source, anchor_seg_path, "segmentation", category,
+                        output_size="segmentation",
+                    )
+                    if evidence is None:
+                        evidence = service.segment(root_text, source)
+                        store_model_result(
+                            source, anchor_seg_path, "segmentation", category,
+                            evidence, output_size="segmentation",
+                        )
+                except Exception:  # noqa: BLE001 - anchors fall back to Pose only
+                    return None
+                return None if evidence.get("fallback") else evidence
+
+            detect_shoes = getattr(service, "detect_shoes", None)
+
+            def shoe_detections(source: Path) -> list[list[float]]:
+                """Optional detector boxes of the shoes (source px); empty when off."""
+                if category != "shoes" or detect_shoes is None:
+                    return []
+                try:
+                    return detect_shoes(root_text, source)
+                except Exception:  # noqa: BLE001 - anchors fall back to Pose only
+                    return []
+
             def run_pose(sources_to_check: list[Path]) -> None:
                 for index, source in enumerate(sources_to_check, start=1):
                     if cancel_event is not None and cancel_event.is_set():
@@ -482,6 +586,16 @@ class V26ClassifierAdapter:
                             composition = service.compose_for_sizes(
                                 root_text, source, SIZES, product_category=category
                             )
+                            segmentation = anchor_segmentation(source, composition)
+                            shoe_boxes = shoe_detections(source)
+                            if segmentation is not None or shoe_boxes:
+                                # Pose detections are cached in-process, so the
+                                # second pass only recomputes the crop window.
+                                extra = {"shoe_boxes": shoe_boxes} if shoe_boxes else {}
+                                composition = service.compose_for_sizes(
+                                    root_text, source, SIZES, product_category=category,
+                                    segmentation=segmentation, **extra,
+                                )
                             if pose_model_path is not None:
                                 store_model_result(
                                     source,
@@ -527,21 +641,10 @@ class V26ClassifierAdapter:
             for ordered, samples in sampled_groups.values():
                 sample_types = [decisions[source].source_type for source in samples]
                 model_types = {item for item in sample_types if item in {"model", "model_detail"}}
-                if model_types and len(set(sample_types)) > 1:
+                # Any model sample: run Pose on every sibling so each image
+                # gets its own crop plan (plans are never shared between files).
+                if model_types:
                     expanded_sources.extend(source for source in ordered if source not in samples)
-                elif len(model_types) == 1 and len(set(sample_types)) == 1:
-                    base = decisions[samples[0]]
-                    for source in ordered:
-                        if source in samples:
-                            continue
-                        # Keep only the folder-level classification marker.
-                        # Pose boxes and per-size crop settings belong to the
-                        # sampled file and are unsafe to reuse for siblings.
-                        metadata = {"_folder_pose_sampled": True}
-                        decisions[source] = type(base)(
-                            base.source_type, base.confidence, "folder_pose",
-                            "同文件夹 Pose 抽样结果", metadata=metadata,
-                        )
             expanded_sources = list(dict.fromkeys(expanded_sources))
             if expanded_sources:
                 run_pose(expanded_sources)

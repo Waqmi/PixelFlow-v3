@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import json
 import math
 from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageChops, ImageFilter, ImageStat
+
+from .side_fill import STRUCTURE_MAX_SHARE, strip_structure
 
 
 @dataclass(frozen=True)
@@ -22,6 +25,7 @@ class PersonDetection:
 BODY_KEYPOINT_CONFIDENCE = 0.28
 _GLOBAL_DETECTION_CACHE: dict[tuple[str, int, int, str], list[PersonDetection]] = {}
 _GLOBAL_SEGMENTATION_CACHE: dict[tuple[str, int, int, str], dict[str, object]] = {}
+_GLOBAL_OBJECT_CACHE: dict[tuple[str, int, int, str], list[tuple[str, float, tuple[float, float, float, float]]]] = {}
 
 
 def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
@@ -135,6 +139,8 @@ def _create_onnx_session(model_path: str | Path):
     """Load an external model, with a non-destructive legacy-runtime fallback."""
     import onnxruntime as ort
 
+    # The runtime's telemetry uploader thread can abort the process on exit.
+    ort.disable_telemetry_events()
     path = Path(model_path)
     try:
         return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
@@ -388,6 +394,353 @@ def knee_pads_protected_region(
         min(float(image_width), right),
         min(float(image_height), center_y + half_height),
     )
+
+
+# Anchor composition: shirts span head top to thigh root; shoes are sized by
+# the shoe pair itself. The crop window is derived directly from those anchors
+# instead of growing a protected box by stacked margins.
+ANCHOR_CATEGORIES = frozenset({"shoes", "shirt"})
+ANCHOR_EDGE_MARGIN = 0.04
+ANCHOR_SIDE_MARGIN = 0.03
+ANCHOR_DISAGREEMENT = 0.10
+# A subject wider than the window may grow it by at most this factor; beyond
+# that the anchors win and the sides are cropped (flagged for review).
+ANCHOR_MAX_GROWTH = 1.3
+# Crop hints are raised only when more than this share of the subject is cut.
+ANCHOR_CROP_HINT = 0.15
+# Shirt outputs end this far down the thigh (hip -> knee) to show the thigh root.
+ANCHOR_SHIRT_THIGH = 0.40
+# Shoe pair width as a share of the canvas: default, and the most it may
+# zoom in to keep the knee out. The shoe itself is never cropped.
+ANCHOR_SHOE_FILL = 0.58
+ANCHOR_SHOE_FILL_MAX = 0.63
+ANCHOR_SHOE_HEIGHT_FILL = 0.60
+# A shirt window wider than the source is filled with synthesized background
+# when both sides have this much plain background (share of source width; less
+# means the photographer cut the model by the frame) and the fill stays within
+# this share of the window width. The strip keeps a safety margin off the model.
+ANCHOR_FILL_MIN_GAP = 0.01
+ANCHOR_FILL_MAX_PAD = 0.25
+ANCHOR_FILL_MARGIN = 0.003
+ANCHOR_FILL_SKIP_REASON = "背景不适合补边"
+ANCHOR_FULL_BODY_SKIP_REASON = "双人全身装不下，且不适合补边"
+
+
+def _visible_point(detection: PersonDetection, index: int) -> tuple[float, float, float] | None:
+    if len(detection.keypoints) > index and detection.keypoints[index][2] >= BODY_KEYPOINT_CONFIDENCE:
+        return detection.keypoints[index]
+    return None
+
+
+def _segmentation_rows(
+    segmentation: dict[str, object] | None,
+    image_size: tuple[int, int],
+) -> list[tuple[float, float, float, float]]:
+    """Return mask rows as (top, bottom, left, right) source pixels."""
+    rows = segmentation.get("mask_rows") if isinstance(segmentation, dict) else None
+    if not isinstance(rows, list):
+        return []
+    width, height = image_size
+    result = []
+    for row in rows:
+        try:
+            top, bottom, left, right = (float(value) for value in row)
+        except (TypeError, ValueError):
+            continue
+        result.append((top * height, bottom * height, left * width, right * width))
+    return result
+
+
+def _side_fill_strips(
+    window_left: float,
+    window_right: float,
+    width: float,
+    subject_left: float,
+    subject_right: float,
+) -> dict[str, float] | None:
+    """Usable background strip per side (source-width ratios), or ``None`` for no fill."""
+    strips = {"strip_left": 0.0, "strip_right": 0.0}
+    for key, pad, gap in (
+        ("strip_left", -window_left, subject_left),
+        ("strip_right", window_right - width, width - subject_right),
+    ):
+        if pad <= 0:
+            continue
+        if gap < width * ANCHOR_FILL_MIN_GAP or pad > (window_right - window_left) * ANCHOR_FILL_MAX_PAD:
+            return None
+        strips[key] = round(max(0.0, gap - width * ANCHOR_FILL_MARGIN) / width, 4)
+    return strips
+
+
+def side_fill_structure(
+    source: Path, crop_box: list[float], side_fill: dict[str, float],
+) -> dict[str, float]:
+    """Structure share of each strip a side fill would be built from."""
+    result: dict[str, float] = {}
+    with Image.open(source) as image:
+        width, height = image.size
+        top, bottom = round(crop_box[1] * height), round(crop_box[3] * height)
+        for side, key in (("left", "strip_left"), ("right", "strip_right")):
+            strip = round(side_fill.get(key, 0.0) * width)
+            if strip <= 0:
+                continue
+            box = (0, top, strip, bottom) if side == "left" else (width - strip, top, width, bottom)
+            result[side] = strip_structure(image.crop(box))
+    return result
+
+
+def _pose_shoe_box(
+    detection: PersonDetection,
+    rows: list[tuple[float, float, float, float]],
+    image_height: float,
+    bottom: float,
+) -> tuple[float, float, float, float | None] | None:
+    """Shoe box (left, right, top) around one person's ankles plus the topmost knee, or ``None`` without ankles.
+
+    About one foot length around each ankle (a raised foot is included),
+    tightened sideways by Seg rows between the ankles and the sole, which are
+    almost entirely shoe.
+    """
+    ankles = [point for index in (15, 16) if (point := _visible_point(detection, index))]
+    if not ankles:
+        return None
+    knees: list[float] = []
+    shanks: list[float] = []
+    for hip_index, knee_index, ankle_index in ((11, 13, 15), (12, 14, 16)):
+        ankle = _visible_point(detection, ankle_index)
+        if ankle is None:
+            continue
+        knee = _visible_point(detection, knee_index)
+        hip = _visible_point(detection, hip_index)
+        if knee is None and hip is not None:
+            # Thigh and shank are close in length: estimate the knee.
+            knee = ((hip[0] + ankle[0]) / 2, (hip[1] + ankle[1]) / 2, hip[2])
+        if knee is None:
+            continue
+        knees.append(knee[1])
+        shanks.append(math.dist(knee[:2], ankle[:2]))
+    ankle_low = max(point[1] for point in ankles)
+    foot = max(max(shanks) * 0.7 if shanks else 0.0, (bottom - ankle_low) * 1.6, image_height * 0.04)
+    left = min(point[0] for point in ankles) - foot
+    right = max(point[0] for point in ankles) + foot
+    top = min(point[1] for point in ankles) - foot * 0.45
+    shoe_rows = [row for row in rows if row[1] > min(point[1] for point in ankles) and row[0] < bottom]
+    if shoe_rows:
+        left = max(left, min(row[2] for row in shoe_rows))
+        right = min(right, max(row[3] for row in shoe_rows))
+    return left, right, top, min(knees) if knees else None
+
+
+def anchor_crop_box(
+    detections: list[PersonDetection],
+    image_size: tuple[int, int],
+    target_size: tuple[int, int],
+    category: str | None,
+    segmentation: dict[str, object] | None = None,
+    shoe_boxes: list[tuple[float, float, float, float]] | None = None,
+) -> dict[str, object] | None:
+    """Return a crop window spanning the category anchors, or ``None``.
+
+    ``None`` keeps the previous composition for the image (missing ankles or
+    an unsupported category). ``shoe_boxes`` are detector boxes (source px)
+    that extend the shoe region.
+    """
+    if category not in ANCHOR_CATEGORIES or not detections:
+        return None
+    width, height = image_size
+    rows = _segmentation_rows(segmentation, image_size)
+    seg_top = min((row[0] for row in rows), default=None)
+    seg_bottom = max((row[1] for row in rows), default=None)
+    hints: list[str] = []
+    subject_x: list[float] = []
+    top_known = bottom_known = True
+    if category == "shoes":
+        single = len(detections) == 1
+        pose_boxes = []
+        person_bottoms = []
+        for item in detections:
+            bottom_i = item.bbox[3]
+            if single and seg_bottom is not None:
+                bottom_i = max(bottom_i, seg_bottom)
+            # Seg outlines one person only: it may tighten a single person's box.
+            box = _pose_shoe_box(item, rows if single else [], height, bottom_i)
+            if box is not None:
+                pose_boxes.append(box)
+                person_bottoms.append(bottom_i)
+        if not pose_boxes:
+            return None
+        bottom = max(person_bottoms + ([seg_bottom] if seg_bottom is not None else []))
+        box_bottom = max(item.bbox[3] for item in detections)
+        if single and seg_bottom is not None and abs(box_bottom - seg_bottom) > height * ANCHOR_DISAGREEMENT:
+            hints.append("鞋底边界存疑")
+        # The detector sees a raised foot that pose often misses.
+        extra = list(shoe_boxes or [])
+        left = min([box[0] for box in pose_boxes] + [box[0] for box in extra])
+        right = max([box[1] for box in pose_boxes] + [box[2] for box in extra])
+        top = min([box[2] for box in pose_boxes] + [box[1] for box in extra])
+        bottom = max([bottom] + [box[3] for box in extra])
+        subject_x.extend((left, right))
+        knee_tops = [box[3] for box in pose_boxes if box[3] is not None]
+        knee_top = min(knee_tops) if knee_tops else None
+        margin_top, margin_bottom, keep_bottom = 0.0, ANCHOR_EDGE_MARGIN, True
+    else:
+        box_top = min(item.bbox[1] for item in detections)
+        top = min(box_top, seg_top if seg_top is not None else box_top)
+        if seg_top is not None and abs(box_top - seg_top) > height * ANCHOR_DISAGREEMENT:
+            hints.append("头顶边界存疑")
+        bottoms: list[float] = []
+        for item in detections:
+            hips = [point[1] for index in (11, 12) if (point := _visible_point(item, index))]
+            if not hips:
+                continue
+            hip = sum(hips) / len(hips)
+            knees = [point[1] for index in (13, 14) if (point := _visible_point(item, index))]
+            shoulders = [point[1] for index in (5, 6) if (point := _visible_point(item, index))]
+            if knees and min(knees) > hip:
+                thigh = min(knees) - hip
+            elif shoulders:
+                # Thigh length is roughly 0.8x the shoulder-to-hip torso.
+                thigh = (hip - sum(shoulders) / len(shoulders)) * 0.8
+            else:
+                thigh = 0.0
+            bottoms.append(hip + max(0.0, thigh) * ANCHOR_SHIRT_THIGH)
+        if bottoms:
+            bottom = max(bottoms)
+            if bottom >= height:
+                bottom, bottom_known = float(height), False
+        else:
+            bottom, bottom_known = float(height), False
+        margin_top, margin_bottom, keep_bottom = ANCHOR_EDGE_MARGIN, 0.0, False
+        subject_x.extend(
+            point[0]
+            for item in detections
+            for index in range(13)
+            if (point := _visible_point(item, index)) and top <= point[1] <= bottom
+        )
+        if not rows and subject_x:
+            pad = (bottom - top) * 0.05
+            subject_x.extend((min(subject_x) - pad, max(subject_x) + pad))
+        if len(detections) > 1:
+            # Seg outlines one person only; the pose boxes keep the others'
+            # outer edges, so a group stays centred.
+            subject_x.extend(x for item in detections for x in (item.bbox[0], item.bbox[2]))
+    top = max(0.0, top)
+    bottom = min(float(height), bottom)
+    if category == "shirt":
+        # Sleeves belong to the garment: keep everything in the head-to-hip band.
+        for row in rows:
+            if row[1] > top and row[0] < bottom:
+                subject_x.extend((row[2], row[3]))
+    if not subject_x or bottom - top < 1.0:
+        return None
+    subject_left = max(0.0, min(subject_x))
+    subject_right = min(float(width), max(subject_x))
+    # An anchor on the source edge has no pixels beyond it to use as margin.
+    if top <= height * 0.005:
+        margin_top = 0.0
+    if bottom >= height * 0.995:
+        margin_bottom = 0.0
+
+    aspect = target_size[0] / max(1, target_size[1])
+    sides_cropped = False
+    full_body = False
+    keep_width = None
+    if category == "shoes":
+        # Size by the shoes, never cut them: default fill with side
+        # whitespace, zooming in up to the maximum fill only when that keeps
+        # the knee out of frame.
+        shoe_width = subject_right - subject_left
+
+        def width_for(fill: float) -> float:
+            return max(shoe_width / fill, (bottom - top) / ANCHOR_SHOE_HEIGHT_FILL * aspect)
+
+        window_width = width_for(ANCHOR_SHOE_FILL)
+        if knee_top is not None and bottom > knee_top:
+            knee_free_width = (bottom - knee_top) / (1.0 - margin_bottom) * aspect
+            # A group whose shoes cannot hide every knee is shown full body.
+            full_body = len(detections) > 1 and width_for(ANCHOR_SHOE_FILL_MAX) > knee_free_width
+            window_width = max(width_for(ANCHOR_SHOE_FILL_MAX), min(window_width, knee_free_width))
+        if full_body:
+            top = max(0.0, min(item.bbox[1] for item in detections))
+            if seg_top is not None:
+                top = min(top, seg_top)
+            margin_top = 0.0 if top <= height * 0.005 else ANCHOR_EDGE_MARGIN
+            body_x = [x for item in detections for x in (item.bbox[0], item.bbox[2])]
+            body_x.extend(x for row in rows for x in (row[2], row[3]))
+            subject_left, subject_right = max(0.0, min(body_x)), min(float(width), max(body_x))
+            window_height = (bottom - top) / (1.0 - margin_top - margin_bottom)
+            window_width = window_height * aspect
+            needed_width = (subject_right - subject_left) / (1.0 - 2 * ANCHOR_SIDE_MARGIN)
+            if needed_width > window_width:
+                # Grow upward from the soles, never beyond the source height.
+                window_width = min(needed_width, height * aspect)
+        else:
+            # Content that must stay in frame: the shoes' width with margins.
+            keep_width = shoe_width / (1.0 - 2 * ANCHOR_SIDE_MARGIN)
+        window_height = window_width / aspect
+        window_top = bottom + margin_bottom * window_height - window_height
+    else:
+        window_height = (bottom - top) / (1.0 - margin_top - margin_bottom)
+        window_top = top - margin_top * window_height
+        window_width = window_height * aspect
+        needed_width = (subject_right - subject_left) / (1.0 - 2 * ANCHOR_SIDE_MARGIN)
+        sides_cropped = needed_width > window_width * ANCHOR_MAX_GROWTH
+        if needed_width > window_width:
+            # Grow downward from the head anchor, up to the growth limit.
+            window_width = min(needed_width, window_width * ANCHOR_MAX_GROWTH)
+            window_height = window_width / aspect
+    centre_x = (subject_left + subject_right) / 2
+    fit = min(1.0, width / window_width, height / window_height)
+    side_fill = None
+    # Fill only when what must stay in frame cannot fit the source width at
+    # this aspect; shoes that fit once the window shrinks just zoom in.
+    if fit < 1.0 and (keep_width is None or keep_width > min(width, height * aspect)):
+        fill_fit = min(1.0, height / window_height)
+        fill_width = window_width * fill_fit
+        if fill_width > width:
+            side_fill = _side_fill_strips(
+                centre_x - fill_width / 2, centre_x + fill_width / 2, width, subject_left, subject_right,
+            )
+            if side_fill is not None:
+                fit = fill_fit
+    if full_body and fit < 1.0:
+        # Full bodies that neither fit nor can be filled: shrinking would cut the heads.
+        return {"skip_reason": ANCHOR_FULL_BODY_SKIP_REASON}
+    if fit < 1.0:
+        shrunk_height = window_height * fit
+        if keep_bottom:
+            window_top += window_height - shrunk_height
+        window_width, window_height = window_width * fit, shrunk_height
+    window_top = max(0.0, min(height - window_height, window_top))
+    window_left = centre_x - window_width / 2
+    if side_fill is None:
+        window_left = max(0.0, min(width - window_width, window_left))
+    window_right = window_left + window_width
+    window_bottom = window_top + window_height
+    side_cut = (
+        max(0.0, window_left - subject_left) + max(0.0, subject_right - window_right)
+    ) / max(1.0, subject_right - subject_left)
+    vertical_cut = (
+        (max(0.0, window_top - top) if top_known else 0.0)
+        + (max(0.0, bottom - window_bottom) if bottom_known else 0.0)
+    ) / max(1.0, bottom - top)
+    if side_cut > ANCHOR_CROP_HINT:
+        hints.append("主体过宽，左右已裁切" if sides_cropped else "原图比例不足，可能裁切")
+    if vertical_cut > ANCHOR_CROP_HINT and "原图比例不足，可能裁切" not in hints:
+        hints.append("原图比例不足，可能裁切")
+    if side_fill is not None:
+        hints.append("已自动补边")
+    return {
+        "crop_box": [
+            round(window_left / width, 4),
+            round(window_top / height, 4),
+            round(window_right / width, 4),
+            round(window_bottom / height, 4),
+        ],
+        "anchors": {"top": round(top / height, 4), "bottom": round(bottom / height, 4)},
+        "review_reasons": hints,
+        **({"side_fill": side_fill} if side_fill is not None else {}),
+    }
 
 
 def body_visibility(
@@ -1616,11 +1969,62 @@ class LocalModelAssistant:
             return "upper_body"
         return "detail"
 
+    @staticmethod
+    def _apply_anchor_crops(
+        by_size: dict[str, dict[str, object]],
+        detections: list[PersonDetection],
+        image_size: tuple[int, int],
+        sizes: dict[str, tuple[tuple[int, int], tuple[int, int]]],
+        product_category: str | None,
+        segmentation: dict[str, object] | None,
+        source: Path | None = None,
+        shoe_boxes: list[tuple[float, float, float, float]] | None = None,
+    ) -> None:
+        """Replace a size plan with its anchor crop when the category has one.
+
+        A side fill is only kept when the strips it would copy are plain
+        backdrop; otherwise the size is skipped.
+        """
+        for size_name, (size, _background) in sizes.items():
+            anchored = anchor_crop_box(detections, image_size, size, product_category, segmentation, shoe_boxes)
+            if anchored is None:
+                continue
+            side_fill = anchored.get("side_fill")
+            skip_reason = anchored.get("skip_reason")
+            if skip_reason is None and side_fill and source is not None and max(
+                side_fill_structure(source, anchored["crop_box"], side_fill).values(), default=0.0,
+            ) > STRUCTURE_MAX_SHARE:
+                skip_reason = ANCHOR_FILL_SKIP_REASON
+            if skip_reason is not None:
+                by_size[size_name] = {
+                    "composition_mode": "skipped",
+                    "confidence": by_size.get(size_name, {}).get("confidence", 0.0),
+                    "evidence": {"skip_reason": skip_reason},
+                }
+                continue
+            reasons = list(anchored["review_reasons"])
+            plan: dict[str, object] = {
+                "composition_mode": "anchor_crop",
+                "crop_box": anchored["crop_box"],
+                "anchors": anchored["anchors"],
+                "confidence": by_size.get(size_name, {}).get("confidence", 0.0),
+                "risk_flags": reasons,
+            }
+            if side_fill:
+                plan["evidence"] = {"side_fill": side_fill}
+            if reasons:
+                plan["review_hint"] = "；".join(reasons)
+                if product_category == "shoes":
+                    plan["shoe_risk_reasons"] = reasons
+            by_size[size_name] = plan
+
     def compose_for_sizes(
         self,
         source: Path,
         sizes: dict[str, tuple[tuple[int, int], tuple[int, int]]],
         product_category: str | None = None,
+        segmentation: dict[str, object] | None = None,
+        shoe_boxes: list[tuple[float, float, float, float]] | None = None,
     ) -> dict[str, object]:
         with Image.open(source) as opened:
             image_size = opened.size
@@ -1791,6 +2195,7 @@ class LocalModelAssistant:
                 )
                 for size_name, (size, _background) in sizes.items()
             }
+            self._apply_anchor_crops(by_size, detections, image_size, sizes, product_category, segmentation, source, shoe_boxes)
             return {
                 "model_view": "group",
                 "confidence": round(max(item.confidence for item in detections), 4),
@@ -1822,6 +2227,7 @@ class LocalModelAssistant:
             )
             for size_name, (size, _background) in sizes.items()
         }
+        self._apply_anchor_crops(by_size, [detection], image_size, sizes, product_category, segmentation, source, shoe_boxes)
         return {
             "composition_mode": "zoom_focus",
             "model_view": model_view,
@@ -1864,12 +2270,51 @@ class LocalSegmentationAssistant:
         array = self._np.asarray(canvas, dtype=self._np.float32) / 255.0
         return self._np.transpose(array, (2, 0, 1))[None, ...]
 
+    def _mask_rows(self, mask, box, image_size: tuple[int, int]) -> list[list[float]]:
+        """Return the person mask as per-row [top, bottom, left, right] image ratios.
+
+        The mask is limited to its detection box (standard YOLO-seg decoding)
+        and mapped back through the letterbox, so no row can fall outside the
+        source image.
+        """
+        np = self._np
+        image_width, image_height = image_size
+        rows, cols = mask.shape
+        step_y = self.input_height / rows
+        step_x = self.input_width / cols
+        scale = min(self.input_width / image_width, self.input_height / image_height)
+        pad_x = round((self.input_width - max(1, round(image_width * scale))) / 2)
+        pad_y = round((self.input_height - max(1, round(image_height * scale))) / 2)
+        cx, cy, width, height = (float(value) for value in box)
+        x0 = max(0, int((cx - width / 2) / step_x))
+        x1 = min(cols, int(math.ceil((cx + width / 2) / step_x)))
+        y0 = max(0, int((cy - height / 2) / step_y))
+        y1 = min(rows, int(math.ceil((cy + height / 2) / step_y)))
+        to_x = lambda value: max(0.0, min(1.0, (value - pad_x) / scale / image_width))
+        to_y = lambda value: max(0.0, min(1.0, (value - pad_y) / scale / image_height))
+        result: list[list[float]] = []
+        for row in range(y0, y1):
+            filled = np.flatnonzero(mask[row, x0:x1])
+            if not filled.size:
+                continue
+            top, bottom = to_y(row * step_y), to_y((row + 1) * step_y)
+            if bottom <= top:
+                continue
+            result.append([
+                round(top, 4),
+                round(bottom, 4),
+                round(to_x((x0 + filled[0]) * step_x), 4),
+                round(to_x((x0 + filled[-1] + 1) * step_x), 4),
+            ])
+        return result
+
     def segment(self, source: Path) -> dict[str, object]:
         stat = source.stat()
         key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size, str(self.model_path.resolve()))
         if key in _GLOBAL_SEGMENTATION_CACHE:
             return _GLOBAL_SEGMENTATION_CACHE[key]
         with Image.open(source) as opened:
+            image_size = opened.size
             input_array = self._letterbox(opened)
         outputs = self.session.run(None, {self.input_name: input_array})
         arrays = [self._np.asarray(item) for item in outputs]
@@ -1903,6 +2348,110 @@ class LocalSegmentationAssistant:
             "mask_area_ratio": round(float(mask.mean()), 4),
             "mask_edge_ratio": round(float(edge.mean()), 4),
             "mask_bbox_ratio": [round(float(xs.min() / mask.shape[1]), 4), round(float(ys.min() / mask.shape[0]), 4), round(float((xs.max() + 1) / mask.shape[1]), 4), round(float((ys.max() + 1) / mask.shape[0]), 4)] if len(xs) else None,
+            "mask_rows": self._mask_rows(mask, best[:4], image_size),
         }
         _GLOBAL_SEGMENTATION_CACHE[key] = result
         return result
+
+
+# Detector shoe boxes larger than this share of the image are not shoes.
+DETECTION_MAX_BOX_AREA = 0.40
+
+
+def _iou(a: tuple[float, ...], b: tuple[float, ...]) -> float:
+    inter = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _nms(items: list[tuple[str, float, tuple[float, float, float, float]]], iou: float) -> list:
+    kept: list = []
+    for item in sorted(items, key=lambda entry: entry[1], reverse=True):
+        if all(_iou(item[2], other[2]) < iou for other in kept):
+            kept.append(item)
+    return kept
+
+
+class LocalDetectionAssistant:
+    """Optional YOLO-World object detector (needs the ``.classes.json`` sidecar)."""
+
+    def __init__(self, model_path: str | Path, score_threshold: float = 0.25, nms_iou: float = 0.5) -> None:
+        try:
+            import numpy as np
+            import onnxruntime as ort  # noqa: F401
+        except ImportError as error:  # pragma: no cover - optional runtime
+            raise RuntimeError("未安装 ONNX Runtime 或 NumPy") from error
+        self._np = np
+        self.model_path = Path(model_path)
+        sidecar = json.loads(self.model_path.with_suffix(".classes.json").read_text(encoding="utf-8"))
+        self.classes: list[str] = list(sidecar["classes"])
+        self.category_map: dict[str, str] = dict(sidecar.get("category_map", {}))
+        self.session = _create_onnx_session(self.model_path)
+        meta = self.session.get_inputs()[0]
+        shape = meta.shape
+        self.input_name = meta.name
+        self.input_height = LocalModelAssistant._static_dimension(shape[2] if len(shape) > 2 else None, 640)
+        self.input_width = LocalModelAssistant._static_dimension(shape[3] if len(shape) > 3 else None, 640)
+        self.score_threshold = score_threshold
+        self.nms_iou = nms_iou
+
+    def _geometry(self, image_size: tuple[int, int]) -> tuple[float, int, int]:
+        scale = min(self.input_width / image_size[0], self.input_height / image_size[1])
+        pad_x = round((self.input_width - round(image_size[0] * scale)) / 2 - 0.1)
+        pad_y = round((self.input_height - round(image_size[1] * scale)) / 2 - 0.1)
+        return scale, pad_x, pad_y
+
+    def _letterbox(self, image: Image.Image):
+        rgb = image.convert("RGB")
+        scale, pad_x, pad_y = self._geometry(rgb.size)
+        resized = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
+        canvas = Image.new("RGB", (self.input_width, self.input_height), (114, 114, 114))
+        canvas.paste(resized, (pad_x, pad_y))
+        array = self._np.asarray(canvas, dtype=self._np.float32) / 255.0
+        return self._np.transpose(array, (2, 0, 1))[None, ...]
+
+    def _decode(self, output, image_size: tuple[int, int]) -> list[tuple[str, float, tuple[float, float, float, float]]]:
+        """Decode [1, 4 + classes, N] (cx, cy, w, h in letterbox px + scores) to per-class NMS boxes."""
+        np = self._np
+        data = np.asarray(output)[0].T
+        scores = data[:, 4:]
+        class_ids = scores.argmax(axis=1)
+        best = scores[np.arange(len(class_ids)), class_ids]
+        keep = best >= self.score_threshold
+        scale, pad_x, pad_y = self._geometry(image_size)
+        width, height = image_size
+        found: list[tuple[str, float, tuple[float, float, float, float]]] = []
+        for (cx, cy, w, h), class_id, score in zip(data[keep, :4], class_ids[keep], best[keep]):
+            box = (
+                max(0.0, min(width, (cx - w / 2 - pad_x) / scale)),
+                max(0.0, min(height, (cy - h / 2 - pad_y) / scale)),
+                max(0.0, min(width, (cx + w / 2 - pad_x) / scale)),
+                max(0.0, min(height, (cy + h / 2 - pad_y) / scale)),
+            )
+            found.append((self.classes[int(class_id)], float(score), box))
+        result: list[tuple[str, float, tuple[float, float, float, float]]] = []
+        for label in {item[0] for item in found}:
+            result.extend(_nms([item for item in found if item[0] == label], self.nms_iou))
+        return sorted(result, key=lambda entry: entry[1], reverse=True)
+
+    def detect(self, source: Path) -> list[tuple[str, float, tuple[float, float, float, float]]]:
+        stat = source.stat()
+        key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size, str(self.model_path.resolve()))
+        if key in _GLOBAL_OBJECT_CACHE:
+            return _GLOBAL_OBJECT_CACHE[key]
+        with Image.open(source) as opened:
+            image_size = opened.size
+            input_array = self._letterbox(opened)
+        output = self.session.run(None, {self.input_name: input_array})[0]
+        _GLOBAL_OBJECT_CACHE[key] = result = self._decode(output, image_size)
+        return result
+
+    def shoe_boxes(self, source: Path) -> list[list[float]]:
+        """Shoe boxes in source px: shoe labels merged across labels, oversized boxes dropped."""
+        with Image.open(source) as opened:
+            area = opened.width * opened.height
+        shoes = [item for item in self.detect(source) if self.category_map.get(item[0]) == "shoes"]
+        return [
+            list(box) for _label, _score, box in _nms(shoes, self.nms_iou)
+            if (box[2] - box[0]) * (box[3] - box[1]) <= area * DETECTION_MAX_BOX_AREA
+        ]

@@ -1,0 +1,10 @@
+{
+  "classes": [
+    "shoe",
+    "sneaker"
+  ],
+  "category_map": {
+    "shoe": "shoes",
+    "sneaker": "shoes"
+  }
+}

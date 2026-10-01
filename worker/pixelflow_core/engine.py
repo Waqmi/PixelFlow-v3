@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 import os
 import re
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field, replace
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Event
 from typing import Any, Callable
@@ -16,6 +20,7 @@ from .contracts import (
     RenderAssets,
     RenderLayout,
     RenderRequest,
+    RenderResult,
     RenderSummary,
     RunMode,
     build_main_request,
@@ -28,6 +33,52 @@ from .renderer import Renderer
 
 
 ProgressCallback = Callable[[int, int, str], None]
+GENERATED_OUTPUT_ROOTS = frozenset({"产品主图", "模特图", "唯品专享1440", "透明产品图", "卖点图"})
+
+
+def _v3_manifest_path(output_root: Path) -> Path:
+    """Private record of V3-generated files, kept out of the output folder."""
+    if sys.platform == "darwin":
+        cache_root = Path.home() / "Library" / "Caches"
+    else:
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    key = hashlib.sha256(str(output_root.expanduser().resolve(strict=False)).encode("utf-8")).hexdigest()
+    return cache_root / "PixelFlow" / "manifests" / f"v3-{key}.json"
+
+
+def _read_v3_manifest(output_root: Path) -> set[str]:
+    try:
+        payload = json.loads(_v3_manifest_path(output_root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    paths = payload.get("generated_paths", []) if isinstance(payload, dict) else []
+    return {path for path in paths if isinstance(path, str)}
+
+
+def _write_v3_manifest(output_root: Path, relative_paths: set[str]) -> None:
+    manifest_path = _v3_manifest_path(output_root)
+    try:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(
+            json.dumps({"generated_paths": sorted(relative_paths)}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        # The manifest only enables stale cleanup; never fail a finished batch.
+        pass
+
+
+def _generated_relative_path(output_root: Path, path: Path) -> str | None:
+    """Return the output-relative path only for images under a generated category."""
+    try:
+        relative = path.resolve(strict=False).relative_to(output_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if not relative.parts or relative.parts[0] not in GENERATED_OUTPUT_ROOTS:
+        return None
+    if relative.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+        return None
+    return relative.as_posix()
 
 
 @dataclass(frozen=True)
@@ -133,58 +184,69 @@ class V3EngineAdapter:
 
     @staticmethod
     def _plan(value: object, source: Path, size: str) -> CompositionPlan | None:
-        if isinstance(value, CompositionPlan):
-            return value
-        if not isinstance(value, dict):
-            return None
-        regions = []
-        for item in value.get("protected_regions", ()):
-            if not isinstance(item, dict):
-                continue
-            try:
-                from .contracts import ProtectedRegion
-                regions.append(ProtectedRegion(**item))
-            except (TypeError, ValueError):
-                continue
-        try:
-            return CompositionPlan(
-                source=str(value.get("source") or source),
-                size=str(value.get("size") or size),
-                composition_mode=str(value.get("composition_mode", "fallback")),
-                scale=float(value.get("scale", 1.0)),
-                position_x=float(value.get("position_x", 0.5)),
-                position_y=float(value.get("position_y", 0.5)),
-                crop_ratio=value.get("crop_ratio"),
-                protected_regions=tuple(regions),
-                risk_flags=tuple(value.get("risk_flags", ())),
-                requires_review=bool(value.get("requires_review", False)),
-                evidence=dict(value.get("evidence", {})),
-                fallback=bool(value.get("fallback", False)),
-                review_hint=str(value.get("review_hint", "") or ""),
-                fallback_reason=str(value.get("fallback_reason", "") or ""),
-                skipped_by_scope=bool(value.get("skipped_by_scope", False)),
-            )
-        except (TypeError, ValueError):
-            return None
+        from .classification import _typed_plan_from_mapping
+
+        return _typed_plan_from_mapping(source, size, value)
 
     @staticmethod
     def _group_label(source: Path) -> str:
-        name = source.parent.name.strip()
-        match = re.search(r"男女|男|女", name)
+        return V3EngineAdapter._group_label_from_name(source.parent.name)
+
+    @classmethod
+    def _short_names(cls, sources: list[Path]) -> dict[Path, str]:
+        group_labels: dict[Path, str] = {}
+        used_labels: dict[str, int] = {}
+        for parent in sorted({source.parent for source in sources}, key=str):
+            base = cls._group_label_from_name(parent.name)
+            used_labels[base] = used_labels.get(base, 0) + 1
+            group_labels[parent] = base if used_labels[base] == 1 else f"{base}_{used_labels[base]}"
+        counters: dict[Path, int] = {}
+        names: dict[Path, str] = {}
+        for source in sources:
+            counters[source.parent] = counters.get(source.parent, 0) + 1
+            names[source] = f"{group_labels[source.parent]}_{counters[source.parent]:02d}"
+        return names
+
+    @staticmethod
+    def _group_label_from_name(name: str) -> str:
+        match = re.search(r"男女|男|女", name.strip())
         if match:
             color = name[match.end():].strip(" _-—·()（）[]【】")
             if color:
                 return f"{match.group(0)}_{color[:12]}"
         return "素材"
 
-    @classmethod
-    def _short_names(cls, sources: list[Path]) -> dict[Path, str]:
-        counters: dict[Path, int] = {}
-        names: dict[Path, str] = {}
-        for source in sources:
-            counters[source.parent] = counters.get(source.parent, 0) + 1
-            names[source] = f"{cls._group_label(source)}_{counters[source.parent]:02d}"
-        return names
+    @staticmethod
+    def _remove_stale_outputs(output_root: Path, expected_paths: set[Path], full_batch: bool) -> int:
+        """Delete only files a previous V3 run recorded and this run no longer needs.
+
+        Files PixelFlow never recorded (user files, outputs from builds without
+        a V3 manifest) are left untouched. Retry runs never delete; they merge
+        their outputs into the existing record.
+        """
+        previous = _read_v3_manifest(output_root)
+        current = {
+            relative
+            for path in expected_paths
+            if path.is_file() and (relative := _generated_relative_path(output_root, path))
+        }
+        if not full_batch:
+            _write_v3_manifest(output_root, previous | current)
+            return 0
+        removed = 0
+        kept_stale: set[str] = set()
+        for relative in previous - current:
+            candidate = output_root / relative
+            if _generated_relative_path(output_root, candidate) != relative or not candidate.is_file():
+                continue
+            try:
+                candidate.unlink()
+            except OSError:
+                kept_stale.add(relative)
+                continue
+            removed += 1
+        _write_v3_manifest(output_root, current | kept_stale)
+        return removed
 
     @staticmethod
     def _summary(decision: object, source_type: str) -> RenderSummary:
@@ -215,9 +277,23 @@ class V3EngineAdapter:
 
         sources = [p for p in _material_sources(request.product_root) if request.source_filter is None or str(p) in request.source_filter]
         if not sources:
-            return {"sources": 0, "main_images": 0, "model_images": 0, "transparent_images": 0, "vip_images": 0, "failures": [], "outputs": [], "validation": {"passed": 0, "failed": 0}, "audit": {"checked_outputs": 0}}
+            return {"sources": 0, "main_images": 0, "model_images": 0, "transparent_images": 0, "vip_images": 0, "render_workers": 0, "failures": [], "outputs": [], "validation": {"passed": 0, "failed": 0}, "audit": {"checked_outputs": 0}}
+        timings: dict[str, float | int] = {}
         decisions = []
-        if request.enable_material_understanding or request.include_model_images or request.source_type_overrides:
+        # The confirmation window already sends a final type for every source
+        # plus its measured metadata. Reclassifying here decodes every image a
+        # second time immediately before rendering; keep the native fallback
+        # for direct callers that provide only a partial override set.
+        confirmed_sources = bool(sources) and all(
+            any(key in request.source_type_overrides for key in (str(source), source.as_posix(), source.name))
+            for source in sources
+        )
+        classification_started = time.perf_counter()
+        if (
+            request.enable_material_understanding
+            or request.include_model_images
+            or request.source_type_overrides
+        ) and not confirmed_sources:
             decisions = V3ClassifierAdapter().classify(ClassificationRequest(
                 product_root=request.product_root,
                 source_filter=request.source_filter,
@@ -226,6 +302,7 @@ class V3EngineAdapter:
                 local_model_enabled=request.local_model_enabled,
                 local_model_path=request.local_model_path,
             ))
+        timings["classification_seconds"] = time.perf_counter() - classification_started
         by_source = {item.source: item for item in decisions}
         supplied_plans = {
             (plan.source, plan.size): plan for plan in request.composition_plans
@@ -236,21 +313,44 @@ class V3EngineAdapter:
         review_items: dict[str, dict[str, object]] = {}
         fallback_items: dict[str, dict[str, object]] = {}
         skipped_outputs = 0
+        skipped_renders: list[dict[str, object]] = []
         reused_outputs = 0
         expected_outputs = 0
+        expected_output_paths: set[Path] = set()
         main_count = model_count = transparent_count = vip_count = 0
-        total = max(1, len(sources) * max(1, len(request.selected_sizes)))
+        source_jobs: list[tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]] = []
+        render_workers = 1 if len(sources) <= 1 else min(3, len(sources))
+        total = 0
         completed = 0
         for source in sources:
             decision = by_source.get(str(source))
-            source_type = request.source_type_overrides.get(str(source)) or (
-                decision.source_type if decision else "main_product"
+            source_type = next(
+                (request.source_type_overrides.get(key) for key in (str(source), source.as_posix(), source.name) if request.source_type_overrides.get(key)),
+                None,
+            ) or (decision.source_type if decision else "main_product")
+            is_model_source = source_type in {"model", "model_detail"}
+            excluded_model = is_model_source and any(
+                key in request.excluded_model_sources
+                for key in (str(source), source.as_posix(), source.name)
             )
+            if is_model_source and (excluded_model or not request.include_model_images):
+                continue
             metadata = dict((decision.metadata if decision else {}) or {})
             metadata.update(request.source_metadata_overrides.get(str(source), {}))
+            source_scale_adjustment = next(
+                (
+                    request.source_scale_adjustments.get(key)
+                    for key in (str(source), source.as_posix(), source.name)
+                    if key in request.source_scale_adjustments
+                ),
+                0.0,
+            )
+            metadata["source_scale_adjustment"] = (
+                float(source_scale_adjustment) if source_type == "main_product" else 0.0
+            )
             category = str(request.category_override or metadata.get("category") or "产品主图")
-            group = "" if source_type in {"model", "model_detail"} else self._group_label(source)
-            output_category = "模特图" if source_type in {"model", "model_detail"} else "产品主图"
+            group = "" if is_model_source else self._group_label(source)
+            output_category = "模特图" if is_model_source else "产品主图"
             background_value = metadata.get("background")
             background = None
             if isinstance(background_value, (tuple, list)) and len(background_value) == 3:
@@ -258,9 +358,32 @@ class V3EngineAdapter:
                     background = tuple(int(value) for value in background_value)
                 except (TypeError, ValueError):
                     background = None
+
+            source_requests: list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]] = []
+            plans_by_size: dict[str, CompositionPlan | None] = {}
+            skipped_sizes: list[str] = []
             for size in request.selected_sizes:
                 if cancel_event is not None and cancel_event.is_set():
-                    return {"cancelled": True, "sources": len(sources), "main_images": main_count, "model_images": model_count, "transparent_images": transparent_count, "vip_images": vip_count, "failures": failures, "outputs": outputs, "skipped_by_scope": skipped_outputs, "validation": {"passed": len(outputs) - skipped_outputs, "failed": len(failures), "skipped": skipped_outputs}, "audit": {"checked_outputs": len(outputs)}}
+                    return {
+                        "cancelled": True,
+                        "sources": len(sources),
+                        "main_images": main_count,
+                        "model_images": model_count,
+                        "transparent_images": transparent_count,
+                        "vip_images": vip_count,
+                        "render_workers": render_workers,
+                        "failures": failures,
+                        "outputs": outputs,
+                        "skipped_by_scope": skipped_outputs,
+                        "skipped_outputs": skipped_renders,
+                        "validation": {
+                            "passed": len(outputs) - skipped_outputs,
+                            "failed": len(failures),
+                            "skipped": skipped_outputs,
+                        },
+                        "audit": {"checked_outputs": len(outputs)},
+                        "performance": timings,
+                    }
                 plan = supplied_plans.get((str(source), size))
                 if plan is None:
                     for candidate in request.composition_plans:
@@ -278,13 +401,25 @@ class V3EngineAdapter:
                     if isinstance(candidate, CompositionPlan):
                         plan = candidate
                 if plan is None:
-                    plan_value = metadata.get("composition_plans", {}).get(size) if isinstance(metadata.get("composition_plans"), dict) else None
-                    plan = self._plan(plan_value, source, size)
-                filename = f"{short_names[source]}.jpg" if request.naming_mode == "short" else f"{source.stem}_png.jpg" if source.suffix.lower() == ".png" else f"{source.stem}_jpg.jpg"
+                    from .classification import _typed_plans_from_metadata
+
+                    plan = _typed_plans_from_metadata(source, metadata).get(size)
+                plans_by_size[size] = plan
+                filename = (
+                    f"{short_names[source]}.jpg"
+                    if request.naming_mode == "short"
+                    else f"{source.stem}_png.jpg"
+                    if source.suffix.lower() == ".png"
+                    else f"{source.stem}_jpg.jpg"
+                )
                 output_dir = request.output_root / output_category
                 if group:
                     output_dir /= group
                 output_dir /= size
+                if plan is not None and plan.composition_mode == "skipped":
+                    # Not rendered and not expected, so a stale file from an earlier run is removed.
+                    skipped_sizes.append(size)
+                    continue
                 for include_logo in ((True, False) if request.include_logo else (False,)):
                     logo_key = "tall_logo" if size != "1440x1440" else "logo"
                     white_logo_key = "tall_white_logo" if size != "1440x1440" else "white_logo"
@@ -292,120 +427,290 @@ class V3EngineAdapter:
                     white_logo_path = request.logo_overrides.get(white_logo_key) or request.logo_overrides.get("white_logo")
                     if metadata.get("logo_luminance", 255) < 160:
                         logo_path = white_logo_path or logo_path
-                    # Keep both logo variants in the typed request metadata so
-                    # Renderer can apply the same luminance choice as legacy.
-                    assets = RenderAssets(logo=logo_path, white_logo=white_logo_path,
-                                          border=str(metadata["border_path"]) if metadata.get("border_path") else None)
-                    layout = RenderLayout(category=category, group=group,
-                                          output_category=output_category, filename=filename,
-                                          enable_category_template=request.enable_category_template,
-                                          allow_mirror_extension=bool(metadata.get("allow_mirror_extension")),
-                                          scale=float(metadata.get("scale", 1.0) or 1.0))
-                    summary = self._summary(decision, source_type)
-                    builder = build_model_request if source_type in {"model", "model_detail"} else build_main_request
-                    typed_request = builder(
-                        str(source), str(request.output_root), size,
-                        output_path=str(output_dir / ("含Logo" if include_logo else "无Logo") / filename),
-                        mode="v3", plan=plan, include_logo=include_logo,
-                        max_size_mb=request.max_size_mb, source_type=source_type,
-                        background=background, assets=assets, layout=layout, summary=summary,
+                    assets = RenderAssets(
+                        logo=logo_path,
+                        white_logo=white_logo_path,
+                        border=str(metadata["border_path"]) if metadata.get("border_path") else None,
                     )
+                    layout = RenderLayout(
+                        category=category,
+                        group=group,
+                        output_category=output_category,
+                        filename=filename,
+                        enable_category_template=request.enable_category_template,
+                        allow_mirror_extension=bool(metadata.get("allow_mirror_extension")),
+                        scale=float(metadata.get("scale", 1.0) or 1.0),
+                    )
+                    builder = build_model_request if is_model_source else build_main_request
+                    typed_request = builder(
+                        str(source),
+                        str(request.output_root),
+                        size,
+                        output_path=str(output_dir / ("含Logo" if include_logo else "无Logo") / filename),
+                        mode="v3",
+                        plan=plan,
+                        include_logo=include_logo,
+                        max_size_mb=request.max_size_mb,
+                        source_type=source_type,
+                        background=background,
+                        assets=assets,
+                        layout=layout,
+                        summary=self._summary(decision, source_type),
+                    )
+                    typed_request = replace(
+                        typed_request,
+                        metadata={
+                            **typed_request.metadata,
+                            "source_scale_adjustment": metadata["source_scale_adjustment"],
+                        },
+                    )
+                    if typed_request.output_path:
+                        expected_output_paths.add(Path(typed_request.output_path))
                     expected_outputs += 1
-                    # ponytail: reuse an existing deterministic output; add a manifest only when
-                    # existence checks prove insufficient for changed-settings invalidation.
                     if Path(typed_request.output_path).is_file() and not request.force_rerender:
                         outputs.append(typed_request.output_path)
                         reused_outputs += 1
                         main_count += 1
-                        model_count += int(source_type in {"model", "model_detail"})
+                        model_count += int(is_model_source)
                         continue
-                    result = self._renderer.render(typed_request)
-                    metadata = dict(getattr(result, "metadata", {}) or {})
-                    if metadata.get("requires_review"):
-                        item = review_items.setdefault(str(source), {"source": str(source), "sizes": [], "review_hint": "", "protected_regions": []})
-                        item["sizes"].append(size)  # type: ignore[union-attr]
-                        item["review_hint"] = metadata.get("review_hint") or item["review_hint"]
-                        item["protected_regions"] = [region.to_dict() for region in (plan.protected_regions if plan else ())]
-                    if metadata.get("fallback"):
-                        item = fallback_items.setdefault(str(source), {"source": str(source), "sizes": [], "fallback_reason": ""})
-                        item["sizes"].append(size)  # type: ignore[union-attr]
-                        item["fallback_reason"] = metadata.get("fallback_reason") or item["fallback_reason"]
-                    if result.success:
-                        outputs.extend(result.outputs)
-                        if (decision is not None and getattr(decision, "skipped_by_scope", False)) or (plan is not None and plan.skipped_by_scope):
-                            skipped_outputs += len(result.outputs)
-                        main_count += 1
-                        model_count += int(source_type in {"model", "model_detail"})
-                    else:
-                        failures.append({"source": str(source), "message": "; ".join(result.errors)})
-                completed += 1
-                if progress:
-                    progress(completed, total, "生成")
-            if request.include_vip and source_type not in {"model", "model_detail"}:
+                    source_requests.append(
+                        (
+                            typed_request,
+                            "main",
+                            plan,
+                            source_type,
+                            bool(
+                                (decision is not None and getattr(decision, "skipped_by_scope", False))
+                                or (plan is not None and plan.skipped_by_scope)
+                            ),
+                        )
+                    )
+
+            skipped_square = "1440x1440" in skipped_sizes
+            if skipped_square and request.include_vip:
+                skipped_sizes.append("唯品专享1440")
+            if skipped_sizes:
+                skipped_plan = next(plan for plan in plans_by_size.values() if plan is not None and plan.composition_mode == "skipped")
+                skipped_renders.append({
+                    "source": str(source),
+                    "sizes": skipped_sizes,
+                    "reason": str(skipped_plan.evidence.get("skip_reason", "")),
+                })
+            if request.include_vip and "1440x1440" in request.selected_sizes and not skipped_square:
                 vip_path = request.output_root / "唯品专享1440" / "无Logo" / filename
                 vip_request = build_vip_request(
-                    str(source), str(request.output_root), "1440x1440", mode="v3", plan=plan,
-                    output_path=str(vip_path), max_size_mb=request.max_size_mb, source_type=source_type,
+                    str(source),
+                    str(request.output_root),
+                    "1440x1440",
+                    mode="v3",
+                    plan=plans_by_size.get("1440x1440"),
+                    output_path=str(vip_path),
+                    max_size_mb=request.max_size_mb,
+                    source_type=source_type,
                     assets=RenderAssets(border=request.logo_overrides.get("border")),
-                    layout=RenderLayout(category=category, filename=filename,
-                                        enable_category_template=request.enable_category_template),
+                    layout=RenderLayout(
+                        category=category,
+                        filename=filename,
+                        enable_category_template=request.enable_category_template,
+                    ),
                     summary=self._summary(decision, source_type),
                 )
+                vip_request = replace(
+                    vip_request,
+                    metadata={
+                        **vip_request.metadata,
+                        "source_scale_adjustment": metadata["source_scale_adjustment"],
+                    },
+                )
+                if vip_request.output_path:
+                    expected_output_paths.add(Path(vip_request.output_path))
                 expected_outputs += 1
                 if Path(vip_request.output_path).is_file() and not request.force_rerender:
                     outputs.append(vip_request.output_path)
                     vip_count += 1
                     reused_outputs += 1
                 else:
-                    vip_result = self._renderer.render(vip_request)
-                    if vip_result.success:
-                        outputs.extend(vip_result.outputs); vip_count += 1
-                        if (decision is not None and getattr(decision, "skipped_by_scope", False)) or (plan is not None and plan.skipped_by_scope):
-                            skipped_outputs += len(vip_result.outputs)
-                    else:
-                        failures.append({"source": str(source), "message": "; ".join(vip_result.errors)})
-            if source.suffix.lower() == ".png":
+                    source_requests.append(
+                        (
+                            vip_request,
+                            "vip",
+                            plans_by_size.get("1440x1440"),
+                            source_type,
+                            bool(
+                                (decision is not None and getattr(decision, "skipped_by_scope", False))
+                                or (plans_by_size.get("1440x1440") is not None and plans_by_size["1440x1440"].skipped_by_scope)
+                            ),
+                        )
+                    )
+
+            if source.suffix.lower() == ".png" and request.selected_sizes:
                 for size in ("800x800", "1440x1440", "1440x1920", "1440x2160"):
                     transparent_path = request.output_root / "透明产品图" / size / f"{short_names[source]}_透明.png"
                     transparent_request = build_transparent_request(
-                        str(source), str(request.output_root), size, mode="v3", plan=plan,
-                        output_path=str(transparent_path), max_size_mb=request.max_size_mb,
-                        source_type=source_type, background=background,
-                        layout=RenderLayout(category=category, filename=transparent_path.name,
-                                            enable_category_template=request.enable_category_template),
+                        str(source),
+                        str(request.output_root),
+                        size,
+                        mode="v3",
+                        plan=plans_by_size.get(size),
+                        output_path=str(transparent_path),
+                        max_size_mb=request.max_size_mb,
+                        source_type=source_type,
+                        background=background,
+                        layout=RenderLayout(
+                            category=category,
+                            filename=transparent_path.name,
+                            enable_category_template=request.enable_category_template,
+                        ),
                         summary=self._summary(decision, source_type),
                     )
+                    transparent_request = replace(
+                        transparent_request,
+                        metadata={
+                            **transparent_request.metadata,
+                            "source_scale_adjustment": metadata["source_scale_adjustment"],
+                        },
+                    )
+                    if transparent_request.output_path:
+                        expected_output_paths.add(Path(transparent_request.output_path))
                     expected_outputs += 1
                     if transparent_path.is_file() and not request.force_rerender:
                         outputs.append(str(transparent_path))
                         transparent_count += 1
                         reused_outputs += 1
                         continue
-                    transparent_result = self._renderer.render(transparent_request)
-                    if transparent_result.success:
-                        outputs.extend(transparent_result.outputs); transparent_count += 1
-                        if (decision is not None and getattr(decision, "skipped_by_scope", False)) or (plan is not None and plan.skipped_by_scope):
-                            skipped_outputs += len(transparent_result.outputs)
+                    source_requests.append(
+                        (
+                            transparent_request,
+                            "transparent",
+                            plans_by_size.get(size),
+                            source_type,
+                            bool(
+                                (decision is not None and getattr(decision, "skipped_by_scope", False))
+                                or (plans_by_size.get(size) is not None and plans_by_size[size].skipped_by_scope)
+                            ),
+                        )
+                    )
+            if source_requests:
+                source_jobs.append((source, source_requests))
+
+        skipped_expected = sum(
+            int(skipped)
+            for _source, requests in source_jobs
+            for _request, _kind, _plan, _source_type, skipped in requests
+        )
+        total = max(1, expected_outputs - skipped_expected)
+        completed = max(0, reused_outputs)
+        if progress:
+            progress(completed, total, "复用输出" if completed else "准备生成")
+
+        render_timings: dict[str, float | int] = {"source_tasks": 0}
+
+        def render_source_job(job: tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]) -> tuple[tuple[RenderResult, ...], dict[str, float | int]]:
+            source, requests = job
+            typed_requests = tuple(item[0] for item in requests)
+            batch = getattr(self._renderer, "render_source_batch", None)
+            if callable(batch):
+                batch_result = batch(typed_requests)
+                if (
+                    isinstance(batch_result, tuple)
+                    and len(batch_result) == 2
+                    and isinstance(batch_result[1], dict)
+                ):
+                    results, batch_timings = batch_result
+                else:
+                    results, batch_timings = batch_result, {}
+                return tuple(results), dict(batch_timings or {})
+            started = time.perf_counter()
+            results = tuple(self._renderer.render(item) for item in typed_requests)
+            return results, {"total_seconds": time.perf_counter() - started}
+
+        with ThreadPoolExecutor(max_workers=render_workers, thread_name_prefix="PixelFlowV3Render") as executor:
+            future_jobs = {
+                executor.submit(render_source_job, job): job
+                for job in source_jobs
+            }
+            for future in as_completed(future_jobs):
+                source, source_requests = future_jobs[future]
+                try:
+                    results, batch_timings = future.result()
+                except Exception as error:  # noqa: BLE001 - retain one-source failure records
+                    results = tuple(
+                        RenderResult(source=str(source), outputs=(), success=False, mode="v3", errors=(str(error),))
+                        for _request, _kind, _plan, _source_type, _skipped in source_requests
+                    )
+                    batch_timings = {"source_tasks": 1}
+                for key, value in batch_timings.items():
+                    if key == "source_tasks":
+                        continue
+                    if isinstance(value, (int, float)):
+                        render_timings[key] = render_timings.get(key, 0) + value
+                render_timings["source_tasks"] = render_timings.get("source_tasks", 0) + 1
+                for result, (_typed_request, kind, plan, source_type, skipped) in zip(results, source_requests):
+                    size = str(result.metadata.get("size") or _typed_request.size)
+                    result_metadata = dict(getattr(result, "metadata", {}) or {})
+                    if result_metadata.get("requires_review"):
+                        item = review_items.setdefault(str(source), {"source": str(source), "sizes": [], "review_hint": "", "protected_regions": []})
+                        item["sizes"].append(size)  # type: ignore[union-attr]
+                        item["review_hint"] = result_metadata.get("review_hint") or item["review_hint"]
+                        item["protected_regions"] = [region.to_dict() for region in (plan.protected_regions if plan else ())]
+                    if result_metadata.get("fallback"):
+                        item = fallback_items.setdefault(str(source), {"source": str(source), "sizes": [], "fallback_reason": ""})
+                        item["sizes"].append(size)  # type: ignore[union-attr]
+                        item["fallback_reason"] = result_metadata.get("fallback_reason") or item["fallback_reason"]
+                    if result.success:
+                        outputs.extend(result.outputs)
+                        if skipped:
+                            skipped_outputs += len(result.outputs)
+                        if result.outputs and not skipped:
+                            completed += len(result.outputs)
+                            if progress:
+                                phase = {
+                                    "vip": "唯品图",
+                                    "transparent": "透明图",
+                                }.get(kind, "生成")
+                                progress(completed, total, phase)
+                        if kind == "main":
+                            main_count += 1
+                            model_count += int(source_type in {"model", "model_detail"})
+                        elif kind == "vip":
+                            vip_count += 1
+                        else:
+                            transparent_count += 1
                     else:
-                        failures.append({"source": str(source), "message": "; ".join(transparent_result.errors)})
+                        failures.append({"source": str(source), "message": "; ".join(result.errors)})
+        # Clean up only after rendering, so a failed render never loses old files first.
+        stale_outputs_removed = self._remove_stale_outputs(
+            request.output_root,
+            expected_output_paths,
+            full_batch=request.source_filter is None,
+        )
+        timings.update(render_timings)
+        timings["total_seconds"] = sum(
+            float(timings.get(key, 0.0) or 0.0)
+            for key in ("classification_seconds", "decode_seconds", "analysis_seconds", "compose_seconds", "overlay_seconds", "encode_seconds", "write_seconds")
+        )
         return {
             "sources": len(sources),
             "main_images": main_count,
             "model_images": model_count,
             "transparent_images": transparent_count,
             "vip_images": vip_count,
+            "render_workers": render_workers,
             "failures": failures,
             "outputs": outputs,
             "retried_only": request.source_filter is not None,
             "skipped_by_scope": skipped_outputs,
+            "skipped_outputs": skipped_renders,
             "incremental_reused": reused_outputs,
             "incremental_skipped": bool(expected_outputs and reused_outputs == expected_outputs and not failures),
+            "stale_outputs_removed": stale_outputs_removed,
             "requires_review": sorted(review_items.values(), key=lambda item: str(item["source"])),
             "requires_review_count": len(review_items),
             "fallback_items": sorted(fallback_items.values(), key=lambda item: str(item["source"])),
             "fallback_count": len(fallback_items),
             "validation": {"passed": len(outputs) - skipped_outputs, "failed": len(failures), "skipped": skipped_outputs},
             "audit": {"checked_outputs": len(outputs)},
+            "performance": timings,
         }
 
     @staticmethod
@@ -426,7 +731,21 @@ class V3EngineAdapter:
         if not root.is_dir():
             return {"validated": 0, "failed": 0, "outputs": []}
         typed_requests: list[RenderRequest] = []
-        for path in sorted(root.rglob("*")):
+        raw_outputs = result.get("outputs", ())
+        output_paths = (
+            sorted(Path(str(value)) for value in raw_outputs if value)
+            if isinstance(raw_outputs, (list, tuple, set))
+            else []
+        )
+        if not output_paths:
+            # Compatibility seam for injected runners that only report counts
+            # and write files directly into the output tree.
+            output_paths = sorted(
+                path
+                for path in root.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+            )
+        for path in output_paths:
             if not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
                 continue
             size = self._output_size(path)

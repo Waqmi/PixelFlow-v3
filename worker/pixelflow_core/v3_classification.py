@@ -9,6 +9,7 @@ facade is available.
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
@@ -312,6 +313,25 @@ class V3ClassifierAdapter:
             source = Path(decision.source)
             if request.cancel_event is not None and request.cancel_event.is_set():
                 raise ClassificationCancelled()
+            # Seg runs first so the anchor composition can use the person
+            # outline for the head top and sole; its merge stays after pose.
+            seg_evidence: dict[str, object] | None = None
+            seg_error: Exception | None = None
+            if seg_models:
+                try:
+                    seg_evidence = (
+                        load_model_result(source, seg_model_path, "segmentation", category, output_size="segmentation")
+                        if seg_model_path is not None else None
+                    )
+                    if seg_evidence is None:
+                        seg_evidence = service.segment(root, source)
+                        if seg_model_path is not None:
+                            store_model_result(
+                                source, seg_model_path, "segmentation", category,
+                                seg_evidence, output_size="segmentation",
+                            )
+                except Exception as error:  # noqa: BLE001 - optional model fallback
+                    seg_error = error
             if pose_models:
                 try:
                     composition = (
@@ -321,6 +341,7 @@ class V3ClassifierAdapter:
                     if composition is None:
                         composition = service.compose_for_sizes(
                             root, source, SIZES, product_category=category,
+                            segmentation=seg_evidence if seg_evidence and not seg_evidence.get("fallback") else None,
                         )
                         if pose_model_path is not None:
                             store_model_result(
@@ -360,17 +381,9 @@ class V3ClassifierAdapter:
 
             if seg_models:
                 try:
-                    evidence = (
-                        load_model_result(source, seg_model_path, "segmentation", category, output_size="segmentation")
-                        if seg_model_path is not None else None
-                    )
-                    if evidence is None:
-                        evidence = service.segment(root, source)
-                        if seg_model_path is not None:
-                            store_model_result(
-                                source, seg_model_path, "segmentation", category,
-                                evidence, output_size="segmentation",
-                            )
+                    if seg_error is not None:
+                        raise seg_error
+                    evidence = seg_evidence or {}
                     updated = self._resolve_segmentation_decision(decision, evidence)
                     metadata = _merge_composition_metadata(
                         dict(updated.metadata or {}), evidence, category,
@@ -409,8 +422,7 @@ class V3ClassifierAdapter:
             "status": "available" if request.local_model_enabled and request.local_model_path else "not_run",
             "reason": "v3 native model service returns typed composition evidence",
         }
-        decisions: list[ClassificationDecision] = []
-        for index, source in enumerate(sources, start=1):
+        def classify_one(source: Path) -> ClassificationDecision:
             override = next((request.overrides.get(key) for key in (str(source), source.name, source.as_posix()) if request.overrides.get(key)), None)
             decision = classifier.classify(source, sources, override)
             metadata = {
@@ -422,18 +434,29 @@ class V3ClassifierAdapter:
                 "pose_evidence": {"status": "not_run", "reason": model_facade["reason"]},
                 "segmentation_evidence": {"status": "not_run", "reason": model_facade["reason"]},
             }
-            decisions.append(
-                ClassificationDecision(
-                    decision.source,
-                    decision.source_type,
-                    decision.confidence,
-                    decision.classifier,
-                    decision.reason,
-                    metadata=metadata,
-                )
+            return ClassificationDecision(
+                decision.source,
+                decision.source_type,
+                decision.confidence,
+                decision.classifier,
+                decision.reason,
+                metadata=metadata,
             )
-            if progress is not None:
-                progress(index, len(sources), source, decisions[-1])
+
+        workers = 1 if len(sources) <= 1 else min(4, len(sources))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="PixelFlowV3Classify") as executor:
+            futures = {
+                executor.submit(classify_one, source): (index, source)
+                for index, source in enumerate(sources)
+            }
+            decisions: list[ClassificationDecision | None] = [None] * len(sources)
+            for future in as_completed(futures):
+                index, source = futures[future]
+                decision = future.result()
+                decisions[index] = decision
+                if progress is not None:
+                    progress(index + 1, len(sources), source, decision)
+        decisions = [decision for decision in decisions if decision is not None]
         if request.local_model_enabled and request.local_model_path:
             decisions = self._apply_optional_models(decisions, request, category.category)
         return decisions

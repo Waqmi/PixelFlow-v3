@@ -18,6 +18,7 @@ from pixelflow_core.model_cache import (
 )
 from pixelflow_core.model_service import (
     STATE_FALLBACK,
+    STATE_READY,
     STATE_UNCONFIGURED,
     STATUS_FALLBACK,
     STATUS_UNCONFIGURED,
@@ -167,6 +168,32 @@ class ModelServiceTests(unittest.TestCase):
             self.assertEqual(service.model_state("/path/that/does/not/exist", "pose"), STATE_UNCONFIGURED)
         finally:
             service.close()
+
+    def test_macos_model_requests_stay_in_worker_process(self) -> None:
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for purpose in ("pose", "segmentation"):
+                model_dir = root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(purpose.encode())
+
+            with patch("pixelflow_core.model_service.sys.platform", "darwin"), patch(
+                "pixelflow_core.model_service._assistant_types",
+                return_value=(Assistant, Assistant),
+            ):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(root)
+                    self.assertEqual(result["pose"]["state"], STATE_READY)
+                    self.assertEqual(result["segmentation"]["state"], STATE_READY)
+                    self.assertIsNone(service._process)
+                    self.assertFalse(service.is_running)
+                finally:
+                    service.close()
 
     def test_versioned_model_cache_key_changes_when_file_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

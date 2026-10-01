@@ -20,6 +20,16 @@ def materialize_symlinks(root: Path) -> None:
             shutil.copy2(target, path)
 
 
+def resolve_python(root: Path) -> str:
+    configured = os.environ.get("PIXELFLOW_PYTHON")
+    if configured:
+        return configured
+    local = root / ".venv" / "bin" / "python"
+    if local.is_file():
+        return str(local)
+    return sys.executable
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent
     mode = os.environ.get("PIXELFLOW_WORKER_MODE", "ondir").strip().lower()
@@ -28,7 +38,7 @@ def main() -> int:
     output = root / f"dist{suffix}"
     work = root / f"build{suffix}"
     config = Path(os.environ.get("PYINSTALLER_CONFIG_DIR", root / f".pyinstaller-config{suffix}"))
-    python = os.environ.get("PIXELFLOW_PYTHON", sys.executable)
+    python = resolve_python(root)
     spec = root / ("pixelflow-worker-ondir.spec" if onedir else "pixelflow-worker.spec")
     command = [
         python,

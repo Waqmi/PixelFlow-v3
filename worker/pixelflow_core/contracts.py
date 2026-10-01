@@ -119,6 +119,9 @@ class CompositionPlan:
     protected_regions: tuple[ProtectedRegion, ...] = ()
     risk_flags: tuple[str, ...] = ()
     requires_review: bool = False
+    # Anchor composition window as (left, top, right, bottom) source ratios;
+    # left/right beyond 0/1 are side fill (strip widths in evidence["side_fill"]).
+    crop_box: tuple[float, float, float, float] | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
     fallback: bool = False
     review_hint: str = ""
@@ -138,6 +141,12 @@ class CompositionPlan:
             raise ValueError("position_y must be between zero and one")
         if self.crop_ratio is not None and not 0.0 < float(self.crop_ratio) <= 1.0:
             raise ValueError("crop_ratio must be greater than zero and at most one")
+        if self.crop_box is not None:
+            box = tuple(float(value) for value in self.crop_box)
+            # Horizontal values may extend past the source: the renderer fills those sides.
+            if len(box) != 4 or not (-0.5 <= box[0] < box[2] <= 1.5 and 0.0 <= box[1] < box[3] <= 1.0):
+                raise ValueError("crop_box must be ordered ratios within the source image")
+            object.__setattr__(self, "crop_box", box)
         object.__setattr__(self, "protected_regions", tuple(self.protected_regions))
         object.__setattr__(self, "risk_flags", tuple(str(item) for item in self.risk_flags))
         object.__setattr__(self, "evidence", dict(self.evidence))

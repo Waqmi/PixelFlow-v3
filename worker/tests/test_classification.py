@@ -190,7 +190,7 @@ class ClassificationAdapterTests(unittest.TestCase):
         stages: list[tuple[str, int, int, Path]] = []
 
         class FakeService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None):
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
                 return {}
 
             def segment(self, _root, _source):
@@ -214,13 +214,13 @@ class ClassificationAdapterTests(unittest.TestCase):
             [(0, 1), (0, 1), (1, 1), (1, 1)],
         )
 
-    def test_homogeneous_detail_folder_uses_pose_samples(self) -> None:
+    def _sampled_detail_folder(self, model_indexes: set[int]) -> tuple[list[Path], dict, list[Path]]:
         adapter = V26ClassifierAdapter()
         adapter._load_classifier()
         from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
 
         folder = Path("素材")
-        sources = [folder / f"image-{index}.jpg" for index in range(5)]
+        sources = [folder / f"image-{index:02d}.jpg" for index in range(12)]
         decisions = {
             source: SourceTypeDecision("detail", 0.86, "rules", "edge")
             for source in sources
@@ -228,20 +228,34 @@ class ClassificationAdapterTests(unittest.TestCase):
         calls = []
 
         class FakeService:
-            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None, segmentation=None):
                 calls.append(source)
                 return {}
 
-        def promote(decision, _composition, _category):
-            return type(decision)("model", 0.9, "mock_pose", "sample")
+        def resolve(decision, _composition, _category):
+            source = calls[-1]
+            if int(source.stem.split("-")[1]) in model_indexes:
+                return type(decision)("model", 0.9, "mock_pose", "sample")
+            return decision
 
         with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch(
             "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
-        ), patch("pixelflow_core.legacy_engine.local_model_assistant.resolve_model_source_type", side_effect=promote):
+        ), patch("pixelflow_core.legacy_engine.local_model_assistant.resolve_model_source_type", side_effect=resolve):
             adapter._apply_optional_models(decisions, "/tmp/models", "shirt", None)
+        return sources, decisions, calls
 
-        self.assertEqual(len(calls), 2)
-        self.assertTrue(all(decision.source_type == "model" for decision in decisions.values()))
+    def test_detail_folder_samples_five_images_evenly(self) -> None:
+        sources, decisions, calls = self._sampled_detail_folder(set())
+        # 12 images -> indexes 0, 3, 6, 8, 11 (both ends included).
+        self.assertEqual([source.name for source in calls], [f"image-{index:02d}.jpg" for index in (0, 3, 6, 8, 11)])
+        self.assertTrue(all(decision.source_type == "detail" for decision in decisions.values()))
+
+    def test_model_sample_runs_pose_for_every_sibling(self) -> None:
+        sources, decisions, calls = self._sampled_detail_folder({6, 7})
+        # Every image is checked individually; no sibling inherits a plan-less label.
+        self.assertEqual(sorted(calls), sorted(sources))
+        self.assertEqual(decisions[sources[7]].source_type, "model")
+        self.assertEqual(decisions[sources[1]].source_type, "detail")
 
     def test_shoe_risk_from_nested_size_plan_is_promoted_to_metadata(self) -> None:
         adapter = V26ClassifierAdapter()
@@ -266,7 +280,7 @@ class ClassificationAdapterTests(unittest.TestCase):
         }
 
         class FakeService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None):
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
                 return composition
 
         decisions = {

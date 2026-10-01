@@ -84,7 +84,7 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
 
     def test_native_model_facade_emits_typed_plan(self) -> None:
         class FakeModelService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None):
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
                 return {
                     "model_view": "lower_body",
                     "confidence": 0.92,
@@ -138,6 +138,64 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertIn("1440x1440", decision.composition_plans)
         self.assertFalse(decision.composition_plans["1440x1440"].fallback)
 
+    def test_native_model_facade_emits_typed_plan_for_non_shoe_models(self) -> None:
+        class FakeModelService:
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
+                return {
+                    "model_view": "upper_body",
+                    "confidence": 0.92,
+                    "person_count": 1,
+                    "person_bboxes": [[10, 10, 90, 95]],
+                    "body_visibility": {
+                        "upper_body": True,
+                        "visible_keypoints": 6,
+                        "person_box_height_ratio": 0.85,
+                        "pose_geometry_score": 0.8,
+                        "relief_score": 0.8,
+                    },
+                    "by_size": {
+                        "1440x1440": {
+                            "composition_mode": "zoom_focus",
+                            "scale_adjustment_percent": 25,
+                            "target_crop_height_ratio": 0.7,
+                            "position_x": 0.4,
+                            "position_y": 0.45,
+                            "protected_crop_bbox": [10, 10, 90, 80],
+                        }
+                    },
+                }
+
+            def segment(self, _root, _source):
+                return {
+                    "available": True,
+                    "confidence": 0.8,
+                    "mask_area_ratio": 0.2,
+                    "mask_edge_ratio": 0.1,
+                }
+
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "上衣"
+            product.mkdir()
+            source = product / "model.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            request = ClassificationRequest(
+                product,
+                local_model_enabled=True,
+                local_model_path=str(Path(root) / "models"),
+                category="shirt",
+            )
+            with patch("pixelflow_core.model_service.configured_model_candidates", return_value=(Path("model.onnx"),)), patch(
+                "pixelflow_core.model_service.get_model_process_service", return_value=FakeModelService()
+            ):
+                decision = V3ClassifierAdapter().classify(request)[0]
+
+        plan = decision.composition_plans["1440x1440"]
+        self.assertAlmostEqual(plan.scale, 1.25)
+        self.assertEqual(plan.position_x, 0.4)
+        self.assertEqual(plan.position_y, 0.45)
+        self.assertEqual(plan.crop_ratio, 0.7)
+        self.assertEqual(plan.protected_regions[0].bbox, (10.0, 10.0, 90.0, 80.0))
+        self.assertFalse(plan.fallback)
 
 if __name__ == "__main__":
     unittest.main()

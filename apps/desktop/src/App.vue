@@ -55,6 +55,7 @@ interface ReportSnapshot {
 }
 
 interface ConfirmSnapshot {
+  inputRoot: string
   materials: MaterialDecision[]
   excludedModelSources: string[]
   scaleAdjustments: Record<string, number>
@@ -197,7 +198,7 @@ let previewScrollRoot: HTMLElement | undefined
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 const appVersion = '3.0.0-beta.1'
 const expectedWorkerVersion = appVersion
-const expectedRulesVersion = 'v3-composition-1'
+const expectedRulesVersion = 'v3-composition-6'
 const workerVersion = ref(expectedWorkerVersion)
 const workerBuildHash = ref('')
 const workerRulesVersion = ref(expectedRulesVersion)
@@ -207,9 +208,33 @@ const expectedModels = {
   pose: { label: 'Pose', filename: 'pose/yolo11n-pose.onnx', sha256: '86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8' },
   segmentation: { label: 'Seg', filename: 'segmentation/yolo11n-seg.onnx', sha256: '52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55' },
 } as const
-const modelFallbackWarning = computed(() => Object.keys(expectedModels).some((key) => modelDiagnostics.value[key]?.state !== '已就绪'))
+const modelFallbackWarning = computed(() => {
+  if (!localModelEnabled.value || !localModelPath.value.trim() || modelTesting.value) return false
+  return Object.keys(expectedModels).some((key) => modelDiagnostics.value[key]?.state !== '已就绪')
+})
 const modelDiagnosticRows = computed(() => (['pose', 'segmentation'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
 const modelConfirmFallbackWarning = computed(() => localModelEnabled.value && materials.value.some((material) => material.metadata?.fallback === true || material.metadata?.model_status === 'fallback'))
+const classificationModelStatus = computed(() => {
+  if (!localModelEnabled.value || !localModelPath.value.trim()) return 'Pose：未启用；Seg：未启用'
+  const statusCount = (key: 'pose_evidence' | 'segmentation_evidence') => {
+    const counts = { ready: 0, fallback: 0, not_run: 0 }
+    materials.value.forEach((material) => {
+      const metadata = material.metadata as Record<string, unknown> | undefined
+      const evidence = metadata?.[key]
+      const status = String(evidence && typeof evidence === 'object' && 'status' in evidence
+        ? (evidence as { status?: unknown }).status || 'not_run'
+        : 'not_run')
+      if (status === 'ready') counts.ready += 1
+      else if (status === 'fallback') counts.fallback += 1
+      else counts.not_run += 1
+    })
+    return counts
+  }
+  const pose = statusCount('pose_evidence')
+  const seg = statusCount('segmentation_evidence')
+  const label = (value: typeof pose) => value.fallback ? `回退 ${value.fallback}` : value.ready ? `完成 ${value.ready}` : '未运行'
+  return `Pose：${label(pose)}；Seg：${label(seg)}`
+})
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
@@ -242,6 +267,7 @@ const resultShortcuts = computed(() => [
 const failures = computed(() => Array.isArray(lastResult.value.failures) ? lastResult.value.failures as Record<string, unknown>[] : [])
 const reviewItems = computed(() => Array.isArray(lastResult.value.requires_review) ? lastResult.value.requires_review as Record<string, unknown>[] : [])
 const fallbackItems = computed(() => Array.isArray(lastResult.value.fallback_items) ? lastResult.value.fallback_items as Record<string, unknown>[] : [])
+const skippedOutputs = computed(() => Array.isArray(lastResult.value.skipped_outputs) ? lastResult.value.skipped_outputs as { source: string, sizes: string[], reason: string }[] : [])
 const acceptedReviewSources = computed(() => Array.isArray(lastResult.value.accepted_review_sources) ? lastResult.value.accepted_review_sources as string[] : [])
 const materialTypeLabels: Record<MaterialType, string> = {
   main_product: '商品白底图', detail: '细节图', model_detail: '模特细节图', model: '模特图',
@@ -302,9 +328,13 @@ async function openSettings() {
   }
   const existing = await WebviewWindow.getByLabel('settings')
   if (existing) {
-    await existing.show()
-    await existing.setFocus()
-    return
+    const visible = await existing.isVisible().catch(() => true)
+    if (visible) {
+      await existing.show()
+      await existing.setFocus()
+      return
+    }
+    await existing.close().catch(() => {})
   }
   const settingsWindow = new WebviewWindow('settings', {
     url: '/?view=settings',
@@ -319,6 +349,7 @@ async function openSettings() {
     shadow: true,
     theme: darkMode.value ? 'dark' : 'light',
     titleBarStyle: 'visible',
+    backgroundColor: darkMode.value ? '#1b1f24' : '#f5f7fa',
   })
   settingsWindow.once('tauri://error', () => { status.value = '设置窗口打开失败' })
 }
@@ -374,6 +405,7 @@ async function openReportWindow() {
     shadow: true,
     theme: darkMode.value ? 'dark' : 'light',
     titleBarStyle: 'visible',
+    backgroundColor: darkMode.value ? '#1b1f24' : '#f5f7fa',
   })
   reportWindow.once('tauri://error', () => { reportNotice.value = '报告窗口打开失败' })
 }
@@ -393,6 +425,7 @@ function showReport() {
 
 function confirmSnapshot(): ConfirmSnapshot {
   return {
+    inputRoot: inputRoot.value,
     materials: materials.value.map(({ previewUrl: _previewUrl, previewFailed: _previewFailed, previewLoading: _previewLoading, ...material }) => material),
     excludedModelSources: [...excludedModelSources.value],
     scaleAdjustments: { ...scaleAdjustments.value },
@@ -414,6 +447,8 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
     return
   }
   if (isConfirmWindow) appliedConfirmSnapshotKey = snapshotKey
+  inputRoot.value = snapshot.inputRoot || inputRoot.value
+  classifiedInputRoot.value = snapshot.inputRoot || classifiedInputRoot.value
   const previousMaterials = new Map(materials.value.map((material) => [material.source, material]))
   materials.value = Array.isArray(snapshot.materials)
     ? snapshot.materials.map((material) => {
@@ -485,6 +520,7 @@ async function openConfirmWindow() {
     shadow: true,
     theme: darkMode.value ? 'dark' : 'light',
     titleBarStyle: 'visible',
+    backgroundColor: darkMode.value ? '#1b1f24' : '#f5f7fa',
   })
   confirmWindow.once('tauri://created', () => {
     void centerWindowOnMain(confirmWindow, 1220, 780)
@@ -1071,6 +1107,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       taskPhase.value = '准备就绪'
       taskDetail.value = '准备就绪'
     }
+    if (isSettingsWindow && !modelTesting.value && localModelEnabled.value && localModelPath.value.trim()) probeModels()
   } else if (message.type === 'status' && message.request_id === classificationRequestId.value) {
     classificationRunning.value = true
     status.value = '正在分析素材'
@@ -1096,6 +1133,9 @@ function handleWorkerMessage(message: WorkerMessage) {
     } else if (phase === 'Seg') {
       classificationProgress.value = total ? 850 + Math.round((completed / total) * 150) : 850
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
+    } else if (phase === 'Pose/Seg') {
+      classificationProgress.value = total ? 400 + Math.round((completed / total) * 600) : 400
+      taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
       classificationProgress.value = total ? Math.round((completed / total) * 400) : 0
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
@@ -1649,7 +1689,7 @@ function startGeneration() {
     <div v-if="confirmOpen" class="settings-backdrop confirmation-backdrop" @click.self="dismissMaterialConfirmation">
       <section class="page-dialog panel confirmation-dialog" role="dialog" aria-modal="true" aria-label="素材确认">
         <div class="settings-header"><div><p class="eyebrow">CONFIRMATION</p><h2>确认素材分类 · {{ materials.length }} 张</h2><p>核对 v2.6 的自动识别结果，必要时调整分类、跳过模特素材或修改商品主体比例。</p></div><button class="modal-close" aria-label="关闭确认页" @click="dismissMaterialConfirmation">×</button></div>
-        <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
+        <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div ref="confirmGridElement" class="confirm-grid"><article v-for="material in materials" :key="material.source" :ref="(element) => setPreviewElement(material, element)" class="confirm-card">
           <div class="confirm-preview"><img v-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
@@ -1664,9 +1704,10 @@ function startGeneration() {
     <div v-if="reportOpen" class="settings-backdrop" @click.self="closeReport()">
       <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告">
         <div class="report-header"><div class="report-success-icon">✓</div><div><p class="eyebrow">PIXELFLOW · 批量任务</p><h2>{{ resultCancelled ? '已安全停止' : '生成完成' }}</h2><p>{{ resultCancelled ? '已保留已完成的输出；未开始的任务不会继续处理。' : '输出已整理完成，可直接打开文件夹检查结果。' }}</p></div></div>
-        <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div><div><b>{{ acceptedReviewSources.length }}</b><small>已接受复核</small></div><div><b>{{ fallbackItems.length }}</b><small>兼容回退</small></div></div>
+        <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div></div>
         <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
         <p v-if="lastResult.incremental_skipped" class="report-cache-hint">检测到素材和设置均未变化，本次已复用上次输出。</p><p v-else-if="Number(lastResult.incremental_reused || 0) > 0" class="report-cache-hint">本次复用 {{ lastResult.incremental_reused }} 张未变化素材，其余素材已重新生成。</p>
+        <div v-if="skippedOutputs.length" class="review-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
         <div v-if="failures.length" class="report-failures">有 {{ failures.length }} 项失败素材；成功输出已保留，可在后续任务中重试。</div>
         <div class="page-actions report-actions"><div class="report-actions-left"><button class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="reviewItems.length || fallbackItems.length" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" class="outline-button" @click="retryFailures()">仅重试失败项</button><button class="outline-button" @click="closeReport">完成</button></div></div>
       </section>

@@ -22,7 +22,7 @@ CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 CACHE_DIR_NAME = "PixelFlow/model-results"
 # Bump whenever crop/composition metadata changes.
 CACHE_VERSION = 8
-COMPOSITION_RULES_VERSION = "v3-composition-1"
+COMPOSITION_RULES_VERSION = "v3-composition-6"
 
 
 def model_cache_dir() -> Path:

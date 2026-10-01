@@ -13,9 +13,26 @@ from pathlib import Path
 
 from PIL import Image
 
-from pixelflow_core.contracts import RenderResult
+from pixelflow_core.contracts import CompositionPlan, RenderResult
 from pixelflow_core.engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 from pixelflow_core.worker import WorkerRuntime, _generation_request
+
+_manifest_dir = tempfile.TemporaryDirectory()
+_manifest_patch = patch(
+    "pixelflow_core.engine._v3_manifest_path",
+    lambda output_root: Path(_manifest_dir.name)
+    / f"{abs(hash(str(output_root.resolve(strict=False))))}.json",
+)
+
+
+def setUpModule() -> None:
+    # Keep V3 stale-cleanup manifests out of the real user cache.
+    _manifest_patch.start()
+
+
+def tearDownModule() -> None:
+    _manifest_patch.stop()
+    _manifest_dir.cleanup()
 
 
 class EngineAdapterTests(unittest.TestCase):
@@ -59,6 +76,214 @@ class EngineAdapterTests(unittest.TestCase):
         self.assertEqual(resource_root.name, "resources")
         self.assertNotIn("legacy_engine", resource_root.parts)
         self.assertTrue((resource_root / "新logo 1440.png").is_file())
+
+    def test_v3_submits_one_batch_task_per_source(self) -> None:
+        class BatchRenderer:
+            def __init__(self) -> None:
+                self.batches = []
+
+            def render_source_batch(self, requests):
+                requests = tuple(requests)
+                self.batches.append(requests)
+                results = []
+                for request in requests:
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(
+                        RenderResult(
+                            source=request.source,
+                            outputs=(str(output),),
+                            mode="v3",
+                            metadata={"size": request.size},
+                        )
+                    )
+                return tuple(results), {"total_seconds": 0.01}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "sample.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            renderer = BatchRenderer()
+            result = V3EngineAdapter(renderer=renderer).run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440", "1440x1920"),
+                    include_logo=True,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "main_product"},
+                    mode="v3",
+                )
+            )
+        self.assertEqual(len(renderer.batches), 1)
+        self.assertEqual(len(renderer.batches[0]), 5)  # 2 sizes × 2 logos + VIP
+        self.assertEqual(result["failures"], [])
+
+    def test_v3_progress_counts_actual_output_files(self) -> None:
+        class BatchRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3", metadata={"size": request.size}))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        progress = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "sample.png"
+            Image.new("RGBA", (32, 32), (255, 0, 0, 255)).save(source)
+            result = V3EngineAdapter(renderer=BatchRenderer()).run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440",),
+                    include_logo=True,
+                    include_vip=True,
+                    include_model_images=False,
+                    source_type_overrides={str(source): "main_product"},
+                    mode="v3",
+                ),
+                progress=lambda completed, total, phase: progress.append((completed, total, phase)),
+            )
+        self.assertEqual(result["validation"]["passed"], 7)  # 2 main + VIP + 4 transparent
+        self.assertEqual(progress[0], (0, 7, "准备生成"))
+        self.assertEqual(progress[-1][:2], (7, 7))
+
+    def test_v3_vip_uses_square_model_plan(self) -> None:
+        class BatchRenderer:
+            def __init__(self) -> None:
+                self.requests = []
+
+            def render_source_batch(self, requests):
+                requests = tuple(requests)
+                self.requests.extend(requests)
+                results = []
+                for request in requests:
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3", metadata={"size": request.size}))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            renderer = BatchRenderer()
+            result = V3EngineAdapter(renderer=renderer).run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440", "1440x1920"),
+                    include_logo=False,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "model"},
+                    composition_plans=(
+                        CompositionPlan(source=str(source), size="1440x1440", crop_ratio=0.6),
+                        CompositionPlan(source=str(source), size="1440x1920", crop_ratio=0.8),
+                    ),
+                    mode="v3",
+                )
+            )
+        self.assertEqual(result["failures"], [])
+        vip = next(request for request in renderer.requests if request.output_kind == "vip")
+        self.assertIsNotNone(vip.plan)
+        self.assertEqual(vip.plan.size, "1440x1440")
+        self.assertAlmostEqual(vip.plan.crop_ratio, 0.6)
+
+    def test_v3_skipped_plan_drops_size_and_vip(self) -> None:
+        class BatchRenderer:
+            def __init__(self) -> None:
+                self.requests = []
+
+            def render_source_batch(self, requests):
+                requests = tuple(requests)
+                self.requests.extend(requests)
+                results = []
+                for request in requests:
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3", metadata={"size": request.size}))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            output_root = Path(temp_dir) / "output"
+            stale = output_root / "模特图" / "1440x1440" / "含Logo" / "model_jpg.jpg"
+            stale.parent.mkdir(parents=True)
+            stale.write_bytes(b"old")
+            renderer = BatchRenderer()
+            result = V3EngineAdapter(renderer=renderer).run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=output_root,
+                    selected_sizes=("1440x1440", "1440x1920"),
+                    include_logo=False,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "model"},
+                    composition_plans=(
+                        CompositionPlan(
+                            source=str(source), size="1440x1440", composition_mode="skipped",
+                            evidence={"skip_reason": "背景不适合补边"},
+                        ),
+                        CompositionPlan(source=str(source), size="1440x1920", crop_ratio=0.8),
+                    ),
+                    mode="v3",
+                )
+            )
+        self.assertEqual(result["failures"], [])
+        self.assertEqual([request.size for request in renderer.requests], ["1440x1920"])
+        self.assertEqual(
+            result["skipped_outputs"],
+            [{"source": str(source), "sizes": ["1440x1440", "唯品专享1440"], "reason": "背景不适合补边"}],
+        )
+        self.assertFalse(stale.exists())
+
+    def test_v3_does_not_emit_vip_without_square_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            result = V3EngineAdapter().run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1920",),
+                    include_logo=False,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "model"},
+                    mode="v3",
+                )
+            )
+        self.assertEqual(result["vip_images"], 0)
 
     def test_v3_adapter_routes_emitted_files_through_typed_renderer(self) -> None:
         calls = []
@@ -118,6 +343,119 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(result["model_images"], 1)
             self.assertTrue(any("模特图" in path for path in result["outputs"]))
 
+    def test_v3_reuses_complete_confirmation_overrides_without_reclassification(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            request = GenerationRequest(
+                product_root=source_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=True,
+                source_type_overrides={str(source): "model"},
+                source_metadata_overrides={str(source): {"category": "shirt"}},
+                mode="v3",
+            )
+            with patch(
+                "pixelflow_core.v3_classification.V3ClassifierAdapter.classify",
+                side_effect=AssertionError("confirmed sources must not be classified again"),
+            ):
+                result = V3EngineAdapter().run(request)
+            self.assertEqual(result["model_images"], 1)
+
+    def test_v3_skips_excluded_or_disabled_model_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            base = dict(
+                product_root=source_root,
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=True,
+                source_type_overrides={str(source): "model"},
+                mode="v3",
+            )
+            excluded = V3EngineAdapter().run(
+                GenerationRequest(
+                    output_root=Path(temp_dir) / "excluded",
+                    include_model_images=True,
+                    excluded_model_sources={str(source)},
+                    **base,
+                )
+            )
+            disabled = V3EngineAdapter().run(
+                GenerationRequest(
+                    output_root=Path(temp_dir) / "disabled",
+                    include_model_images=False,
+                    **base,
+                )
+            )
+            for result in (excluded, disabled):
+                self.assertEqual(result["main_images"], 0)
+                self.assertEqual(result["model_images"], 0)
+                self.assertEqual(result["vip_images"], 0)
+                self.assertEqual(result["failures"], [])
+
+    def test_v3_vip_includes_model_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "运动鞋"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            output_root = Path(temp_dir) / "output"
+            result = V3EngineAdapter().run(
+                GenerationRequest(
+                    product_root=source_root,
+                    output_root=output_root,
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "model"},
+                    mode="v3",
+                )
+            )
+            self.assertEqual(result["model_images"], 1)
+            self.assertEqual(result["vip_images"], 1)
+            self.assertTrue((output_root / "模特图" / "1440x1440" / "无Logo" / "素材_01.jpg").is_file())
+            self.assertTrue((output_root / "唯品专享1440" / "无Logo" / "素材_01.jpg").is_file())
+
+    def test_v3_model_folders_get_distinct_short_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            first = product_root / "模特图"
+            second = product_root / "模特图2"
+            first.mkdir(parents=True)
+            second.mkdir()
+            first_source = first / "one.jpg"
+            second_source = second / "two.jpg"
+            Image.new("RGB", (32, 32), "white").save(first_source)
+            Image.new("RGB", (32, 32), "white").save(second_source)
+            output_root = Path(temp_dir) / "output"
+            result = V3EngineAdapter().run(
+                GenerationRequest(
+                    product_root=product_root,
+                    output_root=output_root,
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=True,
+                    include_model_images=True,
+                    source_type_overrides={str(first_source): "model", str(second_source): "model"},
+                    mode="v3",
+                )
+            )
+            self.assertEqual(result["model_images"], 2)
+            self.assertEqual(result["vip_images"], 2)
+            self.assertEqual(len(result["outputs"]), 4)
+            self.assertTrue((output_root / "模特图" / "1440x1440" / "无Logo" / "素材_01.jpg").is_file())
+            self.assertTrue((output_root / "模特图" / "1440x1440" / "无Logo" / "素材_2_01.jpg").is_file())
+
     def test_v3_reuses_existing_outputs_without_scope_skip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"
@@ -175,6 +513,70 @@ class EngineAdapterTests(unittest.TestCase):
                 rerendered_pixel = rerendered.getpixel((720, 720))
             self.assertFalse(rerendered_pixel[2] > 200 and rerendered_pixel[0] < 20 and rerendered_pixel[1] < 20)
             self.assertEqual(forced["incremental_reused"], 0)
+
+    def test_v3_removes_only_previously_generated_stale_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGB", (32, 32), "white").save(product_root / "sample.jpg")
+            output_root = Path(temp_dir) / "output"
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=output_root,
+                selected_sizes=("1440x1440", "1440x1920"),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            first = adapter.run(request)
+            self.assertEqual(len(first["outputs"]), 2)
+            dropped = [path for path in first["outputs"] if "1440x1920" in path]
+            self.assertEqual(len(dropped), 1)
+            # A file PixelFlow never generated, placed inside a generated category.
+            user_file = output_root / "模特图" / "1440x1440" / "无Logo" / "用户自己的图.jpg"
+            user_file.parent.mkdir(parents=True)
+            Image.new("RGB", (1440, 1440), "black").save(user_file)
+
+            second = adapter.run(replace(request, selected_sizes=("1440x1440",)))
+            self.assertEqual(second["stale_outputs_removed"], 1)
+            self.assertFalse(Path(dropped[0]).exists())
+            self.assertTrue(user_file.exists())
+            self.assertEqual(len(list(output_root.rglob("*.jpg"))), 2)
+
+    def test_v3_retry_does_not_delete_and_keeps_manifest_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            first_source = product_root / "a.jpg"
+            second_source = product_root / "b.jpg"
+            Image.new("RGB", (32, 32), "white").save(first_source)
+            Image.new("RGB", (32, 32), "white").save(second_source)
+            output_root = Path(temp_dir) / "output"
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=output_root,
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                mode="v3",
+            )
+            adapter = V3EngineAdapter()
+            first = adapter.run(request)
+            self.assertEqual(len(first["outputs"]), 2)
+
+            retry = adapter.run(replace(request, source_filter={str(first_source)}))
+            self.assertEqual(retry["stale_outputs_removed"], 0)
+            self.assertTrue(all(Path(path).is_file() for path in first["outputs"]))
+
+            # The retry must not shrink the record: removing a source later
+            # still cleans up its earlier output.
+            second_source.unlink()
+            final = adapter.run(request)
+            self.assertEqual(final["stale_outputs_removed"], 1)
+            self.assertEqual(len(list(output_root.rglob("*.jpg"))), 1)
 
     def test_v3_reuse_keeps_png_transparent_counts_after_vip_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -459,6 +861,112 @@ class EngineAdapterTests(unittest.TestCase):
 
         self.assertEqual(len(captured), 1)
         self.assertEqual(captured[0].plan.source, "sample.jpg")
+
+    def test_v3_plan_parser_accepts_model_composition_shape(self) -> None:
+        source = Path("/tmp/model.jpg")
+        plan = V3EngineAdapter._plan(
+            {
+                "composition_mode": "zoom_focus",
+                "scale_adjustment_percent": 25,
+                "position_x": 0.4,
+                "position_y": 0.6,
+                "target_crop_height_ratio": 0.7,
+                "protected_crop_bbox": [10, 20, 90, 160],
+            },
+            source,
+            "1440x1440",
+        )
+        assert plan is not None
+        self.assertAlmostEqual(plan.scale, 1.25)
+        self.assertEqual(plan.crop_ratio, 0.7)
+        self.assertEqual(plan.protected_regions[0].bbox, (10.0, 20.0, 90.0, 160.0))
+
+    def test_v3_replays_model_plan_from_source_metadata_override(self) -> None:
+        captured = []
+
+        class CaptureRenderer:
+            def render(self, typed_request):
+                captured.append(typed_request)
+                output = Path(typed_request.output_path)
+                output.parent.mkdir(parents=True, exist_ok=True)
+                Image.new("RGB", (1440, 1440), "white").save(output)
+                return RenderResult(source=typed_request.source, outputs=(str(output),), mode="v3")
+
+            def validate_existing(self, typed_request):
+                return RenderResult(source=typed_request.source, outputs=(str(typed_request.output_path),), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "product"
+            product_root.mkdir()
+            source = product_root / "model.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            V3EngineAdapter(renderer=CaptureRenderer()).run(
+                GenerationRequest(
+                    product_root=product_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=False,
+                    include_model_images=True,
+                    source_type_overrides={str(source): "model"},
+                    source_metadata_overrides={
+                        str(source): {
+                            "by_size": {
+                                "1440x1440": {
+                                    "composition_mode": "zoom_focus",
+                                    "scale_adjustment_percent": 50,
+                                    "target_crop_height_ratio": 0.7,
+                                    "protected_crop_bbox": [10, 20, 90, 160],
+                                }
+                            }
+                        }
+                    },
+                    mode="v3",
+                )
+            )
+
+        self.assertEqual(len(captured), 1)
+        self.assertAlmostEqual(captured[0].plan.scale, 1.5)
+        self.assertEqual(captured[0].plan.crop_ratio, 0.7)
+        self.assertEqual(captured[0].plan.protected_regions[0].bbox, (10.0, 20.0, 90.0, 160.0))
+
+    def test_v3_forwards_product_scale_adjustment_to_render_request(self) -> None:
+        captured = []
+
+        class CaptureRenderer:
+            def render_source_batch(self, requests):
+                requests = tuple(requests)
+                captured.extend(requests)
+                results = []
+                for request in requests:
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3", metadata={"size": request.size}))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "product"
+            product_root.mkdir()
+            source = product_root / "product.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            V3EngineAdapter(renderer=CaptureRenderer()).run(
+                GenerationRequest(
+                    product_root=product_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=False,
+                    source_type_overrides={str(source): "main_product"},
+                    source_scale_adjustments={str(source): 50},
+                    mode="v3",
+                )
+            )
+        self.assertEqual(len(captured), 1)
+        self.assertAlmostEqual(float(captured[0].metadata["source_scale_adjustment"]), 50.0)
 
     def test_v3_failure_falls_back_to_legacy_output(self) -> None:
         class LegacyAdapter:

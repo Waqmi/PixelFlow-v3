@@ -26,7 +26,7 @@ from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAd
 
 
 WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0-beta.1")
-RULES_VERSION = "v3-composition-1"
+RULES_VERSION = "v3-composition-6"
 
 
 def _worker_build_hash() -> str:
