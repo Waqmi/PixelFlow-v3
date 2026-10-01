@@ -13,6 +13,11 @@ use std::{
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
+#[cfg(target_os = "macos")]
+use objc2::MainThreadMarker;
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSModalResponseOK, NSOpenPanel};
+
 const MAX_RESTARTS: usize = 3;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 const RESTART_BACKOFF: [Duration; MAX_RESTARTS] = [
@@ -94,6 +99,33 @@ fn validate_preview_request(guard: &WorkerSupervisor, message: &Value) -> Result
         .ok_or_else(|| "preview path is outside the allowed scope".to_string())
 }
 
+#[cfg(target_os = "macos")]
+fn native_open_panel(app: &AppHandle, choose_directory: bool) -> Result<Option<String>, String> {
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    app.run_on_main_thread(move || {
+        let result = (|| {
+            let marker = MainThreadMarker::new().ok_or_else(|| "主线程不可用".to_string())?;
+            let panel = NSOpenPanel::openPanel(marker);
+            panel.setCanChooseDirectories(choose_directory);
+            panel.setCanChooseFiles(!choose_directory);
+            panel.setAllowsMultipleSelection(false);
+            if panel.runModal() != NSModalResponseOK {
+                return Ok(None);
+            }
+            Ok(panel
+                .URLs()
+                .firstObject()
+                .and_then(|url| url.path())
+                .map(|path| path.to_string()))
+        })();
+        let _ = sender.send(result);
+    })
+    .map_err(|error| format!("native file picker failed: {error}"))?;
+    receiver
+        .recv_timeout(Duration::from_secs(300))
+        .map_err(|_| "native file picker timed out".to_string())?
+}
+
 #[tauri::command]
 fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
@@ -133,7 +165,7 @@ fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String
 }
 
 #[tauri::command]
-fn pick_directory(state: State<'_, WorkerState>) -> Result<Option<String>, String> {
+fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
         if let Some(path) = &path {
             if let Ok(mut guard) = state.0.lock() {
@@ -144,14 +176,7 @@ fn pick_directory(state: State<'_, WorkerState>) -> Result<Option<String>, Strin
     };
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("osascript")
-            .args(["-e", "POSIX path of (choose folder with prompt \"选择文件夹\")"])
-            .output()
-            .map_err(|error| format!("directory picker failed: {error}"))?;
-        if output.status.success() {
-            return Ok(remember(Some(String::from_utf8_lossy(&output.stdout).trim().to_string())));
-        }
-        return Ok(None);
+        return Ok(remember(native_open_panel(&app, true)?));
     }
     #[cfg(target_os = "windows")]
     {
@@ -162,7 +187,7 @@ fn pick_directory(state: State<'_, WorkerState>) -> Result<Option<String>, Strin
 }
 
 #[tauri::command]
-fn pick_file(key: String, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
+fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
         if let Some(path) = &path {
             if let Ok(mut guard) = state.0.lock() {
@@ -173,12 +198,7 @@ fn pick_file(key: String, state: State<'_, WorkerState>) -> Result<Option<String
     };
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("osascript")
-            .args(["-e", "POSIX path of (choose file with prompt \"选择 PNG Logo\" of type {\"public.png\"})"])
-            .output()
-            .map_err(|error| format!("file picker failed: {error}"))?;
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if let Some(path) = native_open_panel(&app, false)? {
             validate_logo(&path, &key)?;
             return Ok(remember(Some(path)));
         }

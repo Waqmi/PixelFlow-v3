@@ -20,7 +20,8 @@
         "height": 848,
         "minWidth": 900,
         "minHeight": 768,
-        "resizable": true
+        "resizable": true,
+        "backgroundColor": "#f5f7fa"
       }
     ]
   },
