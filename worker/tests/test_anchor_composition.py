@@ -8,7 +8,9 @@ from PIL import Image
 from pixelflow_core.contracts import CompositionPlan, RenderRequest
 from pixelflow_core.model_assistant import (
     ANCHOR_EDGE_MARGIN,
+    ANCHOR_WAIST_ABOVE_HIP,
     ANCHOR_MAX_GROWTH,
+    ANCHOR_SHORTS_BELOW_KNEE,
     ANCHOR_SHOE_FILL,
     ANCHOR_SHOE_FILL_MAX,
     LocalDetectionAssistant,
@@ -162,7 +164,7 @@ class AnchorCropTests(unittest.TestCase):
         self.assertAlmostEqual((left + right) / 2, (100.0 + 800.0) / 2, delta=1.0)
 
     def test_unsupported_cases_keep_previous_composition(self) -> None:
-        self.assertIsNone(anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "pants"))
+        self.assertIsNone(anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "hat"))
         no_ankles = {index: point for index, point in STANDING.items() if index not in (15, 16)}
         self.assertIsNone(anchor_crop_box([person(no_ankles)], IMAGE, SQUARE, "shoes"))
 
@@ -220,6 +222,121 @@ class AnchorCropTests(unittest.TestCase):
                 width = (box[2] - box[0]) * IMAGE[0]
                 height = (box[3] - box[1]) * IMAGE[1]
                 self.assertAlmostEqual(width / height, size[0] / size[1], places=2)
+
+
+class PantsAnchorTests(unittest.TestCase):
+    """Waist to sole (long pants) or below the knee (shorts); STANDING: hips 700, knees 1000, ankles 1300, sole 1400."""
+
+    def window(self, result):
+        left, top, right, bottom = result["crop_box"]
+        return left * IMAGE[0], top * IMAGE[1], right * IMAGE[0], bottom * IMAGE[1]
+
+    def legs(self, spread: float = 0.0, **extra):
+        points = {**STANDING, 13: (460 - spread, 1000), 14: (540 + spread, 1000), 15: (470 - spread, 1300), 16: (530 + spread, 1300)}
+        return person(points, **extra)
+
+    def test_waist_above_hips_with_top_margin(self) -> None:
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants")
+        waist = 700.0 - ANCHOR_WAIST_ABOVE_HIP * 300.0
+        self.assertAlmostEqual(result["anchors"]["top"], waist / IMAGE[1], places=3)
+        span = 1400.0 - waist
+        self.assertAlmostEqual(self.window(result)[1], waist - ANCHOR_EDGE_MARGIN * span / (1 - 2 * ANCHOR_EDGE_MARGIN), delta=1.0)
+
+    def test_source_starting_at_the_waist_has_no_top_margin(self) -> None:
+        high = {index: (x, y - 600) for index, (x, y) in STANDING.items() if index >= 11}
+        result = anchor_crop_box([person(high, bbox=(300.0, 0.0, 700.0, 800.0))], IMAGE, SQUARE, "long_pants")
+        self.assertEqual(result["crop_box"][1], 0.0)
+
+    def test_long_pants_end_at_the_sole(self) -> None:
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants", rows(0.1, 0.9333, 0.4, 0.6))
+        self.assertEqual(result["bottom_rule"], "sole")
+        self.assertAlmostEqual(result["anchors"]["bottom"], 1400.0 / IMAGE[1], places=3)
+        self.assertGreater(self.window(result)[3], 1400.0)  # bottom margin
+
+    def test_pants_matches_long_pants_and_cut_feet_use_the_source_bottom(self) -> None:
+        for seg in (None, rows(0.1, 0.9333, 0.4, 0.6)):
+            self.assertEqual(
+                anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "pants", seg),
+                anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants", seg),
+            )
+        cut = {index: point for index, point in STANDING.items() if index < 15}
+        result = anchor_crop_box([person(cut, bbox=(300.0, 100.0, 700.0, 1100.0))], IMAGE, SQUARE, "long_pants")
+        self.assertEqual((result["bottom_rule"], result["anchors"]["bottom"]), ("source", 1.0))
+
+    def test_shorts_end_just_below_the_knee(self) -> None:
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "shorts")
+        self.assertEqual(result["bottom_rule"], "knee")
+        self.assertAlmostEqual(result["anchors"]["bottom"], (1000.0 + ANCHOR_SHORTS_BELOW_KNEE * 300.0) / IMAGE[1], places=3)
+
+    def test_shorts_extend_to_the_calf_then_the_sole_never_between(self) -> None:
+        # Mid-calf is y=1150: a moderate stance needs a hem a little below the knee (calf), a wide one reaches past it.
+        calf = anchor_crop_box([self.legs(160)], IMAGE, SQUARE, "shorts")
+        self.assertEqual(calf["bottom_rule"], "calf")
+        self.assertTrue(1045.0 < calf["anchors"]["bottom"] * IMAGE[1] <= 1150.0)
+        sole = anchor_crop_box([self.legs(260)], IMAGE, SQUARE, "shorts")
+        self.assertEqual(sole["bottom_rule"], "sole")
+        self.assertAlmostEqual(sole["anchors"]["bottom"], 1400.0 / IMAGE[1], places=3)
+        for spread in range(0, 400, 20):
+            bottom = anchor_crop_box([self.legs(spread)], IMAGE, SQUARE, "shorts")["anchors"]["bottom"] * IMAGE[1]
+            self.assertFalse(1150.0 < bottom < 1400.0 - 1.0, (spread, bottom))
+
+    def test_close_ups_without_a_plausible_hip_to_knee_span_are_not_anchored(self) -> None:
+        no_knees = {index: point for index, point in STANDING.items() if index not in (13, 14)}
+        long_thigh = {**STANDING, 13: (460, 1450), 14: (540, 1450)}  # thigh 750px = 50% of the image: still plausible
+        for category in ("long_pants", "pants", "shorts"):
+            self.assertIsNone(anchor_crop_box([person(no_knees)], IMAGE, SQUARE, category))
+            self.assertIsNone(anchor_crop_box([person({**STANDING, 13: (460, 1600), 14: (540, 1600)})], IMAGE, SQUARE, category))
+            self.assertIsNotNone(anchor_crop_box([person(long_thigh)], IMAGE, SQUARE, category))
+
+    def test_raised_knee_keeps_the_anchor(self) -> None:
+        raised = {**STANDING, 13: (460, 600)}  # one knee above the hip
+        self.assertEqual(anchor_crop_box([person(raised)], IMAGE, SQUARE, "long_pants")["bottom_rule"], "sole")
+
+    def test_width_deficit_with_clean_strips_is_filled(self) -> None:
+        # A 2:1 window (waist to sole) is wider than the 2:3 source.
+        wide = anchor_crop_box([self.legs()], IMAGE, (2000, 1000), "long_pants", rows(0.1, 0.9333, 0.4, 0.6))
+        self.assertLess(wide["crop_box"][0], 0.0)
+        self.assertIn("已自动补边", wide["review_reasons"])
+        self.assertAlmostEqual(wide["side_fill"]["strip_left"], 0.4 - 0.003, places=3)
+
+    def test_width_deficit_without_a_gap_is_skipped_and_applied_as_skipped_plan(self) -> None:
+        touching = rows(0.1, 0.9333, 0.005, 0.6)
+        result = anchor_crop_box([self.legs()], IMAGE, (2000, 1000), "long_pants", touching)
+        self.assertEqual(result, {"skip_reason": "原图比例不足，且不适合补边"})
+        by_size = {"s": {"composition_mode": "zoom_focus", "confidence": 0.5}}
+        LocalModelAssistant._apply_anchor_crops(
+            by_size, [self.legs()], IMAGE, {"s": ((2000, 1000), (255, 255, 255))}, "long_pants", touching,
+        )
+        self.assertEqual(by_size["s"]["composition_mode"], "skipped")
+        self.assertEqual(by_size["s"]["evidence"]["skip_reason"], "原图比例不足，且不适合补边")
+
+    def test_no_hips_keeps_the_previous_composition(self) -> None:
+        upper = {index: point for index, point in STANDING.items() if index < 11}
+        for category in ("long_pants", "pants", "shorts"):
+            self.assertIsNone(anchor_crop_box([person(upper)], IMAGE, SQUARE, category))
+
+    def test_raised_foot_starts_at_the_shoulders(self) -> None:
+        planted = (450.0, 1300.0, 560.0, 1400.0)
+        raised = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants", None, [planted, (200.0, 700.0, 400.0, 900.0)])
+        self.assertEqual(raised["top_rule"], "shoulder")
+        self.assertAlmostEqual(raised["anchors"]["top"], 350.0 / IMAGE[1], places=3)
+        self.assertGreater(raised["crop_box"][1], 0.0)  # shoulder margin
+        lifted = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants", None, [planted, (600.0, 1250.0, 700.0, 1350.0)])
+        self.assertEqual(lifted["top_rule"], "waist")
+        shorts = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "shorts", None, [planted, (200.0, 700.0, 400.0, 900.0)])
+        self.assertEqual(shorts["top_rule"], "shoulder")
+
+    def test_raised_foot_without_shoulders_starts_at_the_source_top(self) -> None:
+        no_shoulders = {index: point for index, point in STANDING.items() if index not in (5, 6)}
+        result = anchor_crop_box([person(no_shoulders)], IMAGE, SQUARE, "long_pants", None, [(450.0, 1300.0, 560.0, 1400.0), (200.0, 700.0, 400.0, 900.0)])
+        self.assertEqual((result["top_rule"], result["anchors"]["top"], result["crop_box"][1]), ("source", 0.0, 0.0))
+
+    def test_detector_shoe_box_extends_the_sole_and_width(self) -> None:
+        base = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants")
+        boxed = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "long_pants", None, [(450.0, 1350.0, 800.0, 1460.0)])
+        self.assertAlmostEqual(boxed["anchors"]["bottom"], 1460.0 / IMAGE[1], places=3)
+        self.assertGreaterEqual(self.window(boxed)[2], 800.0)
+        self.assertLess(base["anchors"]["bottom"], boxed["anchors"]["bottom"])
 
 
 class SideFillTests(unittest.TestCase):
@@ -396,6 +513,65 @@ class FillQualityTests(unittest.TestCase):
             self.assertLess((low - filled.min(1)).max(), 12.0)
             self.assertLess((filled.max(1) - high).max(), 12.0)
 
+
+    def test_blob_inside_the_strip_is_not_copied_as_blocks(self) -> None:
+        import numpy as np
+
+        from pixelflow_core.side_fill import extend_side
+
+        rng = np.random.default_rng(3)
+        region = (220.0 + rng.normal(0, 1.5, (600, 200, 3))).astype(np.float32)
+        region[300:308, 100:130] = 250.0  # 30x8 bright blob near the strip's inner edge (right side: inner = left)
+        filled = extend_side(region, 200, 300, "right")
+        self.assertLess(np.abs(filled - 220.0).max(), 12.0)
+
+    def test_line_covering_only_the_inner_half_does_not_streak(self) -> None:
+        import numpy as np
+
+        from pixelflow_core.side_fill import extend_side
+
+        rng = np.random.default_rng(6)
+        region = (220.0 + rng.normal(0, 1.5, (600, 200, 3))).astype(np.float32)
+        region[300:310, :100] = 120.0  # tape end: inner half of the right strip only
+        filled = extend_side(region, 200, 300, "right")
+        self.assertLess(np.abs(filled.mean((1, 2)) - 220.0).max(), 6.0)
+
+    def test_partial_feature_strip_fails_the_gate_and_full_line_passes(self) -> None:
+        from pixelflow_core.side_fill import PARTIAL_MAX_SHARE, strip_partial
+
+        def strip(draw) -> Image.Image:
+            from PIL import ImageDraw
+
+            image = Image.linear_gradient("L").resize((200, 1500)).point(lambda v: 200 + v // 16).convert("RGB")
+            draw(ImageDraw.Draw(image))
+            return image
+
+        self.assertLessEqual(strip_partial(strip(lambda d: None)), PARTIAL_MAX_SHARE)
+        self.assertLessEqual(strip_partial(strip(lambda d: d.rectangle((0, 700, 200, 740), fill=(90, 90, 90)))), PARTIAL_MAX_SHARE)
+        self.assertGreater(strip_partial(strip(lambda d: d.rectangle((0, 700, 100, 740), fill=(90, 90, 90)))), PARTIAL_MAX_SHARE)
+
+    def test_seam_has_no_tone_step_and_grain_matches(self) -> None:
+        import numpy as np
+
+        from pixelflow_core.side_fill import blur_f, extend_side
+
+        rng = np.random.default_rng(8)
+        x = np.arange(240, dtype=np.float32)[None, :, None]
+        y = np.arange(600, dtype=np.float32)[:, None, None]
+        vignette = 150 + 40 * x / 240 - 25 * ((y - 300) / 300) ** 2  # light falloff plus a vertical vignette
+        region = (np.broadcast_to(vignette, (600, 240, 3)) + rng.normal(0, 2.0, (600, 240, 3))).astype(np.float32)
+        sigma = lambda a: 1.4826 * np.median(np.abs((a - blur_f(a, 4)) - np.median(a - blur_f(a, 4))))
+        for side in ("left", "right"):
+            filled = extend_side(region, 200, 240, side)
+            near_source, near_fill, inside = (
+                (region[:, :8], filled[:, -8:], region[:, 8:16]) if side == "left" else (region[:, -8:], filled[:, :8], region[:, -16:-8])
+            )
+            block = lambda a: a.mean(1)
+            step = np.abs(block(near_source) - block(near_fill)).mean()
+            base = np.abs(block(near_source) - block(inside)).mean()
+            self.assertLessEqual(step, 1.5 * base)
+            strip = region[:, :200] if side == "left" else region[:, -200:]
+            self.assertAlmostEqual(sigma(filled) / sigma(strip), 1.0, delta=0.15)
 
     def test_plain_backdrop_gets_no_row_streaks(self) -> None:
         import numpy as np

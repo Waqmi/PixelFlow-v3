@@ -21,6 +21,10 @@ SIZES = {
 }
 
 
+# Categories whose crop uses the shoe detector (shoe or sole extents).
+SHOE_DETECTION_CATEGORIES = frozenset({"shoes", "long_pants", "pants", "shorts"})
+
+
 class ClassificationCancelled(Exception):
     pass
 
@@ -512,6 +516,11 @@ class V26ClassifierAdapter:
 
             pose_models = configured_model_candidates(root_text, "pose")
             pose_model_path = Path(pose_models[0]) if pose_models else None
+            # Shoe detector shapes the shoe and pants compositions, so it keys that cache.
+            detection_models = (
+                configured_model_candidates(root_text, "detection") if category in SHOE_DETECTION_CATEGORIES else []
+            )
+            detection_model_path = Path(detection_models[0]) if detection_models else None
             if pose_sources:
                 # Surface model startup before the first inference so the UI
                 # does not look frozen while the spawned process loads ONNX.
@@ -558,7 +567,7 @@ class V26ClassifierAdapter:
 
             def shoe_detections(source: Path) -> list[list[float]]:
                 """Optional detector boxes of the shoes (source px); empty when off."""
-                if category != "shoes" or detect_shoes is None:
+                if category not in SHOE_DETECTION_CATEGORIES or detect_shoes is None:
                     return []
                 try:
                     return detect_shoes(root_text, source)
@@ -578,6 +587,7 @@ class V26ClassifierAdapter:
                                 "pose",
                                 category,
                                 output_size="all",
+                                detection_model_path=detection_model_path,
                             )
                             if pose_model_path is not None
                             else None
@@ -604,6 +614,7 @@ class V26ClassifierAdapter:
                                     category,
                                     composition,
                                     output_size="all",
+                                    detection_model_path=detection_model_path,
                                 )
                         updated = resolve_model_source_type(decision, composition, category)
                         metadata = _merge_composition_metadata(

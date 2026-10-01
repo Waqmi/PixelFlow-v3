@@ -10,7 +10,7 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageFilter, ImageStat
 
-from .side_fill import STRUCTURE_MAX_SHARE, strip_structure
+from .side_fill import PARTIAL_MAX_SHARE, STRUCTURE_MAX_SHARE, strip_partial, strip_structure
 
 
 @dataclass(frozen=True)
@@ -399,7 +399,7 @@ def knee_pads_protected_region(
 # Anchor composition: shirts span head top to thigh root; shoes are sized by
 # the shoe pair itself. The crop window is derived directly from those anchors
 # instead of growing a protected box by stacked margins.
-ANCHOR_CATEGORIES = frozenset({"shoes", "shirt"})
+ANCHOR_CATEGORIES = frozenset({"shoes", "shirt", "long_pants", "pants", "shorts"})
 ANCHOR_EDGE_MARGIN = 0.04
 ANCHOR_SIDE_MARGIN = 0.03
 ANCHOR_DISAGREEMENT = 0.10
@@ -424,6 +424,18 @@ ANCHOR_FILL_MAX_PAD = 0.25
 ANCHOR_FILL_MARGIN = 0.003
 ANCHOR_FILL_SKIP_REASON = "背景不适合补边"
 ANCHOR_FULL_BODY_SKIP_REASON = "双人全身装不下，且不适合补边"
+# Pants and shorts start above the hips (waist = hip - this share of the thigh,
+# generous so the waistband is never cut). Shorts end this share of the shank
+# below the knee unless the width needs more height. Unlike shirts, a window
+# the source cannot fill is skipped rather than clamped.
+ANCHOR_WAIST_ABOVE_HIP = 0.25
+ANCHOR_SHORTS_BELOW_KNEE = 0.15
+# Hip-to-knee spans longer than this share of the image height are not a whole-leg shot.
+ANCHOR_MAX_THIGH = 0.6
+# A shoe box ending above hip + this share of the hip-to-sole span is a raised foot: the
+# pose model then mislocates the knee, so the window starts at the shoulders.
+ANCHOR_RAISED_FOOT = 0.6
+ANCHOR_PANTS_SKIP_REASON = "原图比例不足，且不适合补边"
 
 
 def _visible_point(detection: PersonDetection, index: int) -> tuple[float, float, float] | None:
@@ -473,9 +485,9 @@ def _side_fill_strips(
 
 
 def side_fill_structure(
-    source: Path, crop_box: list[float], side_fill: dict[str, float],
+    source: Path, crop_box: list[float], side_fill: dict[str, float], measure=strip_structure,
 ) -> dict[str, float]:
-    """Structure share of each strip a side fill would be built from."""
+    """Structure share (``measure``) of each strip a side fill would be built from."""
     result: dict[str, float] = {}
     with Image.open(source) as image:
         width, height = image.size
@@ -485,7 +497,7 @@ def side_fill_structure(
             if strip <= 0:
                 continue
             box = (0, top, strip, bottom) if side == "left" else (width - strip, top, width, bottom)
-            result[side] = strip_structure(image.crop(box))
+            result[side] = measure(image.crop(box))
     return result
 
 
@@ -531,6 +543,167 @@ def _pose_shoe_box(
     return left, right, top, min(knees) if knees else None
 
 
+def _pants_legs(
+    detection: PersonDetection,
+    image_height: float,
+    seg_bottom: float | None,
+) -> tuple[float, float, float, float, bool, float, float | None] | None:
+    """One person's (waist, below_knee, mid_calf, sole, feet_visible, hip, shoulder) in source px, or ``None`` without hips and a knee."""
+    hips = [float(point[1]) for index in (11, 12) if (point := _visible_point(detection, index))]
+    if not hips:
+        return None
+    hip = sum(hips) / len(hips)
+    knees = [float(point[1]) for index in (13, 14) if (point := _visible_point(detection, index))]
+    shoulders = [float(point[1]) for index in (5, 6) if (point := _visible_point(detection, index))]
+    # Close-ups show no (or implausibly long) hip-to-knee spans: keep their old composition.
+    # A raised knee can sit above the hip: the lower knee gives the thigh.
+    below = [y for y in knees if hip < y < image_height]
+    if not below or min(below) - hip > image_height * ANCHOR_MAX_THIGH:
+        return None
+    thigh = min(below) - hip
+    ankles = [float(point[1]) for index in (15, 16) if (point := _visible_point(detection, index))]
+    sole = max(float(detection.bbox[3]), seg_bottom or 0.0) if ankles else image_height
+    shank = max(ankles) - max(knees) if ankles and max(ankles) > max(knees) else thigh * 0.8
+    below_knee = max(knees) + shank * ANCHOR_SHORTS_BELOW_KNEE
+    mid_calf = max(knees) + shank * 0.5
+    shoulder = sum(shoulders) / len(shoulders) if shoulders else None
+    return hip - thigh * ANCHOR_WAIST_ABOVE_HIP, below_knee, mid_calf, sole, bool(ankles), hip, shoulder
+
+
+def _pants_crop_box(
+    detections: list[PersonDetection],
+    image_size: tuple[int, int],
+    target_size: tuple[int, int],
+    category: str,
+    segmentation: dict[str, object] | None,
+    shoe_boxes: list[tuple[float, float, float, float]] | None,
+) -> dict[str, object] | None:
+    """Window from the waist to the sole (long pants) or below the knee (shorts)."""
+    width, height = image_size
+    aspect = target_size[0] / max(1, target_size[1])
+    rows = _segmentation_rows(segmentation, image_size)
+    single = len(detections) == 1
+    seg_bottom = max((row[1] for row in rows), default=None) if single else None
+    people = [(item, leg) for item in detections if (leg := _pants_legs(item, height, seg_bottom))]
+    if not people:
+        return None
+    legs = [leg for _item, leg in people]
+    extra = [tuple(float(value) for value in box) for box in shoe_boxes or []]
+    top, top_rule = max(0.0, min(leg[0] for leg in legs)), "waist"
+    # Raised foot (shoe box well above the sole): the knee is unreliable, start at the shoulders.
+    raised = []
+    for item, leg in people:
+        boxes = [box for box in extra if single or item.bbox[0] <= (box[0] + box[2]) / 2 <= item.bbox[2]]
+        if boxes and min(box[3] for box in boxes) < leg[5] + ANCHOR_RAISED_FOOT * (max([leg[3]] + [box[3] for box in boxes]) - leg[5]):
+            raised.append(leg)
+    if raised:
+        shoulders = [leg[6] for leg in legs if leg[6] is not None]
+        top, top_rule = (max(0.0, min(top, *shoulders)), "shoulder") if shoulders else (0.0, "source")
+    # The waist on the source edge has no pixels above it to use as margin.
+    margin_top = 0.0 if top <= height * 0.005 else ANCHOR_EDGE_MARGIN
+    feet_visible = any(leg[4] for leg in legs)
+    sole = min(float(height), max([leg[3] for leg in legs] + [box[3] for box in extra]))
+
+    def extent(bottom: float) -> tuple[float, float] | None:
+        """Everything of the people inside the vertical band, as (left, right)."""
+        xs = [x for row in rows if row[1] > top and row[0] < bottom for x in (row[2], row[3])]
+        xs.extend(
+            float(point[0])
+            for item in detections
+            for index in range(7, 17)
+            if (point := _visible_point(item, index)) and top <= point[1] <= bottom
+        )
+        if not rows and xs:
+            pad = (bottom - top) * 0.05
+            xs.extend((min(xs) - pad, max(xs) + pad))
+        if not single:
+            # Seg outlines one person only; the pose boxes keep the others.
+            xs.extend(float(x) for item in detections if item.bbox[3] > top and item.bbox[1] < bottom for x in (item.bbox[0], item.bbox[2]))
+        xs.extend(x for box in extra if box[3] > top and box[1] < bottom for x in (box[0], box[2]))
+        return (max(0.0, min(xs)), min(float(width), max(xs))) if xs else None
+
+    def margin_for(bottom: float, margin: float) -> float:
+        return 0.0 if bottom >= height * 0.995 else margin
+
+    bottom, margin_bottom, rule = sole, margin_for(sole, ANCHOR_EDGE_MARGIN), "sole" if feet_visible else "source"
+    if category == "shorts":
+        # Knee first; extend downward only when the width needs the height,
+        # ending on the calf or at the sole, never between.
+        bottom, margin_bottom, rule = min(float(height), max(leg[1] for leg in legs)), 0.0, "knee"
+        mid_calf = max(leg[2] for leg in legs)
+        for _ in range(4):
+            reach = extent(bottom)
+            needed_height = (reach[1] - reach[0]) / (1.0 - 2 * ANCHOR_SIDE_MARGIN) / aspect if reach else 0.0
+            if needed_height <= (bottom - top) / (1.0 - margin_top - margin_bottom):
+                break
+            hem = top + needed_height * (1.0 - margin_top)
+            if hem <= mid_calf:
+                bottom, rule = min(float(height), hem), "calf"
+            else:
+                bottom, margin_bottom, rule = sole, margin_for(sole, ANCHOR_EDGE_MARGIN), "sole"
+                break
+        if rule in ("knee", "calf") and bottom >= sole - 1.0:
+            rule = "sole" if feet_visible else "source"
+    bottom = min(float(height), bottom)
+    subject = extent(bottom)
+    if subject is None or bottom - top < 1.0:
+        return None
+    subject_left, subject_right = subject
+    window_height = (bottom - top) / (1.0 - margin_top - margin_bottom)
+    window_top = top - margin_top * window_height
+    window_width = window_height * aspect
+    needed_width = (subject_right - subject_left) / (1.0 - 2 * ANCHOR_SIDE_MARGIN)
+    sides_cropped = needed_width > window_width * ANCHOR_MAX_GROWTH
+    if needed_width > window_width:
+        # Grow downward from the waist anchor, up to the growth limit.
+        window_width = min(needed_width, window_width * ANCHOR_MAX_GROWTH)
+        window_height = window_width / aspect
+    centre_x = (subject_left + subject_right) / 2
+    fit = min(1.0, width / window_width, height / window_height)
+    side_fill = None
+    if fit < 1.0:
+        fit = min(1.0, height / window_height)
+        if window_width * fit > width:
+            side_fill = _side_fill_strips(
+                centre_x - window_width * fit / 2, centre_x + window_width * fit / 2, width, subject_left, subject_right,
+            )
+            if side_fill is None:
+                return {"skip_reason": ANCHOR_PANTS_SKIP_REASON}
+        window_width, window_height = window_width * fit, window_height * fit
+    window_top = max(0.0, min(height - window_height, window_top))
+    window_left = centre_x - window_width / 2
+    if side_fill is None:
+        window_left = max(0.0, min(width - window_width, window_left))
+    window_right = window_left + window_width
+    window_bottom = window_top + window_height
+    side_cut = (
+        max(0.0, window_left - subject_left) + max(0.0, subject_right - window_right)
+    ) / max(1.0, subject_right - subject_left)
+    vertical_cut = (
+        max(0.0, window_top - top) + (max(0.0, bottom - window_bottom) if feet_visible or rule != "source" else 0.0)
+    ) / max(1.0, bottom - top)
+    hints: list[str] = []
+    if side_cut > ANCHOR_CROP_HINT:
+        hints.append("主体过宽，左右已裁切" if sides_cropped else "原图比例不足，可能裁切")
+    if vertical_cut > ANCHOR_CROP_HINT and "原图比例不足，可能裁切" not in hints:
+        hints.append("原图比例不足，可能裁切")
+    if side_fill is not None:
+        hints.append("已自动补边")
+    return {
+        "crop_box": [
+            round(window_left / width, 4),
+            round(window_top / height, 4),
+            round(window_right / width, 4),
+            round(window_bottom / height, 4),
+        ],
+        "anchors": {"top": round(top / height, 4), "bottom": round(bottom / height, 4)},
+        "bottom_rule": rule,
+        "top_rule": top_rule,
+        "review_reasons": hints,
+        **({"side_fill": side_fill} if side_fill is not None else {}),
+    }
+
+
 def anchor_crop_box(
     detections: list[PersonDetection],
     image_size: tuple[int, int],
@@ -547,6 +720,8 @@ def anchor_crop_box(
     """
     if category not in ANCHOR_CATEGORIES or not detections:
         return None
+    if category in {"long_pants", "pants", "shorts"}:
+        return _pants_crop_box(detections, image_size, target_size, category, segmentation, shoe_boxes)
     width, height = image_size
     rows = _segmentation_rows(segmentation, image_size)
     seg_top = min((row[0] for row in rows), default=None)
@@ -1991,9 +2166,11 @@ class LocalModelAssistant:
                 continue
             side_fill = anchored.get("side_fill")
             skip_reason = anchored.get("skip_reason")
-            if skip_reason is None and side_fill and source is not None and max(
-                side_fill_structure(source, anchored["crop_box"], side_fill).values(), default=0.0,
-            ) > STRUCTURE_MAX_SHARE:
+            if skip_reason is None and side_fill and source is not None and (
+                max(side_fill_structure(source, anchored["crop_box"], side_fill).values(), default=0.0) > STRUCTURE_MAX_SHARE
+                or max(side_fill_structure(source, anchored["crop_box"], side_fill, strip_partial).values(), default=0.0)
+                > PARTIAL_MAX_SHARE
+            ):
                 skip_reason = ANCHOR_FILL_SKIP_REASON
             if skip_reason is not None:
                 by_size[size_name] = {

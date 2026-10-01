@@ -16,6 +16,15 @@ STRUCTURE_BAND_HEIGHT = 720
 STRUCTURE_GRADIENT = 1.0
 # Share of strip pixels above that gradient above which the backdrop is not plain.
 STRUCTURE_MAX_SHARE = 0.01
+# A strip is not plain when many rows differ between its inner and outer half
+# by more than PARTIAL_LEVEL (a tape end or mark that stops inside the strip
+# cannot be extended); the residual grain is clipped at GRAIN_CLIP robust sigmas
+# so outliers are never copied into the fill as blocks. The first SEAM_BLEND
+# fill columns fade in from a mirror of the source columns next to the seam.
+PARTIAL_LEVEL = 8.0
+PARTIAL_MAX_SHARE = 0.015
+GRAIN_CLIP = 2.5
+SEAM_BLEND = 24
 
 
 def _box(a: np.ndarray, r: float, axis: int) -> np.ndarray:
@@ -36,6 +45,25 @@ def blur_f(a: np.ndarray, r: float) -> np.ndarray:
     for _ in range(3):
         a = _box(_box(a, b, 0), b, 1)
     return a
+
+
+def _robust_sigma(a: np.ndarray, axis=None) -> np.ndarray:
+    return 1.4826 * np.median(np.abs(a - np.median(a, axis=axis, keepdims=True)), axis=axis)
+
+
+def _grain_sigma(a: np.ndarray) -> np.ndarray:
+    """Per-channel robust sigma of the fine grain (what a light blur leaves)."""
+    return _robust_sigma(a - blur_f(a, 4), axis=(0, 1))[None, None, :]
+
+
+def strip_partial(strip: Image.Image) -> float:
+    """Share of rows whose inner-half and outer-half residual means differ by more than PARTIAL_LEVEL."""
+    scale = STRUCTURE_BAND_HEIGHT / strip.height
+    strip = strip.convert("L").resize((max(4, round(strip.width * scale)), STRUCTURE_BAND_HEIGHT), Image.Resampling.LANCZOS)
+    luma = np.asarray(strip, dtype=np.float32)[:, max(2, strip.width // 12):]
+    res = luma - blur_f(luma, max(6, luma.shape[1] / 2))
+    half = res.shape[1] // 2
+    return float((np.abs(res[:, :half].mean(1) - res[:, half:].mean(1)) > PARTIAL_LEVEL).mean())
 
 
 def strip_structure(strip: Image.Image) -> float:
@@ -97,13 +125,23 @@ def extend_side(region: np.ndarray, strip_w: int, ext: int, side: str) -> np.nda
     strip_w = strip.shape[1]
     low = blur_f(strip, max(6, strip_w // 2))
     res = strip - low
+    raw_res = res
     # Horizontal structure (wall/floor steps, tape lines) lives in the per-row
     # mean and stays on its rows; the rest of the residual is grain. Row means
     # of plain backdrop are just noise, so only what exceeds it is kept.
     rows = res.mean(1, keepdims=True)
     res = res - rows
     noise = 1.4826 * np.median(np.abs(rows - np.median(rows, axis=0)), axis=0, keepdims=True)
+    # A real horizontal feature spans the strip: keep only what the inner and
+    # outer halves agree on, so partial features cannot become streaks.
+    half = strip_w // 2
+    inner, outer = (res_half.mean(1, keepdims=True) for res_half in (raw_res[:, :half], raw_res[:, half:]))
+    rows = np.where(inner * outer > 0, np.sign(inner) * np.minimum(np.abs(inner), np.abs(outer)), 0.0)
     rows = np.sign(rows) * np.maximum(np.abs(rows) - 3 * np.maximum(noise, 1e-3), 0)
+    # Outliers of the grain must never be copied into the fill as blocks.
+    limit = GRAIN_CLIP * np.maximum(_robust_sigma(res, axis=(0, 1))[None, None, :], 1e-3)
+    res = np.clip(res, -limit, limit)
+    target = _grain_sigma(strip)
     k = max(3, strip_w // 4)
     edge_val = low[:, -k:].mean(1)
     inner_val = low[:, -2 * k:-k].mean(1)
@@ -120,5 +158,12 @@ def extend_side(region: np.ndarray, strip_w: int, ext: int, side: str) -> np.nda
     rand = rand - rand.mean(1, keepdims=True)
     # Mirror the grain near the seam, random patches further out.
     w = np.exp(-x / max(8.0, strip_w * 0.25))[None, :, None]
-    synth = np.clip(low_ext + rows + mirror * np.sqrt(w) + rand * np.sqrt(1 - w), 0, 255)
+    grain = mirror * np.sqrt(w) + rand * np.sqrt(1 - w)
+    # Clipping and patch averaging lower the grain energy: match the strip's.
+    grain = grain * (target / np.maximum(_grain_sigma(grain), 1e-3))
+    synth = np.clip(low_ext + rows + grain, 0, 255)
+    # Start from the source columns themselves so tone and texture change gradually.
+    n = min(SEAM_BLEND, ext, region.shape[1])
+    ramp = (0.5 * (1 + np.cos(np.pi * (np.arange(n) + 0.5) / n)))[None, :, None].astype(np.float32)
+    synth[:, :n] = ramp * region[:, -n:][:, ::-1] + (1 - ramp) * synth[:, :n]
     return synth[:, ::-1] if side == "left" else synth

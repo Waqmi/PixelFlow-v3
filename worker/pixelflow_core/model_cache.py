@@ -22,7 +22,7 @@ CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 CACHE_DIR_NAME = "PixelFlow/model-results"
 # Bump whenever crop/composition metadata changes.
 CACHE_VERSION = 8
-COMPOSITION_RULES_VERSION = "v3-composition-6"
+COMPOSITION_RULES_VERSION = "v3-composition-8"
 
 
 def model_cache_dir() -> Path:
@@ -90,6 +90,7 @@ def build_cache_identity(
     seg_model_path: Optional[Path] = None,
     pose_model_version: Optional[Any] = None,
     seg_model_version: Optional[Any] = None,
+    detection_model_path: Optional[Path] = None,
 ) -> Optional[Dict[str, Any]]:
     """Build the complete cache identity or return ``None`` for missing files."""
     normalized_purpose = _purpose(purpose)
@@ -128,6 +129,8 @@ def build_cache_identity(
         "model": selected_version,
         "pose_model": pose_version,
         "seg_model": seg_version,
+        # Optional shoe detector; None when absent so adding it invalidates.
+        "detection_model": _file_version(detection_model_path),
         "purpose": normalized_purpose,
         "composition_rules_version": str(composition_rules_version),
         "category": str(category or ""),
