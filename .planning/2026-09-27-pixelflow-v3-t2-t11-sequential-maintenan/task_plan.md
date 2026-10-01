@@ -4,10 +4,10 @@
 按既定计划依次完成 T2 到 T11；每阶段只在有真实实现和可复核证据时标记完成，受环境或真实批次约束的阶段保留明确延期记录。
 
 ## Next Step
-使用最新修复包 `dist/PixelFlow-v3-beta-model-fix.app` 做 T2 第二次同目录增量复用回归，确认 264 输出保持一致；随后按顺序复核 T3–T10。
+运行 Worker 全量测试、素材回归和 Vue/Tauri 构建，然后重新打包当前模型裁剪修复后的 `dist/PixelFlow.app`；T2 宿主第二次同目录复用仍需真实宿主操作确认。
 
 ## Current Phase
-T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张素材仍缺失）
+本轮模特逻辑校对、回归和 `.app` 打包已完成；T2 宿主第二次同目录复用与跨平台发布验证仍待真实环境
 
 ## Phases
 
@@ -23,7 +23,8 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 
 ### T4 预览与安全
 - [x] 预览缓存、canonical scope、CSP、300 张性能证据
-- **Status:** partial（Worker/性能完成，桌面首屏 UI 待补）
+- [x] 修复确认窗口缺失 inputRoot 导致所有卡片预览 scope 为空
+- **Status:** partial（确认页数据流修复并完成源码验证；桌面打包 app 首屏人工复跑仍待补）
 
 ### T5 Tauri Host
 - [x] 重启上限、日志滚动、任务 ID、ready 版本、平台行为
@@ -72,6 +73,13 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 | planning directory not found | Initialized selected plan with init-session.sh |
 | Baseline probe command typo/timeout | Corrected the command; kept the independently generated candidate evidence and did not alter the formal baseline |
 | `npm run tauri:build` failed because Python 3.9 has no PyInstaller | Kept existing onedir artifact authoritative; did not fabricate a rebuilt `.app`; Python 3.12/venv rebuild remains a T7 dependency |
+| Focused Worker test command referenced missing `worker.tests.test_process` | Listed `worker/tests`; reran the existing `test_worker_process` module successfully (33/33 focused tests) |
+| First feedback app build used a relative `PIXELFLOW_PYTHON` path from `apps/desktop` | Reran with the absolute `worker/.venv/bin/python`; app-only bundle completed and was codesign-verified |
+| CUA test host already had two PixelFlow instances, so child-window frame timing could not be isolated reliably | Kept the source-level hidden-until-ready fix and recorded no frame-by-frame pass claim |
+| Hidden-until-ready could leave a window invisible if the ready event were lost | Added a bounded 3-second reveal fallback; normal ready event remains the primary path |
+| First frozen Worker check used zsh read-only variable `status` | Reran with `rc`; no source impact |
+| First frozen Worker check used unavailable `timeout` command | Reran with a direct JSONL lifecycle; Worker exited 0 |
+| Picker implementation subtask exceeded its quota | Took the scoped implementation back in the main agent; Cargo checks passed |
 
 
 ## Verification note
@@ -83,3 +91,36 @@ T2（宿主权限回归已重跑首轮，等待第二次复用；鞋类 20 张�
 - [x] `tools/run_acceptance.py --full-evidence`：Worker 测试、四类输出引用、冻结 Worker/哈希清单引用和 v3 基线报告
 - [x] 同名输出复用/强制覆盖策略、确认页说明和 200 MB 磁盘预警
 - **Verification:** Worker 93/93；`npm run protocol:check`；`npm run build`；`cargo test --bin pixelflow-desktop` 4/4；`cargo check`；最新 full evidence report `baselines/v2.6/acceptance-full-evidence-20260927-final/acceptance.json`
+
+## 2026-09-27 feedback maintenance
+- [x] Window first-paint background mitigation
+- [x] Pose/Seg status visibility in main progress and confirmation summary
+- [x] Generation/preview concurrency and slowdown cause recorded with source evidence; renderer parallelization intentionally deferred pending timing baseline
+- **Verification:** Vue build, protocol check, Cargo check, focused Worker tests 33/33
+
+## 2026-09-28 settings regression repair
+- [x] Remove unreliable hidden-until-ready settings handshake
+- [x] Restore immediate settings window creation/show/focus path
+- [x] Rebuild and verify app-only arm64 artifact
+- **Verification:** Vue build, protocol check, Cargo check, git diff check, ad-hoc codesign, bundled Worker ready/ping/shutdown
+- **Known limitation:** Tauri DMG bundling still fails in `bundle_dmg.sh`; the `.app` itself is built and verified.
+
+## 2026-09-28 Pose/Seg TCC prompt repair
+- [x] macOS model requests run in the existing Worker process; non-macOS keeps the spawn boundary
+- [x] Add regression coverage for direct Pose/Seg probing and no model subprocess
+- [x] Rebuild, ad-hoc sign, and verify the final arm64 `.app` and frozen Worker
+- **Verification:** focused model-cache/classification tests 25/25; frozen Worker probe reports Pose/Seg `已就绪`, `fallback=false`; Worker ready/probe/shutdown exit 0; `codesign --verify --deep --strict` passed
+- **Artifact:** `dist/PixelFlow-v3-beta-no-pose-seg-tcc-prompt.app`; Worker SHA-256 `90c69e079846bdf98489bac49fe6d7aa5ae9be258ac071574b5e8e0125c534c1`
+- **Known limitation:** DMG bundling still fails in `bundle_dmg.sh`; no Developer ID/notarization claim.
+
+## 2026-09-28 host-app TCC follow-up
+- [x] Replace macOS `osascript` folder/file picker with in-process `NSOpenPanel`
+- [x] Compile and test the Tauri host; rebuild and ad-hoc sign the `.app`
+- **Verification:** `cargo check`; `cargo test --bin pixelflow-desktop` 4/4; Vue build; protocol check; final app Worker ready/shutdown 0; final binary no longer contains `choose folder`/`choose file` picker strings
+- **Artifact:** `dist/PixelFlow.app`
+- **Important limitation:** macOS may still show one permission prompt for a newly copied/ad-hoc-signed app identity; the fix removes the separate `osascript` authorization gap and makes the user-selected folder authorization belong to the host app.
+
+## 2026-09-28 report and VIP model-image repair
+- [x] Let the report summary grid grow for its second row instead of overlapping report details
+- [x] Include model/model-detail sources in v3 `唯品专享1440` output
+- **Verification:** Vue build passed; focused VIP regression + override tests 2/2; `worker.tests.test_engine` 35/35; `git diff --check` passed

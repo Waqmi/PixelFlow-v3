@@ -119,6 +119,13 @@
 - `model_service.py` 在 probe 成功加载后调用 `file_version(Path(model_path), include_digest=True)`；`model_cache.py` 内部 `_file_version` 支持该参数，但公开包装 `file_version` 不接受，属于调用接口不一致。
 - 两个 ONNX 文件都在当前 `models/` 目录，SHA-256 与 `models/README.md` 完全一致。修复后须用重新打包的 Worker 现场验证状态和校验哈希，不能只看单测。
 
+## User report: confirmation-page previews unavailable (2026-09-27)
+- Screenshot shows all visible image cards in the v3 material confirmation window displaying `预览不可用` across mixed `.jpg` and `.png` files; names and classifications render, indicating classification data reached the confirmation UI.
+- Screenshot does not expose the Worker error detail, selected input root, app build identity, or whether preview requests reached the Worker. Root cause remains unconfirmed until request-path reproduction.
+- Existing T4 evidence covers scoped Worker preview calls (300/300) but not this app confirmation-page flow; do not treat it as disproving the report.
+- Root cause reproduced from the confirmation-window data flow: `ConfirmSnapshot` omitted `inputRoot`. The child confirmation window therefore kept both `inputRoot` and `classifiedInputRoot` empty, sent `allowed_roots: []` for every `read_preview`, and the Worker rejected each request with `preview scope is required`.
+- Minimal fix: include `inputRoot` in the snapshot and restore both root refs before scheduling previews. Source Worker `read_preview` succeeds for the same real JPG when given the restored root.
+
 ## T4/T6 review
 - T4 现有实现和 Worker 证据一致：IntersectionObserver 懒加载、并发队列、198×138 预览限制、LRU 128 缓存、canonical scope；300/300 响应耗时 6.03 秒。宿主首屏 1 秒交互仍没有可核实数据。
 - T6 人工延期项仍合理；JOB-06 仅 Worker 264/264 已通过，宿主增量 UI 仍等待解锁后复跑。
@@ -128,3 +135,89 @@
 - candidate2 在固定 16 张素材、120 个输出上把前一候选剩余的 14 个 `_07` 和 14 个 `_08` 差异全部消除：`different_files=0`、`max_diff=0`、`MAE=0`、PSNR 为无穷。
 - 改动仅在 `renderer.py`：不透明浅色背景前景框/背景延展（含 1125x1500 square 条件）和 RGBA 主图品类模板分支；相关 compare/analysis JSON 已持久化。
 - 这不是正式基线替换：`v3-current-20260927-compare-report.json` 仍保留 52 个 needs_fix，candidate2 需人工视觉复核后才能决定是否更新正式基线。
+
+## v3 feedback follow-up (2026-09-27)
+- Window white flash is a native pre-paint gap: CSS already colors `html/body/#app`, but the native window default is painted before WebView CSS. Added an inline bootstrap background in `apps/desktop/index.html`, static Tauri `backgroundColor`, and matching runtime `backgroundColor` for settings/report/confirm windows.
+- Pose/Seg progress already exists in the Worker. The UI handled exact `Pose` and `Seg` phases, but v3 native classification can emit `Pose/Seg`; the main status now renders that phase explicitly. Confirmation summary now states `未启用`, `完成`, `回退`, or `未运行` based on material evidence instead of hiding model state.
+- v3 generation performance has a structural difference: `ImageEngine` routes App requests with `mode=v3` to `V3EngineAdapter._render_sources`, whose source loop is serial; legacy/v2.6 uses `ThreadPoolExecutor(max_workers=_auto_worker_count(...))`, capped at 3 on this host. No concurrency change was made without a fixed-material timing baseline because it could change parity and shared-renderer behavior.
+- Confirmation preview load remains frontend-concurrency 2 (conservative) or 4 (auto/performance), Worker preview executor 4; a single preview is capped at 198x138 with a 15s timeout and bounded cache.
+- Feedback fix app artifact: `dist/PixelFlow-v3-beta-feedback-fix.app`, arm64 local ad-hoc signed bundle; Worker hash remains `e6f28644…` because the Worker source was unchanged. The UI bundle includes the first-paint and Pose/Seg status changes.
+
+## Settings-window flash follow-up (2026-09-28)
+- `backgroundColor` alone was insufficient on macOS because Tauri documents the WebView background layer as not implemented there; the white frame is visible while the child WebView is still loading.
+- Settings creation now uses `visible: false`. The settings child emits `settings-window-ready` after its first Vue tick and a short browser settling delay; the main window then calls `show()` and `setFocus()`. A stale hidden settings label is closed and recreated instead of being shown before it is ready.
+- A 3-second reveal fallback keeps the settings window usable if the cross-window ready event is lost; the normal event path still reveals immediately after the child mount settles.
+
+## Settings-open regression repair (2026-09-28)
+- The hidden settings Webview depended on a child-to-main `settings-window-ready` event; when that event was lost, the window remained invisible.
+- Removed the handshake, hidden initial state, opening guard, and fallback timer. Restored immediate settings Webview creation while retaining stale hidden-window cleanup and native background color.
+- `npm run build`, `npm run protocol:check`, `cargo check`, and `git diff --check` passed.
+- App-only artifact: `dist/PixelFlow-v3-beta-settings-open-fix.app`; ad-hoc signature verified. Embedded Worker hash: `e6f28644e8c41eead737b16ab93bec5992172c301eafa8c8bec3e9ce101055c5`; ready/ping/shutdown exited 0 with empty stderr.
+- Tauri DMG bundling failed in `bundle_dmg.sh` after the `.app` was built; this does not invalidate the `.app` artifact.
+
+## Pose/Seg macOS TCC prompt repair (2026-09-28)
+- Root cause: v3 used `multiprocessing.get_context("spawn")` for `PixelFlowModel`; macOS TCC treated the frozen child as a second file-access identity when it read Desktop materials/models. This is why v2.6 did not show the prompt while v3 did.
+- Minimal fix in `worker/pixelflow_core/model_service.py`: on Darwin, `ping`, `warmup`, `compose`, `segment`, and `probe` use cached assistants in the existing Worker process. Linux/Windows retain the original isolated spawn process.
+- Direct mode restart/close paths clear the assistant cache and do not create a model subprocess.
+- Regression test asserts Pose/Seg probe readiness and `_process is None`; focused model-cache/classification tests passed 25/25.
+- Final frozen Worker probe against the real ONNX files returned Pose and Seg `state=已就绪`, `fallback=false`, with SHA-256 values; ready/probe/shutdown exited 0 and stderr contained only an ONNX Runtime telemetry warning.
+- Final artifact: `dist/PixelFlow-v3-beta-no-pose-seg-tcc-prompt.app`, ad-hoc signature verified; embedded Worker SHA-256 `90c69e079846bdf98489bac49fe6d7aa5ae9be258ac071574b5e8e0125c534c1`.
+
+## Follow-up: screenshot confirms host-app TCC prompt (2026-09-28)
+- The new screenshot names the entire `PixelFlow-v3-beta-no-pose-seg-tcc-prompt.app`, not a `PixelFlowModel` child. The prior direct model-service fix therefore addressed only the nested identity, not the host's initial Desktop access.
+- v3 currently uses `/usr/bin/osascript` for macOS folder/file selection and passes only a string path to the Worker. `remember_preview_root` is a preview allowlist, not a macOS security-scoped authorization.
+- v2.6 uses Qt `QFileDialog` in the same application process. Its native panel is the missing authorization link.
+- Additional release caveat: every ad-hoc re-signed/copied `.app` has a new code identity, so macOS can legitimately ask again for that new artifact even with the same bundle identifier.
+- Planned minimal fix: use an in-process native macOS `NSOpenPanel` for directory/file selection, invoked on the Tauri main thread; keep Windows/other platforms unchanged.
+
+## Host picker repair verification (2026-09-28)
+- `apps/desktop/src-tauri/src/main.rs` now invokes `NSOpenPanel` through `AppHandle::run_on_main_thread` for macOS folder and Logo-file selection. The returned path is still passed through the existing preview-root and Logo validation logic.
+- Added cached macOS-only `objc2`, `objc2-app-kit`, and `objc2-foundation` dependencies; Cargo lock changed only by the direct package dependency entries.
+- `cargo check` passed; `cargo test --bin pixelflow-desktop` passed 4/4; Vue build and protocol check passed.
+- Rebuilt `dist/PixelFlow.app`, ad-hoc signed and deep-verified. The final host binary contains no `choose folder`/`choose file` strings; only the unrelated save-file `osascript` path remains.
+- Frozen Worker ready/shutdown passed with exit 0. No native UI permission result was fabricated; final confirmation still requires opening the new app and selecting the folder on the user's Mac.
+
+## User report: result page overlap and VIP model images (2026-09-28)
+- Screenshot shows six report summary cards rendered in a four-column grid, but `.report-window-shell .report-summary` is fixed at `height: 82px`; the second row therefore overflows into the following `.report-info` panel.
+- Minimal UI fix is to let the summary grid use intrinsic height (with the existing four-column layout and small-screen media rule), so the detail panel starts after both card rows.
+- V3 `V3EngineAdapter._render_sources` currently guards VIP generation with `source_type not in {"model", "model_detail"}`. This explicitly skips VIP output for model/model-detail inputs, while legacy VIP generation scans all no-logo source outputs. That is the direct cause of missing model images under `唯品专享1440`.
+- The VIP request builder and renderer already accept `source_type="model"`/`"model_detail"`; the narrow fix is to remove only the exclusion guard and add a regression test.
+
+## Report/VIP repair verification (2026-09-28)
+- Report CSS now uses `height: auto` with the existing minimum height for the summary grid; the second row of cards pushes the info panel down instead of overlapping it.
+- V3 VIP generation now includes all source types. A focused regression creates both `模特图/1440x1440/无Logo` and `唯品专享1440/无Logo` outputs for a model source.
+- Focused VIP/override tests passed 2/2; full `worker.tests.test_engine` passed 35/35; Vue build passed.
+
+## Packaged output smoke test (2026-09-28)
+- The final embedded Worker was run with one forced `model` source, v3 mode, one selected size, and VIP enabled. It returned `model_images=1`, `vip_images=1`, exit 0, empty stderr, and created one output under each of `模特图` and `唯品专享1440`.
+
+## User report: model settings persistence and crop (2026-09-28)
+- Screenshot shows the model test page after reopening settings: the external model path is present, but both Pose/Seg rows say `未检测`, status says rules-only/Seg unavailable, and the warning says conservative composition. This is a state restoration/re-probe defect, not proof that the ONNX files are missing.
+- The same test session reportedly passed before Save, but the generated model crop is wrong. The investigation must distinguish a UI-only diagnostic reset from the Worker request actually carrying `local_model_enabled`, `local_model_path`, and model-derived composition plans.
+
+## Model settings/crop repair (2026-09-28)
+- 设置页保存的是模型开关/目录，Pose/Seg 诊断只在窗口运行时内存中；重开设置页先显示空诊断并触发红框。Worker ready 后自动重新 probe，未启用或检测中不再误报红框。
+- 普通模特图的 Pose 返回 `by_size` 构图计划，但原 typed-plan 转换只处理鞋类组合，导致 renderer 的 `plan=None`，普通模特走通用裁剪。现在 `by_size` 会转换为 `CompositionPlan`，保留缩放、焦点、保护框和裁剪比例。
+- renderer 原先先 resize 再 cover 会抵消 plan scale；现在 model 分支把 scale 作为 `_resize_cover` 的 `extra_scale`，保护框保持源图坐标；保护框过大时不再把 cover 降级为空边填充。
+- 验证：Worker 全量 99/99；Vue build、protocol check、Cargo check、git diff --check 均通过。
+
+## v2.6 model-logic audit (2026-09-29)
+- `model_assistant.py` 的品类 Pose 裁剪公式与 v2.6 对应实现一致；差异集中在 renderer/engine 的计划使用。
+- v3 原先将 `model_detail` 与完整 `model` 一起走 Pose/模特裁剪；v2.6 将 `model_detail` 归入 detail，直接 cover。
+- v3 方图 renderer 没有显式应用 v2.6 的 `target_crop_height_ratio` 直接缩放规则；虽然通常能被 `scale_adjustment_percent` 间接逼近，但外部/回退计划只有 crop ratio 时会偏离，且 v2.6 方图会重置额外 scale。
+- v3 VIP 和透明请求原先复用 selected sizes 循环的 `last_plan`；v2.6 VIP 基于 1440x1440 无 Logo 构图，现改为按实际目标尺寸取 plan。
+- v2.6 的安全镜像扩展依赖 `person_bboxes`，CompositionPlan 当前没有该字段；本轮保留 v3 的显式扩展门槛，避免无证据扩展造成误裁，并记录为剩余差异。
+
+## Regression and package evidence (2026-09-29)
+- `长袖888` output tree matched the expected 222/132/59/32 distribution with 445 readable files; all JPG outputs are RGB at directory dimensions and all transparent outputs are RGBA PNG at directory dimensions.
+- The observed 38.401s wall-clock run used three source tasks in parallel; summed stage timings exceed wall time by design. Write time was 0.452s, so changing JPEG/PNG quality is not justified by this run.
+- The packaged Worker build hash is `47db3d81df7a6161c89faf1d8dbebfccb09ff3cfbf404ad8b097f33fcc4e3732`; protocol lifecycle returned clean `ready`, `ready`, `done` events.
+- Follow-up audit found two edge cases and both were fixed: direct square model scaling now caps protected regions at 80% of the canvas like v2.6; VIP generation now requires `1440x1440` to be selected, matching v2.6.
+
+## Product scale slider regression (2026-09-29)
+- UI `generationPayload()` already sends `source_scale_adjustments`; Worker parsing already stores it in `GenerationRequest`.
+- v3 `_render_sources` previously never read that mapping, so the confirmation slider changed only UI state and had no rendering effect. The legacy/v2.6 adapter did consume the same mapping.
+- Fix: resolve the adjustment by absolute path/POSIX path/name, attach it to each v3 main-product `RenderRequest`, and apply it in the opaque foreground scale, category template scale, transparent template scale, and generic cover fallback. Model sources remain unaffected by the product-only slider.
+- Regression tests now prove request forwarding and a +50% adjustment produces a wider foreground in the rendered image.
+- End-to-end evidence confirms the fix is not only a request-field change: the same product rendered at 0% had an 881px detected foreground width and at +50% had 1295px, with both outputs passing typed validation.
+- Final package also forwards the product adjustment metadata to VIP and transparent requests, keeping all outputs for the same source consistent with the confirmation slider.
