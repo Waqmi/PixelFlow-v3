@@ -179,6 +179,7 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                     product_category=request.get("product_category"),
                     segmentation=request.get("segmentation"),
                     shoe_boxes=request.get("shoe_boxes"),
+                    detector_boxes=request.get("detector_boxes"),
                 )
                 result = dict(result)
                 result.setdefault("model_status", STATUS_READY)
@@ -193,6 +194,9 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
             elif action == "detect_shoes":
                 assistant = _load_assistant(assistants, request["model_root"], "detection")
                 result = assistant.shoe_boxes(Path(request["source"]))
+            elif action == "detect_boxes":
+                assistant = _load_assistant(assistants, request["model_root"], "detection")
+                result = assistant.boxes_for(Path(request["source"]), str(request.get("category", "shoes")))
             elif action == "probe":
                 result = {}
                 for purpose in MODEL_PURPOSES:
@@ -394,6 +398,7 @@ class ModelProcessService:
                         product_category=payload.get("product_category"),
                         segmentation=payload.get("segmentation"),
                         shoe_boxes=payload.get("shoe_boxes"),
+                        detector_boxes=payload.get("detector_boxes"),
                     )
                 )
                 result.setdefault("model_status", STATUS_READY)
@@ -410,6 +415,9 @@ class ModelProcessService:
             if action == "detect_shoes":
                 assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
                 return assistant.shoe_boxes(Path(payload["source"]))
+            if action == "detect_boxes":
+                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
+                return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
             if action == "probe":
                 result: Dict[str, Dict[str, Any]] = {}
                 for purpose in MODEL_PURPOSES:
@@ -547,6 +555,7 @@ class ModelProcessService:
                 product_category=product_category or kwargs.get("category"),
                 segmentation=kwargs.get("segmentation"),
                 shoe_boxes=kwargs.get("shoe_boxes"),
+                detector_boxes=kwargs.get("detector_boxes"),
             )
         except Exception as error:
             reason = str(error)
@@ -566,10 +575,11 @@ class ModelProcessService:
         strict: bool = False,
         segmentation: Optional[Dict[str, object]] = None,
         shoe_boxes: Optional[List[List[float]]] = None,
+        detector_boxes: Optional[List[List[float]]] = None,
     ) -> Dict[str, object]:
         return self.compose(
             model_root, source, sizes, product_category, strict=strict,
-            segmentation=segmentation, shoe_boxes=shoe_boxes,
+            segmentation=segmentation, shoe_boxes=shoe_boxes, detector_boxes=detector_boxes,
         )
 
     def detect_shoes(self, model_root: Union[str, Path], source: Path) -> List[List[float]]:
@@ -581,6 +591,17 @@ class ModelProcessService:
         try:
             return list(self._request("detect_shoes", model_root=root, source=str(source)) or [])
         except Exception:  # noqa: BLE001 - the detector is optional
+            return []
+
+    def detect_boxes(self, model_root: Union[str, Path], source: Path, category: str) -> List[List[float]]:
+        """Category-mapped detector boxes; failures return an empty list."""
+        root = str(model_root)
+        candidates = [path for path in configured_model_candidates(root, "detection") if path.with_suffix(".classes.json").is_file()]
+        if not candidates:
+            return []
+        try:
+            return list(self._request("detect_boxes", model_root=root, source=str(source), category=category) or [])
+        except Exception:  # noqa: BLE001 - detector is optional
             return []
 
     def segment(

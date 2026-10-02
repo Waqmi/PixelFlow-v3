@@ -198,7 +198,7 @@ let previewScrollRoot: HTMLElement | undefined
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 const appVersion = '3.0.0-beta.1'
 const expectedWorkerVersion = appVersion
-const expectedRulesVersion = 'v3-composition-8'
+const expectedRulesVersion = 'v3-composition-10'
 const workerVersion = ref(expectedWorkerVersion)
 const workerBuildHash = ref('')
 const workerRulesVersion = ref(expectedRulesVersion)

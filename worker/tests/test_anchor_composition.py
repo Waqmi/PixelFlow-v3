@@ -164,9 +164,144 @@ class AnchorCropTests(unittest.TestCase):
         self.assertAlmostEqual((left + right) / 2, (100.0 + 800.0) / 2, delta=1.0)
 
     def test_unsupported_cases_keep_previous_composition(self) -> None:
-        self.assertIsNone(anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "hat"))
+        self.assertIsNotNone(anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "hat"))
         no_ankles = {index: point for index, point in STANDING.items() if index not in (15, 16)}
         self.assertIsNone(anchor_crop_box([person(no_ankles)], IMAGE, SQUARE, "shoes"))
+
+    def test_socks_span_above_knee_to_sole(self) -> None:
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "socks")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["top_rule"], "above_knee")
+        self.assertEqual(result["bottom_rule"], "sole")
+        self.assertLess(result["anchors"]["top"], 1000 / IMAGE[1])
+
+    def test_socks_return_none_without_knee_or_ankle(self) -> None:
+        points = {index: point for index, point in STANDING.items() if index not in (13, 14, 15, 16)}
+        self.assertIsNone(anchor_crop_box([person(points)], IMAGE, SQUARE, "socks"))
+
+    def test_hat_includes_detector_box_and_chest(self) -> None:
+        result = anchor_crop_box(
+            [person(STANDING)], IMAGE, SQUARE, "hat", detector_boxes=[(320.0, 60.0, 680.0, 230.0)]
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["bottom_rule"], "chest")
+        self.assertLessEqual(result["anchors"]["top"], 60 / IMAGE[1])
+
+    def test_gloves_cover_hands_and_forearms(self) -> None:
+        points = dict(STANDING)
+        points.update({7: (350, 480), 9: (300, 650), 8: (650, 480), 10: (700, 650)})
+        # A small output so the hands window is not upscaled.
+        result = anchor_crop_box([person(points)], IMAGE, (360, 360), "gloves")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["top_rule"], "hands")
+
+    def test_gloves_window_smaller_than_output_uses_full_frame(self) -> None:
+        # Gloves must never fall back to the legacy zoom: a hands window
+        # that would be upscaled beyond the source still returns a window
+        # (the largest same-aspect one the source can fill), not None, and
+        # it still contains the wrist.
+        points = dict(STANDING)
+        points.update({7: (350, 480), 9: (300, 650), 8: (650, 480), 10: (700, 650)})
+        result = anchor_crop_box([person(points)], IMAGE, SQUARE, "gloves")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["top_rule"], "full_frame")
+        self.assertEqual(result["bottom_rule"], "full_frame")
+        self.assertNotIn("side_fill", result)
+        left, top, right, bottom = result["crop_box"]
+        self.assertLessEqual(left, 300.0 / IMAGE[0])
+        self.assertGreaterEqual(right, 300.0 / IMAGE[0])
+        self.assertLessEqual(top, 650.0 / IMAGE[1])
+        self.assertGreaterEqual(bottom, 650.0 / IMAGE[1])
+
+    def test_gloves_bent_wrist_hand_stays_inside_window(self) -> None:
+        # The hand is estimated from a square centred on the wrist, not by
+        # extending along the elbow->wrist direction, so a bent wrist (the
+        # hand folded back over the forearm) still stays inside the window.
+        points = dict(STANDING)
+        points.update({7: (430, 300), 9: (430, 500), 8: (570, 300), 10: (570, 500)})
+        result = anchor_crop_box([person(points)], IMAGE, (360, 360), "gloves")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["top_rule"], "hands")
+        left, top, right, bottom = result["crop_box"]
+        for hand_x, hand_y in ((430.0, 350.0), (570.0, 350.0)):
+            self.assertLessEqual(left, hand_x / IMAGE[0])
+            self.assertGreaterEqual(right, hand_x / IMAGE[0])
+            self.assertLessEqual(top, hand_y / IMAGE[1])
+            self.assertGreaterEqual(bottom, hand_y / IMAGE[1])
+
+    def test_gloves_without_hand_evidence_keep_the_full_frame(self) -> None:
+        # Gloves never fall back to the legacy zoom.
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "gloves")
+        self.assertEqual(result["top_rule"], "full_frame")
+        self.assertAlmostEqual(result["crop_box"][2] - result["crop_box"][0], 1.0, places=3)
+
+    def test_gloves_close_up_without_face_or_glove_box_keeps_the_full_frame(self) -> None:
+        # Pose invents an upper body on hand close-ups: no face and no glove box.
+        points = {5: (430, 350), 6: (570, 350), 7: (350, 480), 9: (300, 650), 8: (650, 480), 10: (700, 650)}
+        result = anchor_crop_box([person(points)], IMAGE, (360, 360), "gloves")
+        self.assertEqual(result["top_rule"], "full_frame")
+        with_box = anchor_crop_box(
+            [person(points)], IMAGE, (360, 360), "gloves", detector_boxes=[(250.0, 600.0, 400.0, 760.0)]
+        )
+        self.assertEqual(with_box["top_rule"], "hands")
+
+    def test_hat_window_keeps_a_brim_near_the_side(self) -> None:
+        # A wide crouched body centres the window; the brim at the left must stay in.
+        wide = person(STANDING, bbox=(50.0, 100.0, 950.0, 1400.0))
+        brim = [(60.0, 120.0, 330.0, 300.0)]
+        result = anchor_crop_box([wide], IMAGE, PORTRAIT, "hat", rows(0.05, 0.9, 0.05, 0.95), detector_boxes=brim)
+        self.assertNotIn("side_fill", result)
+        self.assertLessEqual(result["crop_box"][0] * IMAGE[0], brim[0][0])
+        self.assertGreaterEqual(result["crop_box"][2] * IMAGE[0], brim[0][2])
+
+    def test_shoes_take_detector_boxes_by_either_keyword(self) -> None:
+        raised = [(150.0, 900.0, 350.0, 1050.0)]
+        plain = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "shoes")
+        by_old = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "shoes", shoe_boxes=raised)
+        by_new = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "shoes", detector_boxes=raised)
+        self.assertEqual(by_new["crop_box"], by_old["crop_box"])
+        self.assertNotEqual(by_new["crop_box"], plain["crop_box"])
+
+    def test_hat_keeps_the_top_when_the_window_shrinks(self) -> None:
+        # A very wide output without side fill forces the window to shrink.
+        result = anchor_crop_box([person(STANDING)], IMAGE, (3000, 1000), "hat", allow_side_fill=False)
+        self.assertNotIn("side_fill", result)
+        self.assertLessEqual(result["crop_box"][1], result["anchors"]["top"])
+        self.assertNotIn("原图比例不足，可能裁切", result["review_reasons"])
+
+    def test_anchor_plans_hold_plain_json_floats(self) -> None:
+        import json
+
+        import numpy as np
+
+        # Pose and detector outputs are numpy float32, as in the real pipeline.
+        base = person(STANDING)
+        detection = PersonDetection(
+            tuple(np.float32(value) for value in base.bbox),
+            base.confidence,
+            tuple(tuple(np.float32(value) for value in point) for point in base.keypoints),
+        )
+        boxes = [tuple(np.float32(value) for value in (380.0, 60.0, 620.0, 200.0))]
+        by_size = {"1440x1440": {"composition_mode": "zoom_focus", "confidence": 0.9}}
+        LocalModelAssistant._apply_anchor_crops(
+            by_size, [detection], IMAGE, {"1440x1440": (SQUARE, (255, 255, 255))}, "hat", None,
+            detector_boxes=boxes,
+        )
+        plan = by_size["1440x1440"]
+        self.assertTrue(all(type(value) is float for value in plan["crop_box"]))
+        self.assertTrue(all(type(value) is float for value in plan["anchors"].values()))
+        json.dumps(plan)
+
+    def test_knee_pads_require_hips_and_knees(self) -> None:
+        result = anchor_crop_box([person(STANDING)], IMAGE, SQUARE, "knee_pads")
+        self.assertIsNotNone(result)
+        no_hips = {index: point for index, point in STANDING.items() if index not in (11, 12)}
+        self.assertIsNone(anchor_crop_box([person(no_hips)], IMAGE, SQUARE, "knee_pads"))
+
+    def test_bag_reuses_shirt_window(self) -> None:
+        shirt = anchor_crop_box([person(STANDING)], IMAGE, PORTRAIT, "shirt")
+        bag = anchor_crop_box([person(STANDING)], IMAGE, PORTRAIT, "bag")
+        self.assertEqual(bag["crop_box"], shirt["crop_box"])
 
     def test_detector_boxes_extend_the_shoe_window(self) -> None:
         # Raised foot at the right, missed by pose: boxes are source px (l, t, r, b).

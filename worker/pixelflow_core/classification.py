@@ -21,8 +21,24 @@ SIZES = {
 }
 
 
-# Categories whose crop uses the shoe detector (shoe or sole extents).
-SHOE_DETECTION_CATEGORIES = frozenset({"shoes", "long_pants", "pants", "shorts"})
+# Detector category used for each anchor category. The old set name remains as
+# a compatibility alias for callers that only need the shoe-backed categories.
+DETECTION_CATEGORY_MAP = {
+    "shoes": "shoes",
+    "long_pants": "shoes",
+    "pants": "shoes",
+    "shorts": "shoes",
+    "socks": "shoes",
+    "knee_pads": "shoes",
+    "hat": "hat",
+    "gloves": "gloves",
+}
+# Public spelling used by integrations that need to inspect the routing table.
+DETECTION_CATEGORIES = DETECTION_CATEGORY_MAP
+SHOE_DETECTION_CATEGORIES = frozenset(
+    category for category, detector_category in DETECTION_CATEGORY_MAP.items()
+    if detector_category == "shoes"
+)
 
 
 class ClassificationCancelled(Exception):
@@ -518,7 +534,8 @@ class V26ClassifierAdapter:
             pose_model_path = Path(pose_models[0]) if pose_models else None
             # Shoe detector shapes the shoe and pants compositions, so it keys that cache.
             detection_models = (
-                configured_model_candidates(root_text, "detection") if category in SHOE_DETECTION_CATEGORIES else []
+                configured_model_candidates(root_text, "detection")
+                if category in DETECTION_CATEGORY_MAP else []
             )
             detection_model_path = Path(detection_models[0]) if detection_models else None
             if pose_sources:
@@ -563,16 +580,22 @@ class V26ClassifierAdapter:
                     return None
                 return None if evidence.get("fallback") else evidence
 
+            detect_boxes = getattr(service, "detect_boxes", None)
             detect_shoes = getattr(service, "detect_shoes", None)
 
-            def shoe_detections(source: Path) -> list[list[float]]:
-                """Optional detector boxes of the shoes (source px); empty when off."""
-                if category not in SHOE_DETECTION_CATEGORIES or detect_shoes is None:
+            def detector_boxes(source: Path) -> list[list[float]]:
+                """Optional category-mapped detector boxes (source px)."""
+                detector_category = DETECTION_CATEGORY_MAP.get(category)
+                if detector_category is None:
                     return []
                 try:
-                    return detect_shoes(root_text, source)
+                    if detect_boxes is not None:
+                        return detect_boxes(root_text, source, detector_category)
+                    if detector_category == "shoes" and detect_shoes is not None:
+                        return detect_shoes(root_text, source)
                 except Exception:  # noqa: BLE001 - anchors fall back to Pose only
-                    return []
+                    pass
+                return []
 
             def run_pose(sources_to_check: list[Path]) -> None:
                 for index, source in enumerate(sources_to_check, start=1):
@@ -597,11 +620,11 @@ class V26ClassifierAdapter:
                                 root_text, source, SIZES, product_category=category
                             )
                             segmentation = anchor_segmentation(source, composition)
-                            shoe_boxes = shoe_detections(source)
-                            if segmentation is not None or shoe_boxes:
+                            boxes = detector_boxes(source)
+                            if segmentation is not None or boxes:
                                 # Pose detections are cached in-process, so the
                                 # second pass only recomputes the crop window.
-                                extra = {"shoe_boxes": shoe_boxes} if shoe_boxes else {}
+                                extra = {"detector_boxes": boxes} if boxes else {}
                                 composition = service.compose_for_sizes(
                                     root_text, source, SIZES, product_category=category,
                                     segmentation=segmentation, **extra,

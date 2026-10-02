@@ -399,7 +399,11 @@ def knee_pads_protected_region(
 # Anchor composition: shirts span head top to thigh root; shoes are sized by
 # the shoe pair itself. The crop window is derived directly from those anchors
 # instead of growing a protected box by stacked margins.
-ANCHOR_CATEGORIES = frozenset({"shoes", "shirt", "long_pants", "pants", "shorts"})
+ANCHOR_CATEGORIES = frozenset({
+    "shoes", "shirt", "long_pants", "pants", "shorts",
+    "socks", "hat", "gloves", "knee_pads", "bag",
+})
+NEW_ANCHOR_CATEGORIES = frozenset({"socks", "hat", "gloves", "knee_pads", "bag"})
 ANCHOR_EDGE_MARGIN = 0.04
 ANCHOR_SIDE_MARGIN = 0.03
 ANCHOR_DISAGREEMENT = 0.10
@@ -436,6 +440,16 @@ ANCHOR_MAX_THIGH = 0.6
 # pose model then mislocates the knee, so the window starts at the shoulders.
 ANCHOR_RAISED_FOOT = 0.6
 ANCHOR_PANTS_SKIP_REASON = "原图比例不足，且不适合补边"
+# Remaining anchor categories.
+ANCHOR_SOCKS_ABOVE_KNEE = 0.15
+ANCHOR_HAT_CHEST = 0.45
+# Hand region per visible wrist: a square centred on the wrist, sized from the
+# forearm length (elbow to wrist) regardless of forearm direction, so a bent
+# wrist (fingers not continuing the forearm line) still stays inside the box.
+ANCHOR_GLOVES_HAND_HALF = 1.05
+ANCHOR_GLOVES_MIN_HEIGHT = 1.50
+ANCHOR_KNEE_PADS_THIGH = 0.50
+ANCHOR_KNEE_PADS_SHANK = 0.50
 
 
 def _visible_point(detection: PersonDetection, index: int) -> tuple[float, float, float] | None:
@@ -704,6 +718,406 @@ def _pants_crop_box(
     }
 
 
+def _detector_intersects_band(
+    box: tuple[float, float, float, float], top: float, bottom: float,
+) -> bool:
+    return box[3] > top and box[1] < bottom
+
+
+def _anchor_window(
+    *,
+    image_size: tuple[int, int],
+    target_size: tuple[int, int],
+    top: float,
+    bottom: float,
+    subject_left: float,
+    subject_right: float,
+    margin_top: float,
+    margin_bottom: float,
+    top_known: bool = True,
+    bottom_known: bool = True,
+    hints: list[str] | None = None,
+    top_rule: str | None = None,
+    bottom_rule: str | None = None,
+    allow_side_fill: bool = True,
+    keep: str = "centre",
+    must_keep_x: tuple[float, float] | None = None,
+) -> dict[str, object] | None:
+    """Build a normalised window for a new anchor category.
+
+    ``keep`` is the anchor that survives when the source is too small and the
+    window must shrink: "top" (hat), "bottom" (socks) or "centre".
+    ``must_keep_x`` is a horizontal span (the product itself) the window is
+    shifted to contain when it is narrower than the whole subject.
+    """
+    width, height = image_size
+    top = max(0.0, min(float(height), top))
+    bottom = max(top + 1.0, min(float(height), bottom))
+    subject_left = max(0.0, min(float(width), subject_left))
+    subject_right = max(subject_left + 1.0, min(float(width), subject_right))
+    if bottom - top < 1.0:
+        return None
+    if top <= height * 0.005:
+        margin_top = 0.0
+    if bottom >= height * 0.995:
+        margin_bottom = 0.0
+    aspect = target_size[0] / max(1, target_size[1])
+    window_height = (bottom - top) / max(0.01, 1.0 - margin_top - margin_bottom)
+    window_width = window_height * aspect
+    needed_width = (subject_right - subject_left) / (1.0 - 2 * ANCHOR_SIDE_MARGIN)
+    sides_cropped = needed_width > window_width * ANCHOR_MAX_GROWTH
+    if needed_width > window_width:
+        window_width = min(needed_width, window_width * ANCHOR_MAX_GROWTH)
+        window_height = window_width / aspect
+    centre_x = (subject_left + subject_right) / 2
+    window_top = top - margin_top * window_height
+    fit = min(1.0, width / window_width, height / window_height)
+    side_fill = None
+    if allow_side_fill and fit < 1.0:
+        fill_fit = min(1.0, height / window_height)
+        fill_width = window_width * fill_fit
+        if fill_width > width:
+            side_fill = _side_fill_strips(
+                centre_x - fill_width / 2,
+                centre_x + fill_width / 2,
+                width,
+                subject_left,
+                subject_right,
+            )
+            if side_fill is not None:
+                fit = fill_fit
+    if fit < 1.0:
+        removed = window_height * (1.0 - fit)
+        window_height *= fit
+        window_width *= fit
+        window_top += {"top": 0.0, "bottom": removed}.get(keep, removed / 2)
+    window_top = max(0.0, min(height - window_height, window_top))
+    window_left = centre_x - window_width / 2
+    if side_fill is None:
+        if must_keep_x is not None:
+            keep_pad = (must_keep_x[1] - must_keep_x[0]) * ANCHOR_SIDE_MARGIN
+            keep_left, keep_right = must_keep_x[0] - keep_pad, must_keep_x[1] + keep_pad
+            if keep_right - keep_left <= window_width:
+                window_left = min(max(window_left, keep_right - window_width), keep_left)
+        window_left = max(0.0, min(width - window_width, window_left))
+    window_right = window_left + window_width
+    window_bottom = window_top + window_height
+    reasons = list(hints or [])
+    side_cut = (
+        max(0.0, window_left - subject_left) + max(0.0, subject_right - window_right)
+    ) / max(1.0, subject_right - subject_left)
+    vertical_cut = (
+        (max(0.0, window_top - top) if top_known else 0.0)
+        + (max(0.0, bottom - window_bottom) if bottom_known else 0.0)
+    ) / max(1.0, bottom - top)
+    if side_cut > ANCHOR_CROP_HINT:
+        reasons.append("主体过宽，左右已裁切" if sides_cropped else "原图比例不足，可能裁切")
+    if vertical_cut > ANCHOR_CROP_HINT and "原图比例不足，可能裁切" not in reasons:
+        reasons.append("原图比例不足，可能裁切")
+    if side_fill is not None:
+        reasons.append("已自动补边")
+    result: dict[str, object] = {
+        "crop_box": [
+            round(window_left / width, 4),
+            round(window_top / height, 4),
+            round(window_right / width, 4),
+            round(window_bottom / height, 4),
+        ],
+        "anchors": {"top": round(top / height, 4), "bottom": round(bottom / height, 4)},
+        "review_reasons": reasons,
+    }
+    if top_rule:
+        result["top_rule"] = top_rule
+    if bottom_rule:
+        result["bottom_rule"] = bottom_rule
+    if side_fill is not None:
+        result["side_fill"] = side_fill
+    return result
+
+
+def _anchor_subject_x(
+    detections: list[PersonDetection],
+    rows: list[tuple[float, float, float, float]],
+    detector_boxes: list[tuple[float, float, float, float]],
+    top: float,
+    bottom: float,
+    indices: tuple[int, ...],
+    image_width: float,
+) -> tuple[float, float] | None:
+    values = [
+        point[0]
+        for item in detections
+        for index in indices
+        if (point := _visible_point(item, index)) and top <= point[1] <= bottom
+    ]
+    values.extend(row[2] for row in rows if _detector_intersects_band(row, top, bottom))
+    values.extend(row[3] for row in rows if _detector_intersects_band(row, top, bottom))
+    values.extend(
+        value
+        for box in detector_boxes
+        if _detector_intersects_band(box, top, bottom)
+        for value in box[::2]
+    )
+    if len(detections) > 1:
+        values.extend(value for item in detections for value in item.bbox[::2])
+    if not values:
+        return None
+    return max(0.0, min(values)), min(float(image_width), max(values))
+
+
+def _raised_leg(
+    detection: PersonDetection,
+    height: float,
+    detector_boxes: list[tuple[float, float, float, float]],
+) -> tuple[float, float, float, float, bool, float, float | None] | None:
+    leg = _pants_legs(detection, height, None)
+    if leg is None or not detector_boxes:
+        return None
+    boxes = [
+        box for box in detector_boxes
+        if detection.bbox[0] <= (box[0] + box[2]) / 2 <= detection.bbox[2]
+    ]
+    if boxes and min(box[3] for box in boxes) < leg[5] + ANCHOR_RAISED_FOOT * (max([leg[3]] + [box[3] for box in boxes]) - leg[5]):
+        return leg
+    return None
+
+
+def _socks_crop_box(
+    detections: list[PersonDetection], image_size: tuple[int, int], target_size: tuple[int, int],
+    segmentation: dict[str, object] | None, detector_boxes: list[tuple[float, float, float, float]],
+    allow_side_fill: bool = True,
+) -> dict[str, object] | None:
+    width, height = image_size
+    rows = _segmentation_rows(segmentation, image_size)
+    seg_bottom = max((row[1] for row in rows), default=0.0) if len(detections) == 1 else 0.0
+    knees = [point[1] for item in detections for index in (13, 14) if (point := _visible_point(item, index))]
+    ankles = [point[1] for item in detections for index in (15, 16) if (point := _visible_point(item, index))]
+    if not knees and not ankles:
+        return None
+    top = min(knees) if knees else 0.0
+    top_rule = "source" if not knees else "above_knee"
+    for item in detections:
+        for hip_index, knee_index, ankle_index in ((11, 13, 15), (12, 14, 16)):
+            knee = _visible_point(item, knee_index)
+            if knee is None:
+                continue
+            hip = _visible_point(item, hip_index)
+            ankle = _visible_point(item, ankle_index)
+            thigh = knee[1] - hip[1] if hip is not None and knee[1] > hip[1] else (abs((ankle or knee)[1] - knee[1]) * 0.8)
+            top = min(top, knee[1] - max(0.0, thigh) * ANCHOR_SOCKS_ABOVE_KNEE)
+    raised = [_raised_leg(item, height, detector_boxes) for item in detections]
+    if any(raised):
+        top = min(top, min(item[0] for item in raised if item is not None))
+        top_rule = "waist"
+    bottom = max([float(item.bbox[3]) for item in detections] + [seg_bottom] + [box[3] for box in detector_boxes])
+    subject = _anchor_subject_x(detections, rows, detector_boxes, top, bottom, (11, 12, 13, 14, 15, 16), width)
+    if subject is None:
+        return None
+    return _anchor_window(
+        image_size=image_size, target_size=target_size, top=top, bottom=bottom,
+        subject_left=subject[0], subject_right=subject[1], margin_top=ANCHOR_EDGE_MARGIN,
+        margin_bottom=ANCHOR_EDGE_MARGIN, top_known=bool(knees), bottom_known=True,
+        top_rule=top_rule, bottom_rule="sole", allow_side_fill=allow_side_fill, keep="bottom",
+    )
+
+
+def _hat_crop_box(
+    detections: list[PersonDetection], image_size: tuple[int, int], target_size: tuple[int, int],
+    segmentation: dict[str, object] | None, detector_boxes: list[tuple[float, float, float, float]],
+    allow_side_fill: bool = True,
+) -> dict[str, object] | None:
+    width, height = image_size
+    rows = _segmentation_rows(segmentation, image_size)
+    top_candidates = [item.bbox[1] for item in detections]
+    if rows:
+        top_candidates.append(min(row[0] for row in rows))
+    top_candidates.extend(box[1] for box in detector_boxes)
+    top_rule = "head"
+    for item in detections:
+        eyes = [point[1] for index in (1, 2) if (point := _visible_point(item, index))]
+        for elbow_index, wrist_index in ((7, 9), (8, 10)):
+            elbow = _visible_point(item, elbow_index)
+            wrist = _visible_point(item, wrist_index)
+            if wrist is None or not eyes or wrist[1] >= min(eyes):
+                continue
+            forearm = math.dist(elbow[:2], wrist[:2]) if elbow is not None else abs(wrist[1] - min(eyes))
+            top_candidates.append(wrist[1] - 0.5 * forearm)
+            top_rule = "hand"
+    if not top_candidates:
+        return None
+    top = min(top_candidates)
+    chest_values: list[float] = []
+    for item in detections:
+        shoulder = [point[1] for index in (5, 6) if (point := _visible_point(item, index))]
+        if not shoulder:
+            continue
+        shoulder_y = sum(shoulder) / len(shoulder)
+        hips = [point[1] for index in (11, 12) if (point := _visible_point(item, index))]
+        nose = _visible_point(item, 0)
+        torso = (sum(hips) / len(hips) - shoulder_y) if hips else 2.5 * max(1.0, shoulder_y - (nose[1] if nose else shoulder_y - (item.bbox[3] - item.bbox[1]) * 0.12))
+        chest_values.append(shoulder_y + max(0.0, torso) * ANCHOR_HAT_CHEST)
+    if not chest_values:
+        return None
+    bottom = min(float(height), max(chest_values))
+    guard = any(_visible_point(item, index) for item in detections for index in (0, 1, 2)) or bool(detector_boxes)
+    if not guard:
+        return None
+    subject = _anchor_subject_x(detections, rows, detector_boxes, top, bottom, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), width)
+    if subject is None:
+        return None
+    return _anchor_window(
+        image_size=image_size, target_size=target_size, top=top, bottom=bottom,
+        subject_left=subject[0], subject_right=subject[1], margin_top=ANCHOR_EDGE_MARGIN,
+        margin_bottom=ANCHOR_EDGE_MARGIN, bottom_known=False, top_rule=top_rule, bottom_rule="chest",
+        allow_side_fill=allow_side_fill, keep="top",
+        must_keep_x=(min(box[0] for box in detector_boxes), max(box[2] for box in detector_boxes)) if detector_boxes else None,
+    )
+
+
+def _full_frame_window(
+    image_size: tuple[int, int], target_size: tuple[int, int], centre_x: float, centre_y: float,
+) -> dict[str, object]:
+    """Largest window of the target aspect that fits inside the source,
+    centred on ``(centre_x, centre_y)`` and clamped to the image.
+
+    Used by gloves when the normal hands window cannot be produced (no
+    shoulder/elbow, or the window would be upscaled beyond the source) but
+    there is still hand evidence: gloves must never fall back to the legacy
+    zoom.
+    """
+    width, height = image_size
+    aspect = target_size[0] / max(1, target_size[1])
+    window_width = float(width)
+    window_height = window_width / aspect
+    if window_height > height:
+        window_height = float(height)
+        window_width = window_height * aspect
+    window_left = max(0.0, min(width - window_width, centre_x - window_width / 2))
+    window_top = max(0.0, min(height - window_height, centre_y - window_height / 2))
+    window_right = window_left + window_width
+    window_bottom = window_top + window_height
+    return {
+        "crop_box": [
+            round(window_left / width, 4),
+            round(window_top / height, 4),
+            round(window_right / width, 4),
+            round(window_bottom / height, 4),
+        ],
+        "anchors": {
+            "top": round(window_top / height, 4),
+            "bottom": round(window_bottom / height, 4),
+        },
+        "review_reasons": [],
+        "top_rule": "full_frame",
+        "bottom_rule": "full_frame",
+    }
+
+
+def _gloves_crop_box(
+    detections: list[PersonDetection], image_size: tuple[int, int], target_size: tuple[int, int],
+    segmentation: dict[str, object] | None, detector_boxes: list[tuple[float, float, float, float]],
+    allow_side_fill: bool = True,
+) -> dict[str, object] | None:
+    width, height = image_size
+    regions: list[tuple[float, float, float, float]] = list(detector_boxes)
+    forearms: list[float] = []
+    for item in detections:
+        for elbow_index, wrist_index in ((7, 9), (8, 10)):
+            elbow = _visible_point(item, elbow_index)
+            wrist = _visible_point(item, wrist_index)
+            if wrist is None:
+                continue
+            length = math.dist(elbow[:2], wrist[:2]) if elbow is not None else max(1.0, (item.bbox[3] - item.bbox[1]) * 0.08)
+            forearms.append(length)
+            # A square centred on the wrist, independent of forearm
+            # direction, so a bent wrist still keeps the fingers inside.
+            half = length * ANCHOR_GLOVES_HAND_HALF
+            regions.append((wrist[0] - half, wrist[1] - half, wrist[0] + half, wrist[1] + half))
+            if elbow is not None:
+                regions.append((elbow[0], elbow[1], elbow[0], elbow[1]))
+    # Gloves never use the legacy zoom. Without hand evidence, or on a close-up
+    # with neither a face nor a detected glove (pose invents a body on hand
+    # close-ups), keep the largest frame instead of zooming in.
+    if not regions or (
+        not detector_boxes and not any(_visible_point(item, index) for item in detections for index in (0, 1, 2))
+    ):
+        boxes = regions or [item.bbox for item in detections]
+        return _full_frame_window(
+            image_size, target_size,
+            (min(box[0] for box in boxes) + max(box[2] for box in boxes)) / 2,
+            (min(box[1] for box in boxes) + max(box[3] for box in boxes)) / 2,
+        )
+    left = max(0.0, min(region[0] for region in regions))
+    top = max(0.0, min(region[1] for region in regions))
+    right = min(float(width), max(region[2] for region in regions))
+    bottom = min(float(height), max(region[3] for region in regions))
+    centre_x, centre_y = (left + right) / 2, (top + bottom) / 2
+    minimum = max(forearms or [height * 0.08]) * ANCHOR_GLOVES_MIN_HEIGHT
+    if bottom - top < minimum:
+        top, bottom = centre_y - minimum / 2, centre_y + minimum / 2
+    shirt = anchor_crop_box(detections, image_size, target_size, "shirt", segmentation)
+    candidate = _anchor_window(
+        image_size=image_size, target_size=target_size, top=top, bottom=bottom,
+        subject_left=left, subject_right=right, margin_top=ANCHOR_EDGE_MARGIN,
+        margin_bottom=ANCHOR_EDGE_MARGIN, top_rule="hands", bottom_rule="hands",
+        allow_side_fill=allow_side_fill,
+    )
+    # A hands window smaller than the output would be upscaled into a blur
+    # (pose can invent keypoints on hand close-ups). Gloves must never fall
+    # back to the legacy zoom though, so use the largest same-aspect window
+    # the source can fill, centred on the hand evidence, instead of None.
+    if candidate is None or (candidate["crop_box"][3] - candidate["crop_box"][1]) * height < target_size[1]:
+        return _full_frame_window(image_size, target_size, centre_x, centre_y)
+    if shirt is not None:
+        cw = candidate["crop_box"]
+        sw = shirt["crop_box"]
+        if (cw[2] - cw[0]) > (sw[2] - sw[0]) + 1e-6 or (cw[3] - cw[1]) > (sw[3] - sw[1]) + 1e-6:
+            result = dict(shirt)
+            result["review_reasons"] = list(result.get("review_reasons", [])) + ["双手过开，已按上半身裁切"]
+            return result
+    return candidate
+
+
+def _knee_pads_crop_box(
+    detections: list[PersonDetection], image_size: tuple[int, int], target_size: tuple[int, int],
+    segmentation: dict[str, object] | None, detector_boxes: list[tuple[float, float, float, float]],
+    allow_side_fill: bool = True,
+) -> dict[str, object] | None:
+    width, height = image_size
+    legs = []
+    for item in detections:
+        hips = [point[1] for index in (11, 12) if (point := _visible_point(item, index))]
+        knees = [point[1] for index in (13, 14) if (point := _visible_point(item, index))]
+        if not hips or not knees:
+            continue
+        hip = sum(hips) / len(hips)
+        for knee_index in (13, 14):
+            knee = _visible_point(item, knee_index)
+            if knee is None or knee[1] <= hip:
+                continue
+            ankle = _visible_point(item, 15 if knee_index == 13 else 16)
+            thigh = knee[1] - hip
+            shank = ankle[1] - knee[1] if ankle is not None and ankle[1] > knee[1] else thigh
+            legs.append((item, knee[1] - thigh * ANCHOR_KNEE_PADS_THIGH, knee[1] + shank * ANCHOR_KNEE_PADS_SHANK))
+    if not legs:
+        return None
+    for item, _top, _bottom in legs:
+        if _raised_leg(item, height, detector_boxes) is not None:
+            return None
+    top = min(item[1] for item in legs)
+    bottom = max(item[2] for item in legs)
+    rows = _segmentation_rows(segmentation, image_size)
+    subject = _anchor_subject_x([item[0] for item in legs], rows, detector_boxes, top, bottom, (11, 12, 13, 14, 15, 16), width)
+    if subject is None:
+        return None
+    return _anchor_window(
+        image_size=image_size, target_size=target_size, top=top, bottom=bottom,
+        subject_left=subject[0], subject_right=subject[1], margin_top=ANCHOR_EDGE_MARGIN,
+        margin_bottom=ANCHOR_EDGE_MARGIN, top_rule="above_knee", bottom_rule="below_knee",
+        allow_side_fill=allow_side_fill, keep="centre",
+    )
+
+
 def anchor_crop_box(
     detections: list[PersonDetection],
     image_size: tuple[int, int],
@@ -711,6 +1125,8 @@ def anchor_crop_box(
     category: str | None,
     segmentation: dict[str, object] | None = None,
     shoe_boxes: list[tuple[float, float, float, float]] | None = None,
+    detector_boxes: list[tuple[float, float, float, float]] | None = None,
+    allow_side_fill: bool = True,
 ) -> dict[str, object] | None:
     """Return a crop window spanning the category anchors, or ``None``.
 
@@ -720,8 +1136,20 @@ def anchor_crop_box(
     """
     if category not in ANCHOR_CATEGORIES or not detections:
         return None
+    detector_boxes = list(detector_boxes if detector_boxes is not None else (shoe_boxes or []))
     if category in {"long_pants", "pants", "shorts"}:
-        return _pants_crop_box(detections, image_size, target_size, category, segmentation, shoe_boxes)
+        return _pants_crop_box(detections, image_size, target_size, category, segmentation, detector_boxes)
+    if category == "socks":
+        return _socks_crop_box(detections, image_size, target_size, segmentation, detector_boxes, allow_side_fill)
+    if category == "hat":
+        return _hat_crop_box(detections, image_size, target_size, segmentation, detector_boxes, allow_side_fill)
+    if category == "gloves":
+        return _gloves_crop_box(detections, image_size, target_size, segmentation, detector_boxes, allow_side_fill)
+    if category == "knee_pads":
+        return _knee_pads_crop_box(detections, image_size, target_size, segmentation, detector_boxes, allow_side_fill)
+    if category == "bag":
+        # Bags intentionally use the exact shirt anchor rules and do not use detection boxes.
+        category = "shirt"
     width, height = image_size
     rows = _segmentation_rows(segmentation, image_size)
     seg_top = min((row[0] for row in rows), default=None)
@@ -749,7 +1177,7 @@ def anchor_crop_box(
         if single and seg_bottom is not None and abs(box_bottom - seg_bottom) > height * ANCHOR_DISAGREEMENT:
             hints.append("鞋底边界存疑")
         # The detector sees a raised foot that pose often misses.
-        extra = list(shoe_boxes or [])
+        extra = list(detector_boxes)
         left = min([box[0] for box in pose_boxes] + [box[0] for box in extra])
         right = max([box[1] for box in pose_boxes] + [box[2] for box in extra])
         top = min([box[2] for box in pose_boxes] + [box[1] for box in extra])
@@ -2154,6 +2582,7 @@ class LocalModelAssistant:
         segmentation: dict[str, object] | None,
         source: Path | None = None,
         shoe_boxes: list[tuple[float, float, float, float]] | None = None,
+        detector_boxes: list[tuple[float, float, float, float]] | None = None,
     ) -> None:
         """Replace a size plan with its anchor crop when the category has one.
 
@@ -2161,7 +2590,10 @@ class LocalModelAssistant:
         backdrop; otherwise the size is skipped.
         """
         for size_name, (size, _background) in sizes.items():
-            anchored = anchor_crop_box(detections, image_size, size, product_category, segmentation, shoe_boxes)
+            anchored = anchor_crop_box(
+                detections, image_size, size, product_category, segmentation, shoe_boxes,
+                detector_boxes=detector_boxes,
+            )
             if anchored is None:
                 continue
             side_fill = anchored.get("side_fill")
@@ -2171,7 +2603,21 @@ class LocalModelAssistant:
                 or max(side_fill_structure(source, anchored["crop_box"], side_fill, strip_partial).values(), default=0.0)
                 > PARTIAL_MAX_SHARE
             ):
-                skip_reason = ANCHOR_FILL_SKIP_REASON
+                if product_category in NEW_ANCHOR_CATEGORIES:
+                    # New categories must keep producing an image when a side strip
+                    # fails structure checks; recompute as a clipped crop instead.
+                    anchored = anchor_crop_box(
+                        detections, image_size, size, product_category, segmentation, shoe_boxes,
+                        detector_boxes=detector_boxes, allow_side_fill=False,
+                    )
+                    if anchored is not None:
+                        if "原图比例不足，可能裁切" not in anchored["review_reasons"]:
+                            anchored["review_reasons"].append("原图比例不足，可能裁切")
+                        side_fill = anchored.get("side_fill")
+                    else:
+                        continue
+                else:
+                    skip_reason = ANCHOR_FILL_SKIP_REASON
             if skip_reason is not None:
                 by_size[size_name] = {
                     "composition_mode": "skipped",
@@ -2182,13 +2628,14 @@ class LocalModelAssistant:
             reasons = list(anchored["review_reasons"])
             plan: dict[str, object] = {
                 "composition_mode": "anchor_crop",
-                "crop_box": anchored["crop_box"],
-                "anchors": anchored["anchors"],
+                # numpy scalars from keypoints/boxes are not JSON (worker emit, result cache).
+                "crop_box": [round(float(value), 4) for value in anchored["crop_box"]],
+                "anchors": {key: round(float(value), 4) for key, value in anchored["anchors"].items()},
                 "confidence": by_size.get(size_name, {}).get("confidence", 0.0),
                 "risk_flags": reasons,
             }
             if side_fill:
-                plan["evidence"] = {"side_fill": side_fill}
+                plan["evidence"] = {"side_fill": {key: float(value) for key, value in side_fill.items()}}
             if reasons:
                 plan["review_hint"] = "；".join(reasons)
                 if product_category == "shoes":
@@ -2202,6 +2649,7 @@ class LocalModelAssistant:
         product_category: str | None = None,
         segmentation: dict[str, object] | None = None,
         shoe_boxes: list[tuple[float, float, float, float]] | None = None,
+        detector_boxes: list[tuple[float, float, float, float]] | None = None,
     ) -> dict[str, object]:
         with Image.open(source) as opened:
             image_size = opened.size
@@ -2372,7 +2820,10 @@ class LocalModelAssistant:
                 )
                 for size_name, (size, _background) in sizes.items()
             }
-            self._apply_anchor_crops(by_size, detections, image_size, sizes, product_category, segmentation, source, shoe_boxes)
+            self._apply_anchor_crops(
+                by_size, detections, image_size, sizes, product_category, segmentation, source,
+                shoe_boxes, detector_boxes,
+            )
             return {
                 "model_view": "group",
                 "confidence": round(max(item.confidence for item in detections), 4),
@@ -2404,7 +2855,10 @@ class LocalModelAssistant:
             )
             for size_name, (size, _background) in sizes.items()
         }
-        self._apply_anchor_crops(by_size, [detection], image_size, sizes, product_category, segmentation, source, shoe_boxes)
+        self._apply_anchor_crops(
+            by_size, [detection], image_size, sizes, product_category, segmentation, source,
+            shoe_boxes, detector_boxes,
+        )
         return {
             "composition_mode": "zoom_focus",
             "model_view": model_view,
@@ -2625,10 +3079,14 @@ class LocalDetectionAssistant:
 
     def shoe_boxes(self, source: Path) -> list[list[float]]:
         """Shoe boxes in source px: shoe labels merged across labels, oversized boxes dropped."""
+        return self.boxes_for(source, "shoes")
+
+    def boxes_for(self, source: Path, category: str) -> list[list[float]]:
+        """Return detector boxes mapped to a product category in source px."""
         with Image.open(source) as opened:
             area = opened.width * opened.height
-        shoes = [item for item in self.detect(source) if self.category_map.get(item[0]) == "shoes"]
+        items = [item for item in self.detect(source) if self.category_map.get(item[0]) == category]
         return [
-            list(box) for _label, _score, box in _nms(shoes, self.nms_iou)
+            list(box) for _label, _score, box in _nms(items, self.nms_iou)
             if (box[2] - box[0]) * (box[3] - box[1]) <= area * DETECTION_MAX_BOX_AREA
         ]
