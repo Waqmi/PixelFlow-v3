@@ -291,6 +291,31 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(result.getpixel((0, 0)), (0, 128, 0))
         self.assertEqual(len(cover.call_args.args), 2)
 
+    def test_model_detail_with_anchor_plan_uses_anchor_crop(self) -> None:
+        plan = CompositionPlan(
+            source="model-detail.jpg",
+            size="100x100",
+            composition_mode="anchor_crop",
+            crop_box=(0.0, 0.0, 1.0, 0.5),
+        )
+        image = Image.new("RGB", (100, 200), "blue")
+        image.paste((255, 0, 0), (0, 0, 100, 100))
+        result = Renderer()._compose(
+            image,
+            RenderRequest(
+                source="model-detail.jpg",
+                output_root="/tmp/output",
+                size="100x100",
+                mode="v3",
+                plan=plan,
+                source_type="model_detail",
+                include_logo=False,
+            ),
+            (100, 100),
+            False,
+        )
+        self.assertEqual(result.getpixel((50, 99)), (255, 0, 0))
+
     def test_model_square_crop_ratio_caps_protected_region(self) -> None:
         plan = CompositionPlan(
             source="model.jpg",

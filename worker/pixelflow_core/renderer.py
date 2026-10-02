@@ -728,9 +728,10 @@ class Renderer:
             return canvas
         focus = (plan.position_x, plan.position_y) if plan else (_float(metadata.get("position_x"), 0.5), _float(metadata.get("position_y"), 0.5))
         protected = _plan_box(plan)
-        if source_type in {"detail", "model_detail"}:
+        anchored = plan is not None and plan.composition_mode == "anchor_crop" and plan.crop_box is not None
+        if source_type in {"detail", "model_detail"} and not (source_type == "model_detail" and anchored):
             return _resize_cover(image.convert("RGB"), target)
-        if source_type == "model":
+        if source_type in {"model", "model_detail"}:
             scale = _float(plan.scale if plan else layout.scale if layout.scale != 1.0 else metadata.get("scale"), 1.0)
             if plan and plan.fallback:
                 scale = min(scale, 1.0)

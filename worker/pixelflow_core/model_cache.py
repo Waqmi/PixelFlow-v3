@@ -91,12 +91,13 @@ def build_cache_identity(
     pose_model_version: Optional[Any] = None,
     seg_model_version: Optional[Any] = None,
     detection_model_path: Optional[Path] = None,
+    source_version: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Build the complete cache identity or return ``None`` for missing files."""
     normalized_purpose = _purpose(purpose)
     if normalized_purpose not in {"pose", "segmentation"}:
         return None
-    source_version = _file_version(source, include_digest=True)
+    source_version = source_version or _file_version(source, include_digest=True)
     if source_version is None:
         return None
 
@@ -145,6 +146,7 @@ def _cache_key(
     category: Optional[str] = None,
     output_size: Any = None,
     composition_rules_version: str = COMPOSITION_RULES_VERSION,
+    source_version: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Optional[Tuple[str, Dict[str, Any]]]:
     identity = build_cache_identity(
@@ -154,6 +156,7 @@ def _cache_key(
         category,
         output_size,
         composition_rules_version,
+        source_version=source_version,
         **kwargs,
     )
     if identity is None:
@@ -210,6 +213,7 @@ def lookup_model_result(
     category: Optional[str] = None,
     output_size: Any = None,
     composition_rules_version: str = COMPOSITION_RULES_VERSION,
+    source_version: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> CacheLookup:
     """Read a cache entry and report why a miss happened."""
@@ -220,6 +224,7 @@ def lookup_model_result(
         category,
         output_size,
         composition_rules_version,
+        source_version=source_version,
         **kwargs,
     )
     if keyed is None:
@@ -272,6 +277,7 @@ def load_model_result(
     output_size: Any = None,
     composition_rules_version: str = COMPOSITION_RULES_VERSION,
     return_status: bool = False,
+    source_version: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Any:
     """Compatibility loader; use ``return_status`` for explicit cache state."""
@@ -282,6 +288,7 @@ def load_model_result(
         category,
         output_size,
         composition_rules_version,
+        source_version=source_version,
         **kwargs,
     )
     if return_status:
@@ -297,6 +304,7 @@ def store_model_result(
     result: Any,
     output_size: Any = None,
     composition_rules_version: str = COMPOSITION_RULES_VERSION,
+    source_version: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> bool:
     keyed = _cache_key(
@@ -306,6 +314,7 @@ def store_model_result(
         category,
         output_size,
         composition_rules_version,
+        source_version=source_version,
         **kwargs,
     )
     if keyed is None:

@@ -1,6 +1,6 @@
 # PixelFlow v3 当前状态
 
-更新日期：2026-09-27  
+更新日期：2026-10-02
 版本：`3.0.0-beta.1`
 
 ## 当前结论
@@ -12,6 +12,8 @@
 - 设置页已提供版本/Worker 哈希/规则版本、Pose/Seg 文件名与 SHA-256 状态；桌面端可导出包含诊断 JSON、失败报告、最近 Worker 日志和最近结果的 ZIP 诊断包。
 - 已修复模型检测的 `file_version(include_digest=True)` 参数错误；最新修复包在宿主设置页显示 Pose、Seg 均“已就绪”且 SHA-256 匹配。
 - v3 同名输出默认复用固定路径，不自动改名或覆盖；显式强制重跑才覆盖，生成前会检查输出磁盘空间并在低于 200 MB 时预警。
+- 最新提交 `2f39ae1` 已为 `socks`、`hat`、`gloves`、`knee_pads`、`bag` 接入锚点构图；帽子、手套、长袜已有真实素材渲染验收，护膝目前仅完成合成数据验证。
+- 当前工作区的后续修复扩大了手套检测框安全边界，并让带锚点构图的帽子/手套特写保留为模特图；Python 3.14 下 Worker 全量测试为 191 项通过、1 项既有跳过。
 
 ## 进行中
 
@@ -22,7 +24,7 @@
 | T3 当前 legacy 基线 | ✅ 基线完成，候选修复待视觉复核 | 正式报告仍为 120/120 配对、52 个需修复；candidate2 固定 16 张素材为 120/120、0 个差异，见 `v3-t3-candidate2-compare-report-20260927.json`，未改写正式基线 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
 | T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
-| T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md` |
+| T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md`；五个剩余品类已接入锚点构图，护膝真实素材验收仍缺 |
 | T7 onedir/Python 3.12 | 进行中 | 最新 onedir `.app` 已用 Python 3.14.5 重建并通过 Worker ping/退出及宿主启动/退出；正式 Python 3.12 锁定依赖构建仍待完成 |
 | T8 复核与回退可见性 | ✅ 已实现，真实批次追踪待补 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`apps/desktop/src/App.vue` |
 | T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；Worker CI job 已固定 `PYTHONPATH=worker`，已将进度状态和关于页抽出；完整 views 拆分与 Vitest 仍待处理（当前环境无法安装新 npm 依赖） |
@@ -34,7 +36,7 @@
 - 目标平台：macOS arm64、Windows x64。
 - 当前默认发布策略：暂不提供 Intel，除非出现明确用户需求。
 - ONNX 模型不入 Git；SHA-256 记录在 `models/README.md` 和构建证据中。
-- 规则版本：`v3-composition-1`。
+- 规则版本：`v3-composition-10`。
 
 ## 证据约定
 
@@ -47,7 +49,7 @@
 - `npm run build`：通过。
 - `cargo clean && cargo check`：通过（当前 onedir 资源布局）。
 - Worker 协议测试：`worker.tests.test_contracts` 7/7 通过；预览越界拒绝、缓存和 ready 版本握手 smoke 通过。
-- Worker 全量：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 93/93 通过。
+- Worker 全量（最新本地验证）：`PYTHONPATH=worker /opt/homebrew/bin/python3.14 -m unittest discover -s worker/tests -p 'test_*.py'` 191/191 通过，1 项既有跳过。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
 - `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
@@ -59,3 +61,4 @@
 - `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。
 - 最新本地 `.app`：`dist/PixelFlow-v3-beta.app`，源码提交 `0097bd9`，Worker 哈希 `17f6ef32...`；证据见 `baselines/v2.6/v3-recheck-20260927/mac-app-package-latest-20260927.json`。Tauri app-only bundle、ad-hoc codesign 校验、宿主启动/退出和 Worker ready/ping/shutdown 通过；默认 DMG bundler 仍失败。
 - 模型检测修复包：`dist/PixelFlow-v3-beta-model-fix.app`，源码提交 `3359911`，Worker 哈希 `e6f28644...`；Worker 94/94 通过，源码/冻结 Worker 对真实 Pose/Seg 模型均返回“已就绪”和完整匹配 SHA-256，宿主设置页点击“测试模型”得到相同结果。见 `baselines/v2.6/v3-recheck-20260927/model-probe-fix-20260927.json`。旧 `dist/PixelFlow-v3-beta.app` 仍在运行，未覆盖。
+- 最新回归后 app：`dist/PixelFlow-v3-beta.app`，包含确认页后台预览队列和报告页 UI 修复，使用 Python 3.14.5 onedir Worker；Worker 哈希 `8fb8f4b972415187e2a41ceb61f58655961eb2b81bcdcb84c039121f1c314d51`，规则版本 `v3-composition-10`。前端构建、协议检查、Worker 191 项测试、Rust 4 项测试、ad-hoc 签名和 Worker `ready/ping/shutdown` 冒烟均通过。

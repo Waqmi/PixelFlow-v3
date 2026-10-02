@@ -218,7 +218,7 @@ class AnchorCropTests(unittest.TestCase):
         # extending along the elbow->wrist direction, so a bent wrist (the
         # hand folded back over the forearm) still stays inside the window.
         points = dict(STANDING)
-        points.update({7: (430, 300), 9: (430, 500), 8: (570, 300), 10: (570, 500)})
+        points.update({7: (430, 380), 9: (430, 500), 8: (570, 380), 10: (570, 500)})
         result = anchor_crop_box([person(points)], IMAGE, (360, 360), "gloves")
         self.assertIsNotNone(result)
         self.assertEqual(result["top_rule"], "hands")

@@ -439,10 +439,22 @@ class V26ClassifierAdapter:
         if not root_text:
             return decisions
         from .model_service import configured_model_candidates, get_model_process_service
+        from .model_cache import file_version
         from .legacy_engine.local_model_assistant import (
             resolve_model_source_type,
             resolve_segmentation_source_type,
         )
+
+        # A single classification request can consult the same source in
+        # Pose, anchor Seg, and the final Seg pass.  Computing the SHA-256
+        # source identity once per source keeps cache identity exact while
+        # avoiding repeated full-image reads.
+        source_versions: dict[Path, dict[str, object] | None] = {}
+
+        def cache_source_version(source: Path) -> dict[str, object] | None:
+            if source not in source_versions:
+                source_versions[source] = file_version(source, include_digest=True)
+            return source_versions[source]
 
         # Keep obvious product folders cheap. Homogeneous detail folders get a
         # small Pose sample so model photos without naming hints are covered.
@@ -568,13 +580,13 @@ class V26ClassifierAdapter:
                 try:
                     evidence = load_model_result(
                         source, anchor_seg_path, "segmentation", category,
-                        output_size="segmentation",
+                        output_size="segmentation", source_version=cache_source_version(source),
                     )
                     if evidence is None:
                         evidence = service.segment(root_text, source)
                         store_model_result(
                             source, anchor_seg_path, "segmentation", category,
-                            evidence, output_size="segmentation",
+                            evidence, output_size="segmentation", source_version=cache_source_version(source),
                         )
                 except Exception:  # noqa: BLE001 - anchors fall back to Pose only
                     return None
@@ -611,6 +623,7 @@ class V26ClassifierAdapter:
                                 category,
                                 output_size="all",
                                 detection_model_path=detection_model_path,
+                                source_version=cache_source_version(source),
                             )
                             if pose_model_path is not None
                             else None
@@ -638,6 +651,7 @@ class V26ClassifierAdapter:
                                     composition,
                                     output_size="all",
                                     detection_model_path=detection_model_path,
+                                    source_version=cache_source_version(source),
                                 )
                         updated = resolve_model_source_type(decision, composition, category)
                         metadata = _merge_composition_metadata(
@@ -712,6 +726,7 @@ class V26ClassifierAdapter:
                             "segmentation",
                             category,
                             output_size="segmentation",
+                            source_version=cache_source_version(source),
                         )
                         if seg_model_path is not None
                         else None
@@ -726,6 +741,7 @@ class V26ClassifierAdapter:
                                 category,
                                 evidence,
                                 output_size="segmentation",
+                                source_version=cache_source_version(source),
                             )
                     updated = resolve_segmentation_source_type(decision, evidence)
                     metadata = _merge_composition_metadata(

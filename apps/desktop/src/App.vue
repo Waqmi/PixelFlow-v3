@@ -72,10 +72,42 @@ interface ModelDiagnostic {
   model_version?: { path?: string; sha256?: string; size?: number; mtime_ns?: number }
 }
 
-const theme = ref<Theme>('system')
-const systemDark = ref(false)
+function readInitialTheme(): Theme {
+  try {
+    const storedTheme = localStorage.getItem('pixelflow.theme')
+    if (storedTheme === 'system' || storedTheme === 'light' || storedTheme === 'dark') return storedTheme
+    const savedSettings = JSON.parse(localStorage.getItem('pixelflow.output-settings') || 'null') as { theme?: unknown } | null
+    if (savedSettings?.theme === 'system' || savedSettings?.theme === 'light' || savedSettings?.theme === 'dark') {
+      return savedSettings.theme
+    }
+  } catch {
+    // Storage is optional in embedded webviews.
+  }
+  return 'system'
+}
+
+function readInitialSystemDark(): boolean {
+  try { return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false } catch { return false }
+}
+
+const initialTheme = readInitialTheme()
+const initialSystemDark = readInitialSystemDark()
+const initialDark = initialTheme === 'dark' || (initialTheme === 'system' && initialSystemDark)
+if (initialDark && typeof document !== 'undefined') {
+  // Apply the persisted appearance before Vue mounts. The settings window is
+  // created as a new WebView, so its first paint otherwise uses the light
+  // index.html background for a frame before `.theme-dark` is rendered.
+  const initialBackground = '#1b1f24'
+  document.documentElement.style.backgroundColor = initialBackground
+  document.body?.style.setProperty('background-color', initialBackground)
+  document.getElementById('app')?.style.setProperty('background-color', initialBackground)
+}
+
+const theme = ref<Theme>(initialTheme)
+const systemDark = ref(initialSystemDark)
 const reducedMotion = ref(false)
 const { progress, setProgress } = useTaskProgress(reducedMotion)
+const { progress: classificationProgress, setProgress: setClassificationProgress } = useTaskProgress(reducedMotion)
 const classificationConcurrency = ref('auto')
 const inputRoot = ref('')
 const outputRoot = ref('')
@@ -158,7 +190,6 @@ let pendingClassificationKey = ''
 const categorySuggestion = ref<{ category: string; source: string; matched_keyword?: string }>()
 const preflightWarnings = ref<string[]>([])
 const classificationRunning = ref(false)
-const classificationProgress = ref(0)
 const generationRequestId = ref<string>()
 const classificationRequestId = ref<string>()
 const modelProbeRequestId = ref<string>()
@@ -191,6 +222,7 @@ const confirmGridElement = ref<HTMLElement | null>(null)
 const previewElements = new Map<string, HTMLElement>()
 let previewObserver: IntersectionObserver | undefined
 let previewBackgroundTimer = 0
+let previewBackgroundIndex = 0
 let previewScrollTimer = 0
 let previewScrolling = false
 let previewScrollRoot: HTMLElement | undefined
@@ -542,6 +574,7 @@ function armClassificationWatchdog() {
     if (!requestId || !classificationRunning.value) return
     worker?.request('cancel_generation', { request_id: requestId })
     classificationRunning.value = false
+    setClassificationProgress(0, true)
     isCancelling.value = false
     classificationRequestId.value = undefined
     status.value = '素材分析超时，请重试'
@@ -561,6 +594,7 @@ function settleCancellation(message: string, detail: string, phase = '已安全�
   const target = cancelTargetRequestId.value
   if (target && target === classificationRequestId.value) {
     classificationRunning.value = false
+    setClassificationProgress(0, true)
     classificationRequestId.value = undefined
   }
   if (target && target === generationRequestId.value) {
@@ -902,9 +936,25 @@ function generationPayload(sourceFilter?: string[], forceRerender = false) {
   }
 }
 
+async function revealMainWindow() {
+  const current = getCurrentWindow()
+  // A hidden Tauri window can finish WebView creation one turn after Vue
+  // mounts. Retry the native reveal instead of losing the only show call.
+  for (const delay of [0, 32, 128, 320, 800]) {
+    if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay))
+    try {
+      await current.show()
+      await current.setFocus()
+      if (await current.isVisible()) return
+    } catch {
+      // The next attempt covers the window-created race.
+    }
+  }
+}
+
 onMounted(() => {
   try {
-    theme.value = (localStorage.getItem('pixelflow.theme') as Theme) || 'system'
+    theme.value = readInitialTheme()
     reducedMotion.value = localStorage.getItem('pixelflow.reduced-motion') === 'true'
     classificationConcurrency.value = localStorage.getItem('pixelflow.classification-concurrency') || 'auto'
     const savedSettings = localStorage.getItem('pixelflow.output-settings')
@@ -978,6 +1028,12 @@ onMounted(() => {
     } catch { /* optional */ }
   }
   window.addEventListener('storage', onStorageChange)
+  // Keep the native main window hidden until the first themed Vue frame is
+  // mounted. This avoids exposing Tauri's static light background while the
+  // persisted/system theme is still being applied during cold startup.
+  if (!isSettingsWindow && !isReportWindow && !isConfirmWindow && window.__TAURI_INTERNALS__) {
+    void revealMainWindow()
+  }
 })
 
 onBeforeUnmount(() => worker?.dispose())
@@ -1071,6 +1127,7 @@ watch(confirmOpen, (open) => {
     previewObserver?.disconnect()
     previewObserver = undefined
     if (previewBackgroundTimer) window.clearTimeout(previewBackgroundTimer)
+    previewBackgroundIndex = 0
     if (previewScrollTimer) window.clearTimeout(previewScrollTimer)
     previewScrollRoot?.removeEventListener('scroll', onPreviewScroll)
     previewScrollRoot = undefined
@@ -1128,16 +1185,16 @@ function handleWorkerMessage(message: WorkerMessage) {
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
     if (phase === 'Pose') {
-      classificationProgress.value = total ? 400 + Math.round((completed / total) * 450) : 400
+      setClassificationProgress(total ? 400 + Math.round((completed / total) * 450) : 400)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
-      classificationProgress.value = total ? 850 + Math.round((completed / total) * 150) : 850
+      setClassificationProgress(total ? 850 + Math.round((completed / total) * 150) : 850)
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
     } else if (phase === 'Pose/Seg') {
-      classificationProgress.value = total ? 400 + Math.round((completed / total) * 600) : 400
+      setClassificationProgress(total ? 400 + Math.round((completed / total) * 600) : 400)
       taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
-      classificationProgress.value = total ? Math.round((completed / total) * 400) : 0
+      setClassificationProgress(total ? Math.round((completed / total) * 400) : 0)
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
     }
     taskPhase.value = '识别分类'
@@ -1162,7 +1219,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     excludedModelSources.value = Array.isArray(result?.suggested_exclusions)
       ? result.suggested_exclusions.filter((source) => materials.value.some((material) => material.source === source))
       : []
-    classificationProgress.value = 1000
+    setClassificationProgress(1000, true)
     materialConfirmed.value = false
     status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材，请确认后继续'
     taskPhase.value = '识别分类'
@@ -1244,6 +1301,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     clearClassificationWatchdog()
     isRunning.value = false
     isCancelling.value = false
+    if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
     classificationRunning.value = false
     status.value = String(payload.message || 'Worker 执行失败')
     taskPhase.value = '生成失败'
@@ -1268,6 +1326,7 @@ function classifyMaterials() {
   previewFailedSources.clear()
   previewQueue.length = 0
   previewQueuedSources.clear()
+  previewBackgroundIndex = 0
   classifiedInputRoot.value = ''
   categorySuggestion.value = undefined
   preflightWarnings.value = []
@@ -1275,7 +1334,7 @@ function classifyMaterials() {
   excludedModelSources.value = []
   scaleAdjustments.value = {}
   materialConfirmed.value = false
-  classificationProgress.value = 0
+  setClassificationProgress(0, true)
   classificationRunning.value = true
   isCancelling.value = false
   status.value = '正在分析素材'
@@ -1387,12 +1446,26 @@ function enqueueMaterialPreview(material: MaterialDecision, priority = false) {
 }
 
 function refreshMaterialPreviews(priority = false) {
-  const rootRect = confirmGridElement.value?.getBoundingClientRect()
+  const root = confirmGridElement.value
+  const rootRect = root?.getBoundingClientRect()
+  let visibleCount = 0
   for (const material of materials.value) {
     const element = previewElements.get(material.source)
     if (!element || !rootRect) continue
     const rect = element.getBoundingClientRect()
-    if (rect.bottom > rootRect.top && rect.top < rootRect.bottom) enqueueMaterialPreview(material, priority)
+    if (rect.bottom > rootRect.top && rect.top < rootRect.bottom) {
+      visibleCount += 1
+      enqueueMaterialPreview(material, priority)
+    }
+  }
+  // A newly created WebView can report a zero-sized grid for one layout turn,
+  // and some WebKit versions do not deliver the initial IntersectionObserver
+  // callback for a nested scrolling grid. Keep the first viewport responsive
+  // by queueing a small bounded prefix until geometry is available.
+  if (!rootRect || rootRect.height <= 0 || visibleCount === 0) {
+    materials.value.slice(0, Math.max(8, previewConcurrencyLimit.value * 2)).forEach((material) => {
+      enqueueMaterialPreview(material, priority)
+    })
   }
 }
 
@@ -1405,6 +1478,7 @@ function setPreviewElement(material: MaterialDecision, element: unknown) {
 function startPreviewObserver() {
   previewObserver?.disconnect()
   previewObserver = undefined
+  previewBackgroundIndex = 0
   if (previewBackgroundTimer) window.clearTimeout(previewBackgroundTimer)
   if (previewScrollTimer) window.clearTimeout(previewScrollTimer)
   previewScrollRoot?.removeEventListener('scroll', onPreviewScroll)
@@ -1412,18 +1486,43 @@ function startPreviewObserver() {
   if (!root) return
   previewScrollRoot = root
   root.addEventListener('scroll', onPreviewScroll, { passive: true })
-  previewObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue
-      const material = materials.value.find((item) => previewElements.get(item.source) === entry.target)
-      if (material) enqueueMaterialPreview(material)
-    }
-  }, { root, rootMargin: '380px 0px' })
-  previewElements.forEach((element) => previewObserver?.observe(element))
+  if (typeof IntersectionObserver === 'function') {
+    previewObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const material = materials.value.find((item) => previewElements.get(item.source) === entry.target)
+        if (material) enqueueMaterialPreview(material)
+      }
+    }, { root, rootMargin: '380px 0px' })
+    previewElements.forEach((element) => previewObserver?.observe(element))
+  }
+  // Trigger once after refs are attached and once after the browser has laid
+  // out the scroll grid. This covers the first-screen case without relying on
+  // a scroll event to kick the observer.
+  refreshMaterialPreviews()
+  window.requestAnimationFrame(() => refreshMaterialPreviews())
+  schedulePreviewBackground(350)
+}
+
+function schedulePreviewBackground(delay = 120, session = previewSession) {
+  if (previewBackgroundTimer) window.clearTimeout(previewBackgroundTimer)
+  if (previewScrolling || session !== previewSession) return
   previewBackgroundTimer = window.setTimeout(() => {
-    if (previewScrolling) return
-    materials.value.slice(0, 8).forEach((material) => enqueueMaterialPreview(material))
-  }, 350)
+    previewBackgroundTimer = 0
+    if (previewScrolling || session !== previewSession) return
+    refreshMaterialPreviews()
+    while (previewBackgroundIndex < materials.value.length) {
+      const material = materials.value[previewBackgroundIndex]
+      previewBackgroundIndex += 1
+      if (previewLoadedSources.has(material.source) || previewFailedSources.has(material.source)
+        || material.previewUrl || material.previewLoading || previewQueuedSources.has(material.source)) continue
+      // Keep the background pass ordered and in the normal queue. The pump
+      // still enforces the configured concurrency and deduplicates requests.
+      enqueueMaterialPreview(material)
+      break
+    }
+    if (previewBackgroundIndex < materials.value.length) schedulePreviewBackground(delay, session)
+  }, delay)
 }
 
 function onPreviewScroll() {
@@ -1436,6 +1535,7 @@ function onPreviewScroll() {
     refreshMaterialPreviews(true)
     materials.value.slice(0, 8).forEach((material) => enqueueMaterialPreview(material))
     pumpMaterialPreviews()
+    schedulePreviewBackground(120)
   }, 350)
 }
 
@@ -1701,23 +1801,23 @@ function startGeneration() {
     </Transition>
 
     <Transition name="dialog" appear>
-    <div v-if="reportOpen" class="settings-backdrop" @click.self="closeReport()">
+    <div v-if="reportOpen" class="settings-backdrop report-backdrop" @click.self="closeReport()">
       <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告">
         <div class="report-header"><div class="report-success-icon">✓</div><div><p class="eyebrow">PIXELFLOW · 批量任务</p><h2>{{ resultCancelled ? '已安全停止' : '生成完成' }}</h2><p>{{ resultCancelled ? '已保留已完成的输出；未开始的任务不会继续处理。' : '输出已整理完成，可直接打开文件夹检查结果。' }}</p></div></div>
         <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div></div>
         <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
         <p v-if="lastResult.incremental_skipped" class="report-cache-hint">检测到素材和设置均未变化，本次已复用上次输出。</p><p v-else-if="Number(lastResult.incremental_reused || 0) > 0" class="report-cache-hint">本次复用 {{ lastResult.incremental_reused }} 张未变化素材，其余素材已重新生成。</p>
-        <div v-if="skippedOutputs.length" class="review-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
         <div v-if="failures.length" class="report-failures">有 {{ failures.length }} 项失败素材；成功输出已保留，可在后续任务中重试。</div>
-        <div class="page-actions report-actions"><div class="report-actions-left"><button class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="reviewItems.length || fallbackItems.length" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" class="outline-button" @click="retryFailures()">仅重试失败项</button><button class="outline-button" @click="closeReport">完成</button></div></div>
+        <div class="page-actions report-actions"><div class="report-actions-left"><button class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="reviewItems.length || fallbackItems.length || skippedOutputs.length" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" class="outline-button" @click="retryFailures()">仅重试失败项</button><button class="outline-button" @click="closeReport">完成</button></div></div>
       </section>
     </div>
     </Transition>
 
     <Transition name="dialog" appear>
     <div v-if="reviewOpen" class="settings-backdrop" @click.self="reviewOpen = false">
-      <section class="page-dialog panel failure-dialog" role="dialog" aria-modal="true" aria-label="复核与回退">
+      <section class="page-dialog panel failure-dialog review-dialog" role="dialog" aria-modal="true" aria-label="复核与回退">
         <div class="settings-header"><div><p class="eyebrow">REVIEW QUEUE</p><h2>复核与兼容回退</h2><p>以下素材需要人工确认；已保留保护区域和回退原因。</p></div><button class="modal-close" aria-label="关闭复核列表" @click="reviewOpen = false">×</button></div>
+        <div v-if="skippedOutputs.length" class="review-list report-skipped-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`" class="report-skipped-item"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
         <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small><small>保护框：{{ reviewProtectedRegions(item) }}</small></article></div>
         <div v-if="fallbackItems.length" class="review-list"><article v-for="item in fallbackItems" :key="`fallback-${String(item.source)}`"><strong>兼容模式：{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.fallback_reason || '未提供回退原因') }}</small></article></div>
         <p v-if="acceptedReviewSources.length" class="dialog-notice">已接受 {{ acceptedReviewSources.length }} 项复核结果</p>

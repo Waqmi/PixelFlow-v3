@@ -361,5 +361,35 @@ class ClassificationRuntimeTests(unittest.TestCase):
         self.assertEqual(events[-1][1]["code"], "classification_failed")
 
 
+class AnchoredCloseupSourceTypeTests(unittest.TestCase):
+    def _resolve(self, category: str, mode: str, source_type: str):
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+        from pixelflow_core.model_assistant import resolve_model_source_type
+
+        composition = {
+            "model_view": "detail",
+            "confidence": 0.8,
+            "person_count": 1,
+            "body_visibility": {
+                "visible_keypoints": 3, "person_box_height_ratio": 0.5,
+                "person_box_width_ratio": 0.9, "pose_geometry_score": 0.1,
+                "relief_score": 0.6, "hands": True,
+            },
+            "by_size": {"1440x1440": {"composition_mode": mode, "crop_box": [0, 0, 1, 1]}},
+        }
+        rule = SourceTypeDecision(source_type, 0.6, "rules", "test")
+        return resolve_model_source_type(rule, composition, category)
+
+    def test_hat_and_gloves_anchored_closeups_are_model_without_hint(self) -> None:
+        for category in ("hat", "gloves"):
+            decision = self._resolve(category, "anchor_crop", "model_detail")
+            self.assertEqual(decision.source_type, "model")
+            self.assertNotIn("review_hint", decision.metadata)
+
+    def test_other_categories_and_unanchored_stay_model_detail(self) -> None:
+        self.assertEqual(self._resolve("shirt", "anchor_crop", "model_detail").source_type, "model_detail")
+        self.assertEqual(self._resolve("hat", "zoom_focus", "model_detail").source_type, "model_detail")
+
+
 if __name__ == "__main__":
     unittest.main()

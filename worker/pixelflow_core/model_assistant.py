@@ -446,7 +446,8 @@ ANCHOR_HAT_CHEST = 0.45
 # Hand region per visible wrist: a square centred on the wrist, sized from the
 # forearm length (elbow to wrist) regardless of forearm direction, so a bent
 # wrist (fingers not continuing the forearm line) still stays inside the box.
-ANCHOR_GLOVES_HAND_HALF = 1.05
+ANCHOR_GLOVES_HAND_HALF = 1.45
+ANCHOR_GLOVES_BOX_PAD = 0.25
 ANCHOR_GLOVES_MIN_HEIGHT = 1.50
 ANCHOR_KNEE_PADS_THIGH = 0.50
 ANCHOR_KNEE_PADS_SHANK = 0.50
@@ -1019,7 +1020,15 @@ def _gloves_crop_box(
     allow_side_fill: bool = True,
 ) -> dict[str, object] | None:
     width, height = image_size
-    regions: list[tuple[float, float, float, float]] = list(detector_boxes)
+    regions: list[tuple[float, float, float, float]] = [
+        (
+            box[0] - (box[2] - box[0]) * ANCHOR_GLOVES_BOX_PAD,
+            box[1] - (box[3] - box[1]) * ANCHOR_GLOVES_BOX_PAD,
+            box[2] + (box[2] - box[0]) * ANCHOR_GLOVES_BOX_PAD,
+            box[3] + (box[3] - box[1]) * ANCHOR_GLOVES_BOX_PAD,
+        )
+        for box in detector_boxes
+    ]
     forearms: list[float] = []
     for item in detections:
         for elbow_index, wrist_index in ((7, 9), (8, 10)):
@@ -1642,11 +1651,18 @@ def resolve_model_source_type(
     # A review hint is deliberately weaker than a classification decision.
     # It surfaces tight close-ups for human confirmation without promoting
     # them automatically; the confirmed 4528 double shot stays unhinted.
+    by_size = composition.get("by_size")
+    # Hat/gloves close-ups are the normal shot type: an anchored crop plan
+    # keeps them as model images instead of downgrading to model_detail.
+    anchored_closeup = product_category in {"hat", "gloves"} and isinstance(by_size, dict) and any(
+        isinstance(plan, dict) and plan.get("composition_mode") == "anchor_crop" for plan in by_size.values()
+    )
     try:
         visibility_hint = composition.get("body_visibility")
         visibility_hint = visibility_hint if isinstance(visibility_hint, dict) else {}
         if (
             rule_decision.source != "rules_product_folder"
+            and not anchored_closeup
             and
             float(visibility_hint.get("person_box_width_ratio", 0.0) or 0.0) >= 0.85
             and int(visibility_hint.get("visible_keypoints", 0) or 0) <= 10
@@ -1684,6 +1700,7 @@ def resolve_model_source_type(
     if (
         model_view in {"full_body", "upper_body", "lower_body", "group"}
         and compatibility == "incompatible"
+        and not anchored_closeup
         and (
             rule_decision.source_type in {"model", "model_detail"}
             or (human_evidence and wearing_evidence)
@@ -1706,6 +1723,11 @@ def resolve_model_source_type(
         and wearing_evidence
         and rule_decision.source_type in {"detail", "model", "model_detail"}
     ):
+        if anchored_closeup:
+            return type(rule_decision)(
+                "model", confidence, "local_onnx",
+                "帽子/手套特写带锚点构图，归为模特图", metadata=metadata,
+            )
         return type(rule_decision)(
             "model_detail", confidence, "local_onnx",
             "人体结构与立体穿着证据均充分，归为模特细节图并按细节图处理",
@@ -1717,6 +1739,11 @@ def resolve_model_source_type(
     # entering the product-detail path.  Flat/weak shots are ordinary detail.
     if rule_decision.source_type in {"model", "model_detail"}:
         if relief_score >= 0.50 or model_view in {"full_body", "upper_body", "lower_body", "group"}:
+            if anchored_closeup:
+                return type(rule_decision)(
+                    "model", confidence, "local_onnx",
+                    "帽子/手套特写带锚点构图，归为模特图", metadata=metadata,
+                )
             return type(rule_decision)(
                 "model_detail", confidence, "local_onnx",
                 "人物证据不足以自动升级，保留为模特细节图供确认",
@@ -2837,7 +2864,7 @@ class LocalModelAssistant:
         detection = detections[0]
         model_view = self._model_view(detection)
         if model_view == "detail":
-            return {
+            result: dict[str, object] = {
                 "model_view": "detail",
                 "confidence": round(detection.confidence, 4),
                 "detector": self.model_path.name,
@@ -2845,6 +2872,31 @@ class LocalModelAssistant:
                 "person_bboxes": [list(detection.bbox)],
                 "body_visibility": visibility,
             }
+            if product_category == "gloves":
+                # A hand close-up must not fall to the renderer's centre cover
+                # crop (fingers touch the edge): use the largest source frame,
+                # centred on glove boxes / wrists when there are any.
+                boxes = list(detector_boxes or [])
+                boxes += [
+                    (point[0], point[1], point[0], point[1])
+                    for point in (_visible_point(detection, index) for index in (9, 10))
+                    if point is not None
+                ]
+                centre_x = (min(b[0] for b in boxes) + max(b[2] for b in boxes)) / 2 if boxes else image_width / 2
+                centre_y = (min(b[1] for b in boxes) + max(b[3] for b in boxes)) / 2 if boxes else image_height / 2
+                by_size = {}
+                for size_name, (size, _background) in sizes.items():
+                    window = _full_frame_window(image_size, size, centre_x, centre_y)
+                    by_size[size_name] = {
+                        "composition_mode": "anchor_crop",
+                        "crop_box": window["crop_box"],
+                        "anchors": window["anchors"],
+                        "confidence": 0.0,
+                        "risk_flags": [],
+                    }
+                result["composition_mode"] = "zoom_focus"
+                result["by_size"] = by_size
+            return result
         by_size = {
             size_name: self._composition(
                 detection,
