@@ -508,20 +508,20 @@
   ],
   "plan_evidence": {
     "status": "replayable_cached_model_evidence",
-    "path": "../baselines/v2.6/v3-recheck-20260927/shoe-composition-evidence.json",
+    "path": "../baselines/archive/2026-09-27-v3-recheck/shoe-composition-evidence.json",
     "source_sha256_verified": 20,
     "pose_entries": 20,
     "segmentation_entries": 2,
     "typed_plan_entries": 60,
     "generated_at": "2026-09-27T03:41:01.114151+00:00",
-    "native_run_path": "../baselines/v2.6/v3-recheck-20260927/v3-native-model-evidence.json",
+    "native_run_path": "../baselines/archive/2026-09-27-v3-recheck/v3-native-model-evidence.json",
     "native_run_status": "fresh_native_model_run",
     "native_sources": 20,
     "native_pose_ready": 20,
     "native_segmentation_ready": 20,
     "native_typed_plans": 60,
     "native_fallback": 0,
-    "native_render_report_path": "../baselines/v2.6/v3-recheck-20260927/v3-native-model-render-report.json",
+    "native_render_report_path": "../baselines/archive/2026-09-27-v3-recheck/v3-native-model-render-report.json",
     "native_render_outputs": 60,
     "native_render_typed_validated": 60
   }

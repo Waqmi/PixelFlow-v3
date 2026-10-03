@@ -28,7 +28,7 @@
       "id": "C-E-four-output-kinds",
       "status": "passed",
       "evidence": [
-        "baselines/v2.6/v3-recheck-20260927/v3-output-kind-report-20260927.json"
+        "baselines/archive/2026-09-27-v3-recheck/v3-output-kind-report-20260927.json"
       ],
       "detail": {
         "outputs": 180,
@@ -42,7 +42,7 @@
       "id": "D-native-model-evidence",
       "status": "passed",
       "evidence": [
-        "baselines/v2.6/v3-recheck-20260927/v3-native-model-evidence.json"
+        "baselines/archive/2026-09-27-v3-recheck/v3-native-model-evidence.json"
       ],
       "detail": {
         "sources": 20,
@@ -61,7 +61,7 @@
         "worker/pixelflow_core/engine.py",
         "worker/tests/test_engine.py",
         "worker/tests/test_worker_process.py",
-        "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json"
+        "baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json"
       ],
       "detail": "exception and per-file reported failures both route to legacy fallback"
     },
@@ -69,8 +69,8 @@
       "id": "G-worker-app",
       "status": "passed",
       "evidence": [
-        "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
-        "baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json"
+        "baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json",
+        "baselines/archive/2026-09-27-v3-recheck/desktop-app-startup-audit.json"
       ],
       "detail": "Worker protocol and app startup audit passed"
     },
@@ -94,7 +94,7 @@
       "status": "active",
       "evidence": [
         "docs/v3-Renderer独立化阶段目标.md",
-        "baselines/v2.6/v3-recheck-20260927/legacy-compatibility-cycle.json"
+        "baselines/archive/2026-09-27-v3-recheck/legacy-compatibility-cycle.json"
       ],
       "detail": "retain legacy for one complete compatibility cycle before removal review"
     }

@@ -19,8 +19,8 @@
     "release owner records a new version boundary after this cycle"
   ],
   "evidence": [
-    "baselines/v2.6/v3-recheck-20260927/migration-exit-audit-20260927.json",
-    "baselines/v2.6/v3-recheck-20260927/frozen-worker-ondir-evidence.json",
+    "baselines/archive/2026-09-27-v3-recheck/migration-exit-audit-20260927.json",
+    "baselines/archive/2026-09-27-v3-recheck/frozen-worker-ondir-evidence.json",
     "docs/v3-Renderer独立化阶段目标.md"
   ],
   "notes": "Technical exit conditions passed; legacy deletion is intentionally deferred until one complete compatibility cycle is observed."

@@ -133,9 +133,9 @@
       }
     ]
   },
-  "latest_protocol_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
+  "latest_protocol_evidence": "baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json",
   "latest_protocol_evidence_kind": "historical_onefile",
-  "latest_package_evidence": "baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json",
+  "latest_package_evidence": "baselines/archive/2026-09-27-v3-recheck/app-package-evidence-20260927.json",
   "current_onedir_app": {
     "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker/pixelflow-worker",
     "sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",

@@ -2,6 +2,8 @@
 
 记录日期：2026-09-27
 
+> 本文件保留 2026-09-27 的迁移过程与阶段性证据；文中的 `83 tests`、历史像素差异和旧规则版本均为历史记录。当前收口状态以 [`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json) 为准。
+
 ## 本轮 A/D/F 迁移记录
 
 - `RenderAssets`、`RenderLayout`、`RenderSummary` 和四类 request builder 已进入稳定契约；Worker 可从 JSON 重放 `composition_plans`。
@@ -19,7 +21,7 @@
 - 实际图片：20 张 JPG；每张记录文件 SHA-256、尺寸和色彩模式。
 - Worker 规则分类：20/20 返回 `detail`，品类分类为 `shoes`（名称规则，置信度 0.95）。
 - 原始规则矩阵运行关闭外部 Pose/Seg 模型，因此该次运行的 `pose_evidence`、`segmentation_evidence`、保护框、裁剪比例和最终输出路径均没有伪造，按 `not_run` / `missing_fixture` 记录；矩阵顶层状态已更新为已挂接原生模型证据，不能把这些历史字段解读为当前现场运行状态。
-- 另有一份可复核的真实模型证据快照：20/20 张素材的 Pose cache、60 个 typed `CompositionPlan`（每张 3 个尺寸）以及 2 张素材的 Seg cache；快照记录源文件 SHA-256、模型 SHA-256、cache 版本和构图规则版本，见 [shoe-composition-evidence.json](../baselines/v2.6/v3-recheck-20260927/shoe-composition-evidence.json)。
+- 另有一份可复核的真实模型证据快照：20/20 张素材的 Pose cache、60 个 typed `CompositionPlan`（每张 3 个尺寸）以及 2 张素材的 Seg cache；快照记录源文件 SHA-256、模型 SHA-256、cache 版本和构图规则版本，见 [shoe-composition-evidence.json](../baselines/archive/2026-09-27-v3-recheck/shoe-composition-evidence.json)。
 - 已使用用户提供的 `/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/models` 作为外部模型根目录验证模型发现；系统 Python 环境缺少 `onnxruntime` 时，Pose 服务会返回 `fallback_reason=未安装 ONNX Runtime 或 NumPy`，且进程中未加载任何 `pixelflow_core.legacy_engine.*` 模块。
 - 该目录的 Pose/Seg 文件与仓库 `models/` 对应文件 SHA-256 分别为 `86e1275f…` 和 `52269a89…`，逐文件一致。
 - Worker 协议 `probe_models` 已对该目录返回 Pose/Seg `unavailable` + `fallback=true`，随后 `shutdown` 正常退出；失败原因仅为当前环境缺少 `onnxruntime/NumPy`。
@@ -51,10 +53,10 @@ Pose 来源。该快照补齐了 D 阶段的可复核输入与计划证据，不
 
 随后使用 `/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python`（含
 `onnxruntime 1.19.2` 与 `numpy 1.26.4`）运行 v3 原生模型服务，并将缓存目录隔离到临时目录，确保不是旧缓存重放：20/20 Pose、20/20 Seg、60 个 typed 计划、0 个 fallback，8 个素材标记 `requires_review`。完整逐素材证据见
-[v3-native-model-evidence.json](../baselines/v2.6/v3-recheck-20260927/v3-native-model-evidence.json)，运行进程未加载 `pixelflow_core.legacy_engine.*`。
+[v3-native-model-evidence.json](../baselines/archive/2026-09-27-v3-recheck/v3-native-model-evidence.json)，运行进程未加载 `pixelflow_core.legacy_engine.*`。
 
 同一份现场证据随后在无 Pose/Seg 进程的系统 Python 中重放 Renderer：20 张素材、3 个尺寸共 60 个模特图输出，`failures=0`、`typed_renderer.validated=60`，临时输出目录已清理。报告见
-[v3-native-model-render-report.json](../baselines/v2.6/v3-recheck-20260927/v3-native-model-render-report.json)。
+[v3-native-model-render-report.json](../baselines/archive/2026-09-27-v3-recheck/v3-native-model-render-report.json)。
 
 ## 无外部 v2 checkout 的 Worker 进程证据
 
@@ -92,14 +94,14 @@ semctl: Operation not permitted
 该错误发生在 PyInstaller 启动器初始化阶段。随后在允许 PyInstaller semaphore 的宿主
 权限下，正式 onefile 和 `.app` 内同一 Worker 资源路径均完成 `ping`、分类、v3 生成、
 缺失模型探测、受控回退和 `shutdown`，退出码为 0，stderr 为空。完整协议摘要见
-[frozen-worker-latest-evidence.json](../baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json)。
+[frozen-worker-latest-evidence.json](../baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json)。
 另用同一源码完成 PyInstaller 6.22.0 onedir 实验构建：启动、`ping`、分类、v3 生成、缺失模型探测
 回退、受控回退和 `shutdown` 均通过，退出码为 0；实验产物 SHA-256 为
 `6b4aa3da9af69ca93e1c0c8edda4444e91bbc333e9b5692494e69d9439a2c1c6`，并实测 VIP 输出
 `2/2` typed 校验通过。该 onedir 实验记录见
-[frozen-worker-ondir-evidence.json](../baselines/v2.6/v3-recheck-20260927/frozen-worker-ondir-evidence.json)。正式
+[frozen-worker-ondir-evidence.json](../baselines/archive/2026-09-27-v3-recheck/frozen-worker-ondir-evidence.json)。正式
 onefile/.app 宿主权限验收及当前 Worker 哈希以
-[frozen-worker-latest-evidence.json](../baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json) 为准。
+[frozen-worker-latest-evidence.json](../baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json) 为准。
 
 ## 回归测试
 
@@ -117,8 +119,8 @@ PYTHONPATH=worker /opt/homebrew/bin/python3 \
 `tools/verify_output_baseline.py`。结果为数量/路径 `120/120`，逐文件
 `exact=36`、`mismatches=84`。详细清单保存在：
 
-- `baselines/v2.6/v3-recheck-20260927/render-report.json`
-- `baselines/v2.6/v3-recheck-20260927/verify-summary.json`
+- `baselines/archive/2026-09-27-v3-recheck/render-report.json`
+- `baselines/archive/2026-09-27-v3-recheck/verify-summary.json`
 
 本次复核以历史 `.app` 版本为基线；Logo、唯品边框和透明图仍有版本差异，legacy
 继续保留为正式输出和回退入口。
@@ -128,13 +130,13 @@ PYTHONPATH=worker /opt/homebrew/bin/python3 \
 `.app` 基线为 `exact=36`、`mismatches=84`。该变化来自构图实现从 legacy 纯函数切换为
 v3 自有实现，不能解释为单纯参数差异。当前结果摘要保存在：
 
-- `baselines/v2.6/v3-recheck-20260927/render-report-isolated.json`
-- `baselines/v2.6/v3-recheck-20260927/verify-summary-isolated.json`
+- `baselines/archive/2026-09-27-v3-recheck/render-report-isolated.json`
+- `baselines/archive/2026-09-27-v3-recheck/verify-summary-isolated.json`
 
 补充四类 v3 输出覆盖报告：产品主图 96、模特图 60、透明产品图 8、唯品图 16，合计
 180 个输出，typed renderer `180/180` 通过，失败 0。产品主图、透明图和唯品图来自同一
 次隔离运行；模特图来自保存的 Pose/Seg typed plan 重放。报告见
-[v3-output-kind-report-20260927.json](../baselines/v2.6/v3-recheck-20260927/v3-output-kind-report-20260927.json)。
+[v3-output-kind-report-20260927.json](../baselines/archive/2026-09-27-v3-recheck/v3-output-kind-report-20260927.json)。
 本轮同时修正 VIP 路径没有尺寸目录导致未纳入 typed validation 的问题，唯品图现在按
 `1440x1440` 独立校验。
 compare 结果新增 `output_kind_summary`，可分别汇总产品主图、模特图、透明图和唯品图的
@@ -149,7 +151,7 @@ compare 结果新增 `output_kind_summary`，可分别汇总产品主图、模�
 | `dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop` | Mach-O arm64 | `31eb16a8b05020e86f61aec1d698dba6206514e6a1ce4520a45834633e211976` |
 
 资源与模型目录的逐文件清单及聚合 SHA-256 已保存到
-[worker-artifact-hashes.json](../baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json)：
+[worker-artifact-hashes.json](../baselines/archive/2026-09-27-v3-recheck/worker-artifact-hashes.json)：
 `worker/resources` 聚合哈希为
 `3d27d0639aa1bd498c4de42f14a22d9a2e04839e581d55a57a95d1069058e9d5`，模型目录聚合哈希为
 `2d8086fdbcbef70fdc86fd9ed37f78e6112dbc7ab758d7eefd67ebdaa41844ff`。
@@ -157,8 +159,8 @@ compare 结果新增 `output_kind_summary`，可分别汇总产品主图、模�
 正式 onefile Worker 的当前哈希为
 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；当前 `.app` 使用 onedir Worker，哈希为
 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`。本次 `.app` 打包与 Worker `ping`/`shutdown` 验证记录在
-[app-package-evidence-20260927.json](../baselines/v2.6/v3-recheck-20260927/app-package-evidence-20260927.json)；完整生成协议仍以冻结证据
-[frozen-worker-latest-evidence.json](../baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json) 为准。前一版哈希和历史 `.app` 哈希仍保存在清单的 `previous_sha256` / `historical_sha256` 字段。
+[app-package-evidence-20260927.json](../baselines/archive/2026-09-27-v3-recheck/app-package-evidence-20260927.json)；完整生成协议仍以冻结证据
+[frozen-worker-latest-evidence.json](../baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json) 为准。前一版哈希和历史 `.app` 哈希仍保存在清单的 `previous_sha256` / `historical_sha256` 字段。
 已使用 v2.0 `.venv` 的 PyInstaller 6.22.0 成功重建 `worker/dist/pixelflow-worker`；无权限
 沙箱直接启动仍返回 `semctl: Operation not permitted`，宿主权限验收已通过。
 重建命令为：`PIXELFLOW_PYTHON=/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v2.0/.venv/bin/python python worker/build_worker.py`。
@@ -171,11 +173,11 @@ onefile/.app 的运行证据保存在冻结 Worker 报告中。
 `dist/PixelFlow-v3-beta.app/Contents/MacOS/pixelflow-desktop`，主进程及其
 `Contents/Resources/pixelflow-worker` 子进程均存活至 8 秒观察点，随后 SIGTERM 在
 0.011 秒内受控退出，未发现立即崩溃、stderr 输出或本次 Worker 残留。证据见
-[desktop-app-startup-audit.json](../baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json)。
+[desktop-app-startup-audit.json](../baselines/archive/2026-09-27-v3-recheck/desktop-app-startup-audit.json)。
 该审计只覆盖主程序启动、Worker 拉起和受控退出，不包含 UI 点击或完整业务回归。
 
 补充的 `.app` UI smoke 已完成启动、目录填写和 36 张素材分类，确认页正常显示；本次未完成“确认并开始”后的生成，输出为 0，且进程已受控终止。该边界记录在
-[desktop-app-ui-audit-20260927.json](../baselines/v2.6/v3-recheck-20260927/desktop-app-ui-audit-20260927.json)，不把确认页误报为 `.app` 业务生成通过。
+[desktop-app-ui-audit-20260927.json](../baselines/archive/2026-09-27-v3-recheck/desktop-app-ui-audit-20260927.json)，不把确认页误报为 `.app` 业务生成通过。
 
 ## 当前退出条件
 

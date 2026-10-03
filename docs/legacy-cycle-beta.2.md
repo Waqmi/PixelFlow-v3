@@ -14,7 +14,7 @@
 
 ## 当前周期
 
-结构化记录见 [`legacy-cycle-beta.2.json`](./legacy-cycle-beta.2.json)。当前基线在 2026-09-27 建立，尚未满足 14 天或 2 批次条件，因此不能标记完成。
+结构化记录见 [`legacy-cycle-beta.2.json`](./legacy-cycle-beta.2.json)。技术收口已于 2026-10-03 完成；兼容周期仍需按原规则观察满 14 个自然日或 2 个真实批次后，才能评估删除 legacy。
 
 | 项目 | 当前值 | 证据/说明 |
 |---|---:|---|
@@ -22,8 +22,8 @@
 | 已过自然日 | `0` | 由记录脚本按时间更新 |
 | 真实批次 | `0` | 待实际用户批次登记 |
 | 自然回退 | `pending` | 需每个真实批次的结果报告 |
-| T3 `needs_fix` | `52` | [`v3-current-20260927-compare-report.json`](../baselines/v2.6/v3-current-20260927-compare-report.json) |
-| T8 统计 | `implemented; pending real batch` | 结果页已提供复核、保护框、接受/保守重跑和回退统计 |
+| T3 `needs_fix` | `0`（人工验收） | 当前收口报告：[`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json) |
+| T8 统计 | `implemented; manual acceptance passed` | 结果页已提供复核、保护框、接受/保守重跑和回退统计 |
 
 ## 记录真实批次
 

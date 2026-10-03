@@ -49,7 +49,7 @@ def _repo_path(value: Path) -> Path:
 def desktop_ui_evidence() -> str:
     """Point the report at the latest checked-in manual audit when available."""
     candidates = sorted(
-        (ROOT / "baselines" / "v2.6" / "v3-recheck-20260927").glob(
+        (ROOT / "baselines" / "archive" / "2026-09-27-v3-recheck").glob(
             "desktop-app-ui-audit-manual-*.json"
         ),
         key=lambda path: path.stat().st_mtime,
@@ -62,7 +62,7 @@ def desktop_ui_evidence() -> str:
 
 def evidence_inventory() -> dict[str, object]:
     """Collect checked-in evidence references without rerunning expensive jobs."""
-    base = ROOT / "baselines" / "v2.6" / "v3-recheck-20260927"
+    base = ROOT / "baselines" / "archive" / "2026-09-27-v3-recheck"
     names = {
         "four_kind_outputs": "v3-output-kind-report-20260927.json",
         "frozen_worker": "frozen-worker-ondir-evidence.json",

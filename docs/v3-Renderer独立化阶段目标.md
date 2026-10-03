@@ -14,6 +14,8 @@
 
 ## 2. 当前迁移基线
 
+> 本节保留 2026-09-27 的阶段性基线。文中的旧测试数量、规则版本和像素差异用于追溯历史，不作为当前验收结论；当前状态以 [`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json) 为准。
+
 截至 2026-09-27：
 
 - v3 已通过 `V3EngineAdapter → Renderer` 正式写出产品主图、模特图、透明产品图和唯品图；
@@ -29,9 +31,9 @@
 - 原生模型计划已在无模型进程的 Renderer 中重放 60 个模特图输出，typed 校验 `60/60` 通过，临时目录已清理；
 - v3 正常路径已切换到无 legacy 导入的分类与 Pose/Seg façade；模型结果转换为 typed `CompositionPlan`，缺模型时明确记录 fallback，不伪造模型证据；
 - v3 Renderer 默认读取仓库内 `worker/resources`，打包 spec 的 v3 静态资源输入已与 legacy 兼容资源分开；
-- Worker、`.app`、v3 资源目录和模型目录的逐文件 SHA-256 清单已固化到 `baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json`；当前 onedir Worker 已同步到 `.app`，两者哈希均为 `627ebbff…`，正式 onefile 构建另记为 `027a624b…`；
+- Worker、`.app`、v3 资源目录和模型目录的逐文件 SHA-256 清单已固化到 `baselines/archive/2026-09-27-v3-recheck/worker-artifact-hashes.json`；当前 onedir Worker 已同步到 `.app`，两者哈希均为 `627ebbff…`，正式 onefile 构建另记为 `027a624b…`；
 - 已使用 v2.0 `.venv` 的 PyInstaller 6.22.0 重建 onefile Worker；历史正式 onefile 与当前 onedir `.app` 均在允许 semaphore 的宿主权限下通过启停、分类、生成和回退，普通沙箱尝试仍会触发 `semctl: Operation not permitted`。
-- `.app` 主程序已在允许 semaphore 的宿主权限下完成受控启动审计：主进程和 `.app/Contents/Resources/pixelflow-worker` 均存活至 8 秒观察点，随后 SIGTERM 受控退出且无立即崩溃；证据见 `baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json`。该审计覆盖启动/退出链路，不替代 UI 操作和完整业务回归。
+- `.app` 主程序已在允许 semaphore 的宿主权限下完成受控启动审计：主进程和 `.app/Contents/Resources/pixelflow-worker` 均存活至 8 秒观察点，随后 SIGTERM 受控退出且无立即崩溃；证据见 `baselines/archive/2026-09-27-v3-recheck/desktop-app-startup-audit.json`。该审计覆盖启动/退出链路，不替代 UI 操作和完整业务回归。
 - 当前正式 onefile Worker 哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；旧 `6c5fadabe95c815b42ff3165cc606ffdf1d53d3a036f4e3b3b1da9777d3b05d0` 的完整协议报告保留在 `frozen-worker-latest-evidence.json`，作为历史证据。当前 `.app` 使用 onedir Worker，哈希为 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`；`ping`/`shutdown` 与双跑证据见 `app-package-evidence-20260927.json`。
 - 正式 onefile 产物位于 `worker/dist/pixelflow-worker`，哈希为 `027a624bb13bd9a739acfca2a5e53e2723bf777c93d1ab72141251469bee49bd`；当前 `.app` onedir Worker 哈希为 `627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2`，`ping`/`shutdown` 验收见 `app-package-evidence-20260927.json`。
 
@@ -245,6 +247,6 @@ Compare：LegacyAdapter 写正式输出；V3 Renderer 写临时目录；比较�
 
 当前仍保留内置 legacy 核心作为显式兼容和失败回退入口；历史 `.app` 的像素差异继续按基线来源记录，不解释为单纯参数问题。
 
-技术验收完成后，先保留 legacy 一个完整版本周期，再单独评估旧核心删除；周期状态和复核清单见 `baselines/v2.6/v3-recheck-20260927/legacy-compatibility-cycle.json`；签名和公证仍属于发布阶段工作。
+技术验收完成后，先保留 legacy 一个完整版本周期，再单独评估旧核心删除；周期状态和复核清单见 `baselines/archive/2026-09-27-v3-recheck/legacy-compatibility-cycle.json`；签名和公证仍属于发布阶段工作。
 
 当前审查已确认 v3 正常分类与 Pose/Seg 路径使用自有 façade，子进程中不会加载 legacy 模型模块；现场 ONNX 已使用 v2.0 `.venv` 完成，系统 Python 仍需安装 `onnxruntime` 才能独立重跑，模型目录按 `models/README.md` 的外部选择设计保留，不作为 `.app` 内置资源宣称。

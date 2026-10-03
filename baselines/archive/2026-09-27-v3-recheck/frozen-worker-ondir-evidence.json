@@ -201,7 +201,7 @@
     "previous_sha256": "c5e30015525e460d9d4d9a8c10ab2d2510c6b6c8606eeb027d282f5a2b8e531b",
     "previous_app_resource_sha256": "c5e30015525e460d9d4d9a8c10ab2d2510c6b6c8606eeb027d282f5a2b8e531b"
   },
-  "latest_formal_onefile_evidence": "baselines/v2.6/v3-recheck-20260927/frozen-worker-latest-evidence.json",
+  "latest_formal_onefile_evidence": "baselines/archive/2026-09-27-v3-recheck/frozen-worker-latest-evidence.json",
   "latest_sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
   "latest_app_resource_sha256": "627ebbffb0f07e173963809de6dff7e8f851fd532cea58f8c7ca0bfb9a3bbde2",
   "latest_hash_matches": true,

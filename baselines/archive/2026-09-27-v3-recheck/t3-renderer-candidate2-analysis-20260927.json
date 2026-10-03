@@ -2,8 +2,8 @@
   "schema_version": "v3-t3-renderer-candidate-analysis-2",
   "generated_at_utc": "2026-09-27T11:52:08Z",
   "formal_baseline_report": "baselines/v2.6/v3-current-20260927-compare-report.json",
-  "prior_candidate_analysis": "baselines/v2.6/v3-recheck-20260927/t3-edge-path-candidate-analysis-20260927.json",
-  "candidate_compare_report": "baselines/v2.6/v3-recheck-20260927/v3-t3-candidate2-compare-report-20260927.json",
+  "prior_candidate_analysis": "baselines/archive/2026-09-27-v3-recheck/t3-edge-path-candidate-analysis-20260927.json",
+  "candidate_compare_report": "baselines/archive/2026-09-27-v3-recheck/v3-t3-candidate2-compare-report-20260927.json",
   "candidate_patch": "worker/pixelflow_core/renderer.py",
   "scope": {
     "legacy_files": 120,

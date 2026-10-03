@@ -61,7 +61,7 @@ legacy 与 v3 已完成像素 parity。
 主图品类模板 14 项，仍保留为 `needs_fix`。
 
 详细证据见
-`baselines/v2.6/v3-recheck-20260927/t3-edge-path-candidate-analysis-20260927.json`。
+`baselines/archive/2026-09-27-v3-recheck/t3-edge-path-candidate-analysis-20260927.json`。
 
 ## 可复现命令
 

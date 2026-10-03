@@ -1,0 +1,49 @@
+{
+  "schema_version": "pixelflow-v3-closure-1",
+  "generated_at": "2026-10-03T00:00:00+08:00",
+  "source_commit": "a873c8af54aea131b3af7b4bc11e501ca0498bb9",
+  "app_version": "3.0.0-beta.1",
+  "rules_version": "v3-composition-10",
+  "status": "technical_acceptance_passed",
+  "acceptance": {
+    "shoe_matrix": {
+      "status": "passed",
+      "basis": "user_manual_acceptance",
+      "scope": "normal_stance, large_bend, single_foot, crossed_legs, foot_occlusion, sole_facing_camera, person_frame_edge, multiple_people"
+    },
+    "v26_output_compatibility": {
+      "status": "passed",
+      "basis": "user_manual_acceptance",
+      "scope": "product, model, logo, no-logo, VIP and transparent outputs"
+    },
+    "worker_tests": {
+      "status": "passed",
+      "total": 191,
+      "passed": 190,
+      "skipped": 1
+    },
+    "frontend_build": "passed",
+    "protocol_check": "passed",
+    "rust_tests": {
+      "status": "passed",
+      "passed": 4
+    },
+    "app_package": {
+      "status": "passed",
+      "architecture": "arm64",
+      "worker_sha256": "8fb8f4b972415187e2a41ceb61f58655961eb2b81bcdcb84c039121f1c314d51",
+      "desktop_sha256": "f6413490c6b4cb69ce0df204b56abd60b39e41670547f32575a5fdff1a5a6dfd",
+      "codesign": "ad-hoc verified",
+      "worker_smoke": "ready/ping/shutdown passed"
+    }
+  },
+  "historical_reports": {
+    "status": "archived",
+    "path": "baselines/archive/2026-09-27-v3-recheck",
+    "note": "Older v3-composition-1 and 83-test reports are retained for history and are not active acceptance evidence."
+  },
+  "remaining_observation": [
+    "Keep legacy_engine during the compatibility observation cycle.",
+    "Developer ID signing, notarization, DMG bundling and Windows installer remain release-environment tasks."
+  ]
+}

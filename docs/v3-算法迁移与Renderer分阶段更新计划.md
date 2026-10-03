@@ -2,6 +2,8 @@
 
 > 独立化目标已重新整理到：[v3 Renderer 独立化阶段目标](./v3-Renderer独立化阶段目标.md)。本文件保留原迁移过程和历史证据。
 
+> 当前技术收口以 [`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json) 为准；下文的旧测试数量、像素差异和阶段性退出条件均保留作历史追溯。
+
 ## 1. 文档目的
 
 当前 v3 Worker 已具备 typed contracts、鞋类风险 façade、内置兼容核心和独立 Renderer；legacy 仅保留显式兼容、compare 正式输出和失败回退路径。
@@ -31,7 +33,7 @@
 
 - 历史 `.app` 基线与当前 v3 输出仍存在像素差异，继续按基线来源记录，不宣称 parity；
 - 桌面 `.app` UI smoke 已到分类确认页，但确认后的完整 UI 生成尚未形成通过证据；
-- legacy 兼容周期尚未结束，周期清单见 `baselines/v2.6/v3-recheck-20260927/legacy-compatibility-cycle.json`。
+- legacy 兼容周期尚未结束，周期清单见 `baselines/archive/2026-09-27-v3-recheck/legacy-compatibility-cycle.json`。
 
 ## 3. 迁移原则
 
@@ -282,7 +284,7 @@ Renderer 迁移还必须单独检查：
 当前技术验收已完成；尚未满足的退出条件：
 
 - 固定 120 文件复核已形成两份持久化报告：`verify-summary.json` 为 `84/120` 一致，切断后隔离报告 `verify-summary-isolated.json` 为 `36/120` 一致；两者数量/路径均为 `120/120`，历史 `.app` 像素 parity 仍需按基线来源记录，不能宣称已完成 parity；
-- legacy 像素写出路径仍需作为兼容和回退入口保留一个完整版本周期，再单独评估删除；周期清单见 `baselines/v2.6/v3-recheck-20260927/legacy-compatibility-cycle.json`；
+- legacy 像素写出路径仍需作为兼容和回退入口保留一个完整版本周期，再单独评估删除；周期清单见 `baselines/archive/2026-09-27-v3-recheck/legacy-compatibility-cycle.json`；
 - 普通沙箱启动冻结 Worker 仍受 `semctl: Operation not permitted` 限制，这是环境权限记录；正式 onefile、`.app` 内 Worker 及 `.app` 主程序已在允许 semaphore 的宿主权限下通过对应启动、分类、生成、回退和受控退出验收。
 
-鞋类矩阵中的 `multiple_people` 已按当前范围跳过；20/20 Pose、20/20 Seg、60 个 typed 计划和 60 个模特图重放输出均已有证据，四类输出覆盖报告的 180 个输出 typed 校验通过。`.app` 主程序启动审计证据见 `baselines/v2.6/v3-recheck-20260927/desktop-app-startup-audit.json`；该项只覆盖启动/退出链路。
+鞋类矩阵中的 `multiple_people` 已按当前范围跳过；20/20 Pose、20/20 Seg、60 个 typed 计划和 60 个模特图重放输出均已有证据，四类输出覆盖报告的 180 个输出 typed 校验通过。`.app` 主程序启动审计证据见 `baselines/archive/2026-09-27-v3-recheck/desktop-app-startup-audit.json`；该项只覆盖启动/退出链路。

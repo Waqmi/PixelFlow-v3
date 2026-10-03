@@ -54,20 +54,20 @@
     }
   },
   "manual": {
-    "desktop_ui": "baselines/v2.6/v3-recheck-20260927/desktop-app-ui-audit-manual-t2-20260927.json",
+    "desktop_ui": "baselines/archive/2026-09-27-v3-recheck/desktop-app-ui-audit-manual-t2-20260927.json",
     "release": "pending: signing, notarization, Windows packaging"
   },
   "evidence": {
     "four_kind_outputs": {
-      "path": "baselines/v2.6/v3-recheck-20260927/v3-output-kind-report-20260927.json",
+      "path": "baselines/archive/2026-09-27-v3-recheck/v3-output-kind-report-20260927.json",
       "exists": true
     },
     "frozen_worker": {
-      "path": "baselines/v2.6/v3-recheck-20260927/frozen-worker-ondir-evidence.json",
+      "path": "baselines/archive/2026-09-27-v3-recheck/frozen-worker-ondir-evidence.json",
       "exists": true
     },
     "hash_manifest": {
-      "path": "baselines/v2.6/v3-recheck-20260927/worker-artifact-hashes.json",
+      "path": "baselines/archive/2026-09-27-v3-recheck/worker-artifact-hashes.json",
       "exists": true
     },
     "baseline_compare": {

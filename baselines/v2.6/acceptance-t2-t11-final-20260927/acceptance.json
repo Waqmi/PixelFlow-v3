@@ -71,7 +71,7 @@
     }
   },
   "manual": {
-    "desktop_ui": "baselines/v2.6/v3-recheck-20260927/desktop-app-ui-audit-manual-t2-20260927.json",
+    "desktop_ui": "baselines/archive/2026-09-27-v3-recheck/desktop-app-ui-audit-manual-t2-20260927.json",
     "release": "pending: signing, notarization, Windows packaging"
   }
 }

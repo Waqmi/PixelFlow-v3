@@ -72,7 +72,7 @@ class ShoeCompositionTests(unittest.TestCase):
             self.assertIn(case["pose_evidence"]["status"], {"not_run", "missing_fixture", "skipped"})
             self.assertIn(case["segmentation_evidence"]["status"], {"not_run", "missing_fixture", "skipped"})
 
-        evidence = json.loads((root / "baselines" / "v2.6" / "v3-recheck-20260927" / "shoe-composition-evidence.json").read_text(encoding="utf-8"))
+        evidence = json.loads((root / "baselines" / "archive" / "2026-09-27-v3-recheck" / "shoe-composition-evidence.json").read_text(encoding="utf-8"))
         self.assertEqual(evidence["status"], "replayable_cached_model_evidence")
         self.assertEqual(evidence["counts"]["pose"], 20)
         self.assertEqual(evidence["counts"]["segmentation"], 2)
