@@ -120,7 +120,7 @@ def _foreground_metrics(image: Image.Image, background: tuple[int, int, int]) ->
     scale = min(1.0, 128 / max(rgb.size))
     preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
     width, height = preview.size
-    pixels = list(preview.getdata())
+    pixels = list(preview.get_flattened_data())
     foreground = [
         index for index, pixel in enumerate(pixels)
         if max(abs(channel - base) for channel, base in zip(pixel, background)) > 32

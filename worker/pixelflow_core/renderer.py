@@ -477,7 +477,7 @@ def _light_foreground_bbox(image: Image.Image, background: tuple[int, int, int])
     scale = min(1.0, 512 / max(rgb.width, rgb.height))
     preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
     width, height = preview.size
-    pixels = list(preview.getdata())
+    pixels = list(preview.get_flattened_data())
     light = bytearray(max(abs(channel - base) for channel, base in zip(pixel, background)) <= 32 for pixel in pixels)
     visited = bytearray(len(light))
     pending: list[tuple[int, int]] = []
@@ -542,7 +542,7 @@ def _mirror_extend(image: Image.Image, target: tuple[int, int], focus_x: float =
 
 def _background_to_alpha(image: Image.Image, background: tuple[int, int, int]) -> Image.Image:
     rgba = image.convert("RGBA")
-    pixels = list(rgba.convert("RGB").getdata())
+    pixels = list(rgba.convert("RGB").get_flattened_data())
     alpha = []
     for pixel in pixels:
         distance = max(abs(channel - base) for channel, base in zip(pixel, background))

@@ -1,0 +1,6 @@
+
+> pixelflow-desktop@3.0.0-beta.1 build
+> vue-tsc --noEmit && vite build
+
+src/App.vue(1436,36): error TS2304: Cannot find name 'ComponentPublicInstance'.
+src/App.vue(1438,55): error TS2304: Cannot find name 'ComponentPublicInstance'.

@@ -27,11 +27,22 @@
 
 ## 记录真实批次
 
-每个真实批次完成后，复制 `docs/legacy-cycle-beta.2.json` 中的 `real_batches` 项，填写：
+每个真实批次完成后，用标准库脚本追加一条记录。脚本强制要求
+`--real-batch`，因此故障注入、显式 legacy 和开发 smoke 无法被误记为真实批次：
 
-- 批次 ID、运行时间、输入素材摘要和输出报告路径；
-- `natural_fallback_count`、`skipped_count`、`failure_count`、`review_count`、`accepted_review_count`；
-- 是否为用户自然运行；故障注入、显式 legacy 和开发 smoke 不得计入该字段。
+```bash
+python3 tools/record_legacy_batch.py \
+  --real-batch \
+  --batch-id 2026-10-03-user-001 \
+  --source-path "/path/to/input-a.png" \
+  --source-path "/path/to/input-b.png" \
+  --result-report /path/to/last-result.json \
+  --legacy-fallback-reason "pose_model_unavailable"
+```
+
+也可以直接填写 `--v3-success`、`--v3-fallback`、`--review`、`--failure`。
+记录至少包含批次 ID/时间、v3 成功、回退、复核、失败、legacy 回退原因和源素材路径；
+脚本会同步 `observations.real_batch_count` 与 `natural_fallback_count`。
 
 建议在批次完成后执行：
 

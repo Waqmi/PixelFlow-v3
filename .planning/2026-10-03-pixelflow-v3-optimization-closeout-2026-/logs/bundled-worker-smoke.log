@@ -1,0 +1,3 @@
+{"protocol":1,"request_id":"worker","type":"ready","payload":{"worker":"pixelflow-v3","protocol":1,"worker_version":"3.0.0-beta.1","rules_version":"v3-composition-10","build_hash":"e5088fd053f41c429cf2667af5fa49628134651c43fd03842427c8d52f6202d4"}}
+{"protocol":1,"request_id":"smoke-ping","type":"ready","payload":{"worker":"pixelflow-v3","protocol":1,"worker_version":"3.0.0-beta.1","rules_version":"v3-composition-10","build_hash":"e5088fd053f41c429cf2667af5fa49628134651c43fd03842427c8d52f6202d4"}}
+{"protocol":1,"request_id":"smoke-shutdown","type":"done","payload":{"action":"shutdown"}}

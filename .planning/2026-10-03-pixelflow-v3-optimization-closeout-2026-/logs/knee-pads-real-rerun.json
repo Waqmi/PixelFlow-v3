@@ -1,0 +1,126 @@
+{
+  "schema_version": "v3-knee-pads-real-1",
+  "generated_at": "2026-10-03T11:30:17.539915+00:00",
+  "fixture": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝",
+  "category": "knee_pads",
+  "model_root": "/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/models",
+  "status": "passed",
+  "inputs": [
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/7887594_O_m.webp",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/P1175868470953.webp",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010568432.png",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010575047.png",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010585868.png"
+  ],
+  "limitations": [],
+  "fixture_input_count": 5,
+  "renderer_supported_inputs": [
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/7887594_O_m.webp",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/P1175868470953.webp",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010568432.png",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010575047.png",
+    "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010585868.png"
+  ],
+  "excluded_inputs": [],
+  "model_probe_prerequisites": {
+    "pose": true,
+    "segmentation": true,
+    "detection": true
+  },
+  "result": {
+    "mode": "v3",
+    "renderer": "typed-v3",
+    "fallback": false,
+    "sources": 5,
+    "main_images": 15,
+    "model_images": 12,
+    "transparent_images": 12,
+    "vip_images": 0,
+    "failures": [],
+    "requires_review": [
+      {
+        "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/P1175868470953.webp",
+        "sizes": [
+          "1440x1440",
+          "1440x1920",
+          "1125x1500"
+        ],
+        "review_hint": "主体过宽，左右已裁切",
+        "protected_regions": []
+      },
+      {
+        "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010568432.png",
+        "sizes": [
+          "1440x1440",
+          "1440x1920",
+          "1125x1500"
+        ],
+        "review_hint": "主体过宽，左右已裁切",
+        "protected_regions": []
+      },
+      {
+        "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010575047.png",
+        "sizes": [
+          "1440x1440",
+          "1440x1920",
+          "1125x1500"
+        ],
+        "review_hint": "主体过宽，左右已裁切",
+        "protected_regions": []
+      },
+      {
+        "source": "/Users/weiheng/Desktop/PixelFlow/05_测试素材与输出/护膝/image-1791010585868.png",
+        "sizes": [
+          "1440x1920",
+          "1125x1500"
+        ],
+        "review_hint": "主体过宽，左右已裁切",
+        "protected_regions": []
+      }
+    ],
+    "fallback_items": [],
+    "validation": {
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0
+    },
+    "audit": {
+      "checked_outputs": 27
+    },
+    "typed_renderer": {
+      "validated": 27,
+      "failed": 0,
+      "outputs": [
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/产品主图/素材/1125x1500/无Logo/素材_01.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/产品主图/素材/1440x1440/无Logo/素材_01.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/产品主图/素材/1440x1920/无Logo/素材_01.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1125x1500/无Logo/素材_02.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1125x1500/无Logo/素材_03.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1125x1500/无Logo/素材_04.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1125x1500/无Logo/素材_05.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1440/无Logo/素材_02.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1440/无Logo/素材_03.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1440/无Logo/素材_04.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1440/无Logo/素材_05.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1920/无Logo/素材_02.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1920/无Logo/素材_03.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1920/无Logo/素材_04.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/模特图/1440x1920/无Logo/素材_05.jpg",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1440/素材_03_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1440/素材_04_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1440/素材_05_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1920/素材_03_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1920/素材_04_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x1920/素材_05_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x2160/素材_03_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x2160/素材_04_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/1440x2160/素材_05_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/800x800/素材_03_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/800x800/素材_04_透明.png",
+        "/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T/pixelflow-knee-pads-m16ewe3e/透明产品图/800x800/素材_05_透明.png"
+      ],
+      "failures": []
+    }
+  },
+  "renderer_source_count": 5
+}

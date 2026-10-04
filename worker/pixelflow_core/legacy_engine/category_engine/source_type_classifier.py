@@ -105,7 +105,7 @@ def _foreground_metrics(image: Image.Image, background: tuple[int, int, int]) ->
         Image.Resampling.BILINEAR,
     )
     width, height = preview.size
-    pixels = list(preview.getdata())
+    pixels = list(preview.get_flattened_data())
     foreground = [
         index
         for index, pixel in enumerate(pixels)

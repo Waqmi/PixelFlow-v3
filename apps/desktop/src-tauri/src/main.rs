@@ -186,6 +186,36 @@ fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Optio
     { Ok(None) }
 }
 
+fn discover_models_under(home: &PathBuf) -> Option<PathBuf> {
+    let candidate = home.join("Documents").join("models");
+    if !candidate.is_dir() {
+        return None;
+    }
+    let recognized = [
+        candidate.join("pose").join("yolo11n-pose.onnx"),
+        candidate.join("segmentation").join("yolo11n-seg.onnx"),
+        candidate.join("detection").join("yolov8m-worldv2-pixelflow.onnx"),
+    ];
+    if recognized.iter().any(|path| path.is_file()) {
+        return Some(candidate);
+    }
+    None
+}
+
+/// Return the conventional external model directory when it contains at least
+/// one recognized model file.  The UI still probes each model and keeps manual
+/// directory selection available; this command only supplies a safe default.
+#[tauri::command]
+fn discover_models_directory() -> Result<Option<String>, String> {
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from);
+    Ok(home
+        .as_ref()
+        .and_then(discover_models_under)
+        .map(|path| path.to_string_lossy().into_owned()))
+}
+
 #[tauri::command]
 fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
@@ -709,6 +739,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             worker_send,
             pick_directory,
+            discover_models_directory,
             pick_file,
             save_text_file,
             export_diagnostics,
@@ -771,6 +802,19 @@ mod tests {
         let payload = worker_exit_payload("boom", Some("job-7".to_string()), true);
         assert_eq!(payload["task_id"], "job-7");
         assert_eq!(payload["retryable"], true);
+    }
+
+    #[test]
+    fn model_discovery_ignores_empty_documents_directory() {
+        let root = std::env::temp_dir().join(format!("pixelflow-model-discovery-{}", std::process::id()));
+        let models = root.join("Documents").join("models");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&models).unwrap();
+        assert!(discover_models_under(&root).is_none());
+        std::fs::create_dir_all(models.join("pose")).unwrap();
+        std::fs::write(models.join("pose").join("yolo11n-pose.onnx"), b"test").unwrap();
+        assert_eq!(discover_models_under(&root).as_deref(), Some(models.as_path()));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

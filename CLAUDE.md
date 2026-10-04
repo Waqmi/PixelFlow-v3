@@ -64,11 +64,11 @@ cd apps/desktop && npm ci && npm run protocol:check && npm run build
 # Rust Host 检查（CI 里需先 mkdir -p worker/dist-ondir/pixelflow-worker）
 cd apps/desktop/src-tauri && cargo check
 
-# 构建 Worker（默认 onedir，输出 worker/dist-ondir/pixelflow-worker；PIXELFLOW_WORKER_MODE=onefile 则输出 worker/dist）
-python3 worker/build_worker.py
+# 构建 Worker（优先 PIXELFLOW_PYTHON，其次 worker/.venv/bin/python；缺少两者时明确失败）
+./tools/build_worker.sh
 
 # Tauri 打包（beforeBuildCommand 会先 worker:build 再前端 build）
-cd apps/desktop && npm run tauri:build
+cd apps/desktop && npm run tauri:build  # worker:build 通过 tools/build_worker.sh 固定解释器
 ```
 
 详见 [worker/CLAUDE.md](worker/CLAUDE.md) 与 [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md)。
@@ -86,9 +86,10 @@ cd apps/desktop && npm run tauri:build
 4. **`/tmp` 在 Finder 中不可见**：给用户看的图片放到 `~/Desktop/PixelFlow/05_测试素材与输出/`。
 5. **测试 App 时务必“强制重跑”**：v3 同名输出默认复用，只有显式 `force_rerender` 才覆盖。
 6. **打包**：用 `ditto` 复制 `.app` 后必须重新 ad-hoc 签名：`codesign --force --deep --sign - <app>`，再 `codesign --verify --deep --strict <app>`（见 `docs/v3-剩余品类锚点构图需求-2026-10-01.md`）。
-7. **外部素材缺失时部分测试会 skip**（`test_classification.py`、`test_engine.py`、`test_shoe_composition.py`、`test_worker_process.py`）；“全绿”不代表这些路径被覆盖。
+7. **外部素材缺失时部分测试会 skip**（`test_classification.py`、`test_engine.py`、`test_shoe_composition.py`、`test_worker_process.py`）；”全绿”不代表这些路径被覆盖。
 8. 模型文件（pose / seg / detection）不入 Git、不打包进 App，通过设置页指定目录；缺失时 Worker 回退到规则判断。
 9. 构建产物目录（`dist*`、`build*`、`worker/.pyinstaller-config*`、`target`）不要阅读或修改。
+10. **Pillow API**：已迁移到 `get_flattened_data()`（替代弃用的 `getdata()`），影响 `renderer.py`、`v3_classification.py`、`legacy_engine/category_engine/source_type_classifier.py`。
 
 ## 当前状态入口
 

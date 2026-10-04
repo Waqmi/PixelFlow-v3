@@ -15,7 +15,9 @@ Tauri 开发模式需要在 `apps/desktop` 下运行 `npm run tauri:dev`。Host 
 `PIXELFLOW_PYTHON`（可选）和 `PIXELFLOW_WORKER_DIR`（可选）定位 Python 与
 Worker 目录。
 
-Host 已可用 `cargo check` 和 `npm run tauri:build` 构建验证。发布前先运行
-`worker/build_worker.py`，Tauri 会把 `worker/dist/pixelflow-worker` 映射为
+Host 已可用 `cargo check` 和 `npm run tauri:build` 构建验证。构建脚本优先使用
+`PIXELFLOW_PYTHON`，否则使用 `worker/.venv/bin/python`；两者都不存在时会明确失败，
+不会静默切换到系统解释器。CI 仍固定 Python 3.12；本机当前 venv 事实以脚本输出为准。
+Tauri 会把 `worker/dist-ondir/pixelflow-worker` 映射为
 `Contents/Resources/pixelflow-worker`；当前 Python Worker 是 arm64 构建，签名与
 公证仍需按发布环境配置。

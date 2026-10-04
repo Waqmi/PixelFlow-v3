@@ -41,9 +41,9 @@ worker/
 | `worker.py` | 协议主循环 `main()`；`WorkerRuntime`（启动/取消/关闭生成与分类、`probe_models`、`clear_cache`）；`SUPPORTED_REQUESTS`；`RULES_VERSION`；`_read_preview`（有界缓存，限 128 项，路径范围校验）；`_ready_payload`（含 `worker_version`、`rules_version`、`build_hash`） |
 | `contracts.py` | 数据契约：`Message`、`ProtocolError`、`CompositionPlan`、`ProtectedRegion`、`RenderRequest`、`RenderResult`、`build_main_request` / `build_model_request` / `build_transparent_request` / `build_vip_request` |
 | `classification.py` | `ClassificationRequest`、`ClassificationDecision`、`V26ClassifierAdapter`（封装 v2.6 规则分类，默认根目录为 `legacy_engine`，可由 `PIXELFLOW_V2_ROOT` 覆盖） |
-| `v3_classification.py` | `V3SourceTypeClassifier`、`V3CategoryClassifier`、`V3ClassifierAdapter`（`classify(request, progress)`；`_apply_optional_models` 叠加 Pose/Seg 判断） |
+| `v3_classification.py` | `V3SourceTypeClassifier`、`V3CategoryClassifier`、`V3ClassifierAdapter`（`classify(request, progress)`；`_apply_optional_models` 叠加 Pose/Seg 判断）；`_foreground_metrics` 使用 `get_flattened_data()` |
 | `engine.py` | `GenerationRequest`、`V3EngineAdapter`（生成主流程，维护 v3 输出 manifest 用于复用/清理）、`ImageEngine`、`V26EngineAdapter`（对照用） |
-| `renderer.py` | `Renderer`（`render`、`render_source_batch`、`render_batch`、`validate_existing`）、`RenderConfig`；`_side_filled_window` 调用 `side_fill.extend_side`；输出 JPEG/PNG 并按 `max_size_mb` 压缩 |
+| `renderer.py` | `Renderer`（`render`、`render_source_batch`、`render_batch`、`validate_existing`）、`RenderConfig`；`_side_filled_window` 调用 `side_fill.extend_side`；输出 JPEG/PNG 并按 `max_size_mb` 压缩；`_light_foreground_bbox`、`_background_to_alpha` 使用 `get_flattened_data()` |
 | `side_fill.py` | `extend_side(region, strip_w, ext, side)`、`strip_structure`、`strip_partial`：仅当两侧条带是纯色影棚背景时合成补边；`STRUCTURE_MAX_SHARE`、`PARTIAL_MAX_SHARE` 为判定阈值 |
 | `model_assistant.py`（约 3100 行） | `anchor_crop_box`、`LocalModelAssistant`（Pose，`compose_for_sizes`）、`LocalSegmentationAssistant`、`LocalDetectionAssistant`；各品类 `_*_crop_box` 与 `*_protected_region`；`resolve_model_source_type` |
 | `shoe_composition.py` | 鞋类构图（Pose + 检测框），evidence 里写入 `composition_rules_version` |
@@ -62,7 +62,7 @@ worker/
 ## 测试
 
 ```bash
-# 与 CI 一致（Python 3.12，依赖见 requirements.lock）
+# 与 CI 一致（CI 使用 Python 3.12；本机版本必须由 PIXELFLOW_PYTHON 或 worker/.venv 明确选择）
 PYTHONPATH=worker python -m unittest discover -s worker/tests -p 'test_*.py'
 # 单文件
 cd worker && python3 -m unittest tests/test_contracts.py
@@ -74,10 +74,10 @@ cd worker && python3 -m unittest tests/test_contracts.py
 ## 构建
 
 ```bash
-python3 worker/build_worker.py
+./tools/build_worker.sh
 ```
 
-- 解释器选择：`PIXELFLOW_PYTHON` > `worker/.venv/bin/python` > 当前 `sys.executable`。
+- 正式打包入口 `tools/build_worker.sh` 的解释器选择：`PIXELFLOW_PYTHON` > `worker/.venv/bin/python`；两者都不存在时明确失败。直接调用 `build_worker.py` 仍保留当前解释器回退，便于 CI/开发自定义入口。
 - 模式：`PIXELFLOW_WORKER_MODE`，默认 `ondir` -> `worker/dist-ondir/`（spec：`pixelflow-worker-ondir.spec`）；`onefile` -> `worker/dist/`（spec：`pixelflow-worker.spec`）。`PYINSTALLER_CONFIG_DIR` 可覆盖配置目录。
 - onedir 构建后 `materialize_symlinks` 把 PyInstaller 的符号链接实体化，否则 Tauri 无法复制资源。
 - Tauri 把 `worker/dist-ondir/pixelflow-worker` 放到 `Contents/Resources/pixelflow-worker`。

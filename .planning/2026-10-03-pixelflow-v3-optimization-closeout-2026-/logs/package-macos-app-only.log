@@ -1,0 +1,131 @@
+
+> pixelflow-desktop@3.0.0-beta.1 tauri:build
+> tauri build --bundles app
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run worker:build && npm run build`
+
+> pixelflow-desktop@3.0.0-beta.1 worker:build
+> ../../tools/build_worker.sh
+
+PixelFlow worker Python 3.14.5 (/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/bin/python)
+82 INFO: PyInstaller: 6.22.0, contrib hooks: 2026.7
+82 INFO: Python: 3.14.5
+99 INFO: Platform: macOS-15.7.7-arm64-arm-64bit-Mach-O
+99 INFO: Python environment: /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv
+105 INFO: Removing temporary files and cleaning cache in /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.pyinstaller-config-ondir/pyinstaller
+909 INFO: Module search paths (PYTHONPATH):
+['/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker',
+ '/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python314.zip',
+ '/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14',
+ '/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload',
+ '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages',
+ '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker',
+ '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/legacy_engine']
+1109 INFO: Appending 'binaries' from .spec
+1109 INFO: Appending 'datas' from .spec
+1111 INFO: checking Analysis
+1112 INFO: Building Analysis because Analysis-00.toc is non existent
+1112 INFO: Looking for Python shared library...
+1116 INFO: Using Python shared library: /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Python
+1116 INFO: Running Analysis Analysis-00.toc
+1116 INFO: Target bytecode optimization level: 0
+1116 INFO: Initializing module dependency graph...
+1117 INFO: Initializing module graph hook caches...
+1130 INFO: Analyzing modules for base_library.zip ...
+2276 INFO: Processing standard module hook 'hook-encodings.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+2607 INFO: Processing standard module hook 'hook-pickle.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+2854 INFO: Processing standard module hook 'hook-math.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+3093 INFO: Processing standard module hook 'hook-difflib.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+3124 INFO: Processing standard module hook 'hook-heapq.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+5942 INFO: Caching module dependency graph...
+5980 INFO: Analyzing /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/worker_entry.py
+6023 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6126 INFO: Processing standard module hook 'hook-xml.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6443 INFO: Processing standard module hook 'hook-sysconfig.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6459 INFO: Processing standard module hook 'hook-_osx_support.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6464 INFO: Processing standard module hook 'hook-_ctypes.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6790 INFO: Processing standard module hook 'hook-PIL.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+6920 INFO: Processing standard module hook 'hook-PIL.Image.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+7190 INFO: Processing standard module hook 'hook-numpy.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+7520 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks/pre_safe_import_module'
+7521 INFO: SetuptoolsInfo: initializing cached setuptools info...
+8226 INFO: Processing standard module hook 'hook-platform.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+8571 INFO: Processing standard module hook 'hook-webbrowser.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+11309 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+11539 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+11901 INFO: Processing standard module hook 'hook-onnxruntime.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/_pyinstaller_hooks_contrib/stdhooks'
+11989 INFO: Processing pre-safe-import-module hook 'hook-tensorflow.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/_pyinstaller_hooks_contrib/pre_safe_import_module'
+12720 INFO: Analyzing hidden import 'pixelflow_core.legacy_engine.model_process_service'
+12734 INFO: Analyzing hidden import 'pixelflow_core.legacy_engine.model_result_cache'
+12740 INFO: Analyzing hidden import 'pixelflow_core.legacy_engine.output_validator'
+12747 INFO: Analyzing hidden import 'pixelflow_core.legacy_engine.ai_image_assistant'
+12758 INFO: Processing module hooks (post-graph stage)...
+13106 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks'
+13247 INFO: Performing binary vs. data reclassification (25 entries)
+13265 INFO: Looking for ctypes DLLs
+13303 INFO: Analyzing run-time hooks ...
+13305 INFO: Including run-time hook 'pyi_rth_inspect.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks/rthooks'
+13308 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks/rthooks'
+13310 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from '/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/hooks/rthooks'
+13320 INFO: Creating base_library.zip...
+13335 INFO: Looking for dynamic libraries
+13567 INFO: Warnings written to /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/build-ondir/pixelflow-worker-ondir/warn-pixelflow-worker-ondir.txt
+13594 INFO: Graph cross-reference written to /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/build-ondir/pixelflow-worker-ondir/xref-pixelflow-worker-ondir.html
+13719 INFO: checking PYZ
+13719 INFO: Building PYZ because PYZ-00.toc is non existent
+13719 INFO: Building PYZ (ZlibArchive) /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/build-ondir/pixelflow-worker-ondir/PYZ-00.pyz
+14340 INFO: Building PYZ (ZlibArchive) /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/build-ondir/pixelflow-worker-ondir/PYZ-00.pyz completed successfully.
+14349 INFO: EXE target arch: arm64
+14349 INFO: Code signing identity: None
+14351 INFO: checking PKG
+14351 INFO: Building PKG because PKG-00.toc is non existent
+14351 INFO: Building PKG (CArchive) pixelflow-worker.pkg
+14365 INFO: Building PKG (CArchive) pixelflow-worker.pkg completed successfully.
+14365 INFO: Bootloader /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/PyInstaller/bootloader/Darwin-64bit/run
+14365 INFO: checking EXE
+14365 INFO: Building EXE because EXE-00.toc is non existent
+14365 INFO: Building EXE from EXE-00.toc
+14366 INFO: Copying bootloader EXE to /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/build-ondir/pixelflow-worker-ondir/pixelflow-worker
+14367 INFO: Converting EXE to target arch (arm64)
+14396 INFO: Removing signature(s) from EXE
+14423 INFO: Modifying Mach-O image UUID(s) in EXE
+14430 INFO: Appending PKG archive to EXE
+14433 INFO: Fixing EXE headers for code signing
+14438 INFO: Rewriting the executable's macOS SDK version (26.2.0) to match the SDK version of the Python library (15.4.0) in order to avoid inconsistent behavior and potential UI issues in the frozen application.
+14439 INFO: Re-signing the EXE
+14482 INFO: Building EXE from EXE-00.toc completed successfully.
+14484 INFO: checking COLLECT
+14484 INFO: Building COLLECT because COLLECT-00.toc is non existent
+14484 INFO: Removing dir /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/dist-ondir/pixelflow-worker
+14501 INFO: Building COLLECT COLLECT-00.toc
+19433 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+19437 INFO: Build complete! The results are available in: /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/dist-ondir
+
+> pixelflow-desktop@3.0.0-beta.1 build
+> vue-tsc --noEmit && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 34 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                               0.60 kB │ gzip:  0.37 kB
+dist/assets/icon-CQr16eIN.png                 8.19 kB
+dist/assets/logo-square-light-KXks1jt8.png   10.88 kB
+dist/assets/logo-square-dark-RQ_2KoT8.png    11.06 kB
+dist/assets/logo-tall-light-DWRVRyNk.png     13.56 kB
+dist/assets/logo-tall-dark-BORgLDml.png      13.74 kB
+dist/assets/index-DGQl1Mrz.css               48.08 kB │ gzip:  8.92 kB
+dist/assets/index-CTKpwSh7.js               166.54 kB │ gzip: 57.29 kB
+✓ built in 776ms
+   Compiling pixelflow-desktop v3.0.0-beta.1 (/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri)
+    Finished `release` profile [optimized] target(s) in 30.61s
+       Built application at: /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/target/release/pixelflow-desktop
+    Bundling PixelFlow.app (/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/target/release/bundle/macos/PixelFlow.app)
+    Finished 1 bundle at:
+        /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/target/release/bundle/macos/PixelFlow.app
+
+/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/dist/PixelFlow-v3-beta.app: replacing existing signature
+/var/folders/jj/z00rx4qs77b97qk5n7b44t700000gn/T//pixelflow-dmg.6XQ03d/PixelFlow-v3-beta.app: replacing existing signature
+hdiutil: create failed - 设备未配置

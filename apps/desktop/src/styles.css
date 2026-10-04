@@ -59,7 +59,7 @@ button{cursor:pointer}
 .category-menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;right:0;display:grid;grid-auto-rows:46px;align-content:start;height:200px;max-height:200px;overflow-y:auto;padding:8px;border:0;border-radius:10px;background:#fff;box-shadow:0 10px 24px rgba(37,47,80,.14);scrollbar-width:none}
 .category-menu::-webkit-scrollbar{width:0;height:0}
 .category-menu button{position:relative;width:100%;min-width:0;min-height:46px;height:46px;padding:0 12px;border:0;border-radius:10px;color:#33204f;background:transparent;font-size:14px;text-align:left;white-space:nowrap}
-.category-menu button::before{content:"";position:absolute;z-index:0;inset:3px 8px;border-radius:10px;background:transparent}
+.category-menu button::before{content:"";position:absolute;z-index:0;inset:3px 4px;border-radius:10px;background:transparent}
 .category-menu button:hover::before,.category-menu button.active::before,.category-menu button.highlighted::before{background:#e8f2ff}
 .category-menu button span{position:relative;z-index:1;display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .category-menu button:hover,.category-menu button.active,.category-menu button.highlighted{color:#33204f;background:transparent}
@@ -81,7 +81,7 @@ button{cursor:pointer}
 .settings-dialog{width:min(868px,100%);height:min(716px,100%);display:grid;grid-template-rows:42px 62px minmax(0,1fr) auto;gap:12px;padding:20px 24px 18px;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:var(--bg);box-shadow:0 18px 48px rgba(32,36,43,.16)}
 .settings-window-shell{display:block;height:100vh;padding:0;overflow:hidden}.settings-window-shell .settings-backdrop{position:static;inset:auto;width:100%;height:100%;padding:0;background:var(--bg)}.settings-window-shell .settings-overlay{padding:0;background:var(--bg);backdrop-filter:none}.settings-window-shell .settings-dialog{width:100%;height:100%;border:0;border-radius:0;box-shadow:none}
 .page-dialog{width:min(980px,100%);max-height:calc(100vh - 20px);overflow:auto;background:var(--panel)}
-.confirmation-dialog{width:min(1280px,calc(100vw - 40px));height:calc(100vh - 40px);max-height:none;display:flex;flex-direction:column;overflow:hidden;border-radius:8px;background:#f5f5f5}.confirmation-dialog .settings-header{padding:14px 20px 4px;border:0}.confirmation-dialog .settings-header h2{margin:0;font-size:16px;text-align:center}.confirmation-dialog .settings-header>div{width:100%}.confirmation-dialog .eyebrow,.confirmation-dialog .settings-header p:last-child{display:none}.confirmation-dialog .modal-close{display:none}.confirmation-dialog .confirm-summary{padding:0 20px 6px;font-size:11px;line-height:16px}.confirmation-dialog .confirm-grid{flex:1;min-height:0;overflow:auto;grid-template-columns:repeat(5,220px);justify-content:start;gap:14px 10px;padding:12px 20px}.confirmation-dialog .confirm-card{height:340px;min-height:340px;padding:10px;border-radius:12px}.confirmation-dialog .confirm-preview{height:138px;flex:none;border:1px solid #e3e7ed;background:#f1f3f6}.confirmation-dialog .confirm-card-body{padding-top:8px}.confirmation-dialog .confirm-card p{min-height:24px;margin:5px 0 6px}.confirmation-dialog .confirm-card select{height:29px;border-radius:9px;font-size:12px;padding:0 10px}.confirmation-dialog .page-actions{padding:10px 20px 12px;background:#f5f5f5}.confirmation-dialog .confirm-card{animation:confirm-card-in .15s ease-out both}.confirmation-dialog .confirm-card:nth-child(n+13){animation:none}.confirmation-dialog .confirm-card:nth-child(2){animation-delay:.018s}.confirmation-dialog .confirm-card:nth-child(3){animation-delay:.036s}.confirmation-dialog .confirm-card:nth-child(4){animation-delay:.054s}.confirmation-dialog .confirm-card:nth-child(5){animation-delay:.072s}.confirmation-dialog .confirm-card:nth-child(6){animation-delay:.09s}.confirmation-dialog .confirm-card:nth-child(7){animation-delay:.108s}.confirmation-dialog .confirm-card:nth-child(8){animation-delay:.126s}.confirmation-dialog .confirm-card:nth-child(9){animation-delay:.144s}.confirmation-dialog .confirm-card:nth-child(10){animation-delay:.162s}.confirmation-dialog .confirm-card:nth-child(11){animation-delay:.18s}.confirmation-dialog .confirm-card:nth-child(12){animation-delay:.198s}@keyframes confirm-card-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.confirmation-dialog{width:min(1280px,calc(100vw - 40px));height:calc(100vh - 40px);max-height:none;display:flex;flex-direction:column;overflow:hidden;border-radius:8px;background:#f5f5f5}.confirmation-dialog .settings-header{padding:14px 20px 4px;border:0}.confirmation-dialog .settings-header h2{margin:0;font-size:16px;text-align:center}.confirmation-dialog .settings-header>div{width:100%}.confirmation-dialog .eyebrow,.confirmation-dialog .settings-header p:last-child{display:none}.confirmation-dialog .modal-close{display:none}.confirmation-dialog .confirm-summary{padding:0 20px 6px;font-size:11px;line-height:16px}.confirmation-dialog .confirm-grid{flex:1;min-height:0;overflow:auto;grid-template-columns:repeat(5,220px);justify-content:start;gap:14px 10px;padding:12px 20px}.confirmation-dialog .confirm-card{height:340px;min-height:340px;padding:10px;border-radius:12px}.confirmation-dialog .confirm-preview{height:138px;flex:none;border:1px solid #e3e7ed;background:#f1f3f6}.confirmation-dialog .confirm-card-body{padding-top:8px}.confirmation-dialog .confirm-card p{min-height:24px;margin:5px 0 6px}.confirmation-dialog .confirm-card select{height:29px;border-radius:9px;font-size:12px;padding:0 10px}.confirmation-dialog .page-actions{padding:10px 20px 12px;background:#f5f5f5}.confirmation-dialog .confirm-card{animation:confirm-card-in .15s ease-out both}.confirmation-dialog .confirm-card:nth-child(n+21){animation:none}.confirmation-dialog .confirm-card:nth-child(2){animation-delay:.018s}.confirmation-dialog .confirm-card:nth-child(3){animation-delay:.036s}.confirmation-dialog .confirm-card:nth-child(4){animation-delay:.054s}.confirmation-dialog .confirm-card:nth-child(5){animation-delay:.072s}.confirmation-dialog .confirm-card:nth-child(6){animation-delay:.09s}.confirmation-dialog .confirm-card:nth-child(7){animation-delay:.108s}.confirmation-dialog .confirm-card:nth-child(8){animation-delay:.126s}.confirmation-dialog .confirm-card:nth-child(9){animation-delay:.144s}.confirmation-dialog .confirm-card:nth-child(10){animation-delay:.162s}.confirmation-dialog .confirm-card:nth-child(11){animation-delay:.18s}.confirmation-dialog .confirm-card:nth-child(12){animation-delay:.198s}@keyframes confirm-card-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .confirmation-backdrop{padding:0;background:var(--bg)}
 .confirmation-dialog{width:100%;height:100%;border-radius:0;background:var(--bg);color:var(--text)}
 .confirmation-dialog .settings-header{display:none}
@@ -198,7 +198,7 @@ button{cursor:pointer}
 .report-dialog>.page-actions{margin-top:8px;padding:18px 32px 24px}.report-actions{justify-content:space-between;align-items:center}.report-actions-left,.report-actions-right{display:flex;align-items:center;gap:10px}.report-actions-left .confirm-button{min-width:220px;height:52px;font-size:16px}.report-actions-right .outline-button{height:48px;padding:0 20px;font-size:14px}
 .report-window-shell{display:block;width:100%;height:100vh;padding:0;overflow:hidden}
 .report-window-shell .report-backdrop{position:static;inset:auto;width:100%;height:100%;padding:0;background:var(--bg);backdrop-filter:none}
-.report-window-shell .report-dialog{width:100%;height:100%;max-height:none;padding:24px 28px;gap:12px;border:0;border-radius:0;box-shadow:none;overflow:hidden}
+.report-window-shell .report-dialog{width:100%;height:100%;max-height:none;padding:0 28px;gap:12px;border:0;border-radius:0;box-shadow:none;overflow:hidden}
 .report-window-shell .report-header{height:104px;min-height:104px;margin:0;padding:14px 20px;gap:16px;border-radius:16px}
 .report-window-shell .report-success-icon{width:56px;height:56px;font-size:36px}
 .report-window-shell .report-header h2{margin:4px 0;font-size:22px}.report-window-shell .report-header p:last-child{font-size:13px;line-height:1.5}
@@ -274,8 +274,6 @@ button{cursor:pointer}
 .choose-button:active{border-color:var(--accent);background:var(--selected)}
 input[type=number]{-moz-appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{margin:0;appearance:none}
-.progress-track span{will-change:width}
-.progress-bar-bottom span{will-change:width}
 .report-dialog{height:auto;min-height:0;max-height:calc(100vh - 32px);overflow:auto}
 .report-dialog>.page-actions{margin-top:12px}
 .theme-dark .settings-icon{filter:invert(1)}
@@ -308,10 +306,14 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .settings-body{animation:settings-page-in .22s var(--ease-emphasized) both}
 .settings-enter-active,.settings-leave-active{transition:opacity .22s var(--ease-standard)}
 .settings-enter-active .settings-dialog,.settings-leave-active .settings-dialog{transition:opacity .24s var(--ease-standard),transform .24s var(--ease-emphasized)}
-.dialog-enter-active,.dialog-leave-active{transition:opacity .22s var(--ease-standard)}
-.dialog-enter-active .confirmation-dialog,.dialog-leave-active .confirmation-dialog,.dialog-enter-active .report-dialog,.dialog-leave-active .report-dialog,.dialog-enter-active .failure-dialog,.dialog-leave-active .failure-dialog{transition:opacity .24s var(--ease-standard),transform .24s var(--ease-emphasized)}
-.dialog-enter-from,.dialog-leave-to{opacity:0}
-.dialog-enter-from .confirmation-dialog,.dialog-leave-to .confirmation-dialog,.dialog-enter-from .report-dialog,.dialog-leave-to .report-dialog,.dialog-enter-from .failure-dialog,.dialog-leave-to .failure-dialog{opacity:0;transform:translateY(8px) scale(.985)}
+/* 3️⃣ 对话框状态转换 - backdrop 淡入，面板独立缩放 */
+.dialog-enter-active,.dialog-leave-active,.settings-enter-active,.settings-leave-active{transition:opacity .25s cubic-bezier(0.4, 0, 0.2, 1)}
+.dialog-enter-active .confirmation-dialog,.dialog-leave-active .confirmation-dialog,.dialog-enter-active .report-dialog,.dialog-leave-active .report-dialog,.dialog-enter-active .failure-dialog,.dialog-leave-active .failure-dialog,.settings-enter-active .settings-dialog,.settings-leave-active .settings-dialog{transition:opacity .25s cubic-bezier(0.4, 0, 0.2, 1),transform .3s cubic-bezier(0.34, 1.56, 0.64, 1)}
+.dialog-enter-from,.dialog-leave-to,.settings-enter-from,.settings-leave-to{opacity:0}
+.dialog-enter-from .confirmation-dialog,.dialog-leave-to .confirmation-dialog,.dialog-enter-from .report-dialog,.dialog-leave-to .report-dialog,.dialog-enter-from .failure-dialog,.dialog-leave-to .failure-dialog,.settings-enter-from .settings-dialog,.settings-leave-to .settings-dialog{opacity:0;transform:scale(0.92) translateY(-12px)}
+.dialog-leave-to .confirmation-dialog,.dialog-leave-to .report-dialog,.dialog-leave-to .failure-dialog,.settings-leave-to .settings-dialog{transform:scale(0.96)}
+.settings-overlay,.confirmation-backdrop,.report-backdrop{transition:opacity .25s ease,backdrop-filter .3s ease,background-color .3s ease}
+.dialog-enter-from.settings-backdrop,.dialog-leave-to.settings-backdrop,.settings-enter-from.settings-backdrop,.settings-leave-to.settings-backdrop{backdrop-filter:blur(0);background-color:transparent}
 .dropdown-enter-active,.dropdown-leave-active{transition:opacity .16s var(--ease-standard),transform .16s var(--ease-emphasized);transform-origin:top center}
 .dropdown-enter-from,.dropdown-leave-to{opacity:0;transform:translateY(-4px) scale(.985)}
 .settings-naming-select .dropdown-enter-active,.settings-naming-select .dropdown-leave-active{transform-origin:bottom center}
@@ -336,3 +338,213 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .report-window-shell .report-skipped-list { margin: 0; }
 .theme-dark .report-skipped-item strong,
 .theme-dark .report-skipped-item small { color: #ff8585; }
+
+/* 交互反馈与确认预览动画 */
+.primary-button,
+.confirm-button,
+.outline-button,
+.cancel-button,
+.text-button,
+.choose-button {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.12s ease,
+              border-color 0.12s ease,
+              color 0.12s ease;
+}
+
+.primary-button:active:not(:disabled),
+.confirm-button:active:not(:disabled),
+.outline-button:active:not(:disabled) { transform: scale(0.98); }
+
+.cancel-button:active:not(:disabled),
+.text-button:active:not(:disabled),
+.choose-button:active:not(:disabled) { transform: scale(0.97); }
+
+.field-label input { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+
+.option-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.15s ease,
+              background 0.15s ease;
+}
+.option-card:active { transform: scale(0.985); }
+.option-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(40, 120, 232, 0.08) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.option-card:active::before { opacity: 1; }
+
+.icon-button,
+.settings-trigger {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), background 0.12s ease, border-color 0.12s ease;
+}
+.icon-button:active,
+.settings-trigger:active { transform: scale(0.95); }
+
+/* 2️⃣ 智能进度动画 - 弹性曲线 + 完成脉冲 */
+.progress-track span {
+  transition: width 0.4s ease-out;
+}
+
+.progress-bar-bottom span {
+  transition: width 0.4s ease-out;
+}
+
+.progress-track,
+.progress-bar-bottom { overflow: visible; }
+
+.progress-track span[data-complete="true"],
+.progress-bar-bottom span[data-complete="true"] {
+  animation: progress-complete-settle 0.6s ease-out;
+  transform-origin: left center;
+}
+
+@keyframes progress-complete-settle {
+  0%, 100% { opacity: 1; transform: scaleX(1); }
+  35% { opacity: .88; transform: scaleX(1.03); }
+  65% { opacity: 1; transform: scaleX(.995); }
+}
+
+/* 4️⃣ 列表项懒加载动画 - 只在进入视口后淡入，前 20 张错开 */
+.confirmation-dialog .confirm-card {
+  opacity: 0;
+  animation: none;
+}
+
+.confirmation-dialog .confirm-card[data-visible="true"] {
+  animation: fade-in-up 0.3s ease-out forwards;
+}
+
+.confirmation-dialog .confirm-card:nth-child(-n+20)[data-visible="true"] {
+  animation-delay: calc(var(--card-index, 0) * 0.018s);
+}
+
+.confirmation-dialog .confirm-card:nth-child(n+21)[data-visible="true"] {
+  animation-delay: 0s;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.preview-skeleton {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--field) 0%, var(--line) 50%, var(--field) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.confirm-preview img { opacity: 0; transition: opacity 0.25s ease; }
+.confirm-preview img.preview-loaded { opacity: 1; }
+
+/* 6️⃣ 滑动手势提示 - 滚动渐变遮罩 */
+.confirm-grid-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.confirm-grid-shell .confirm-grid {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.confirm-grid-scroll-hint {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  height: 60px;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--confirm-grid-bg), transparent);
+  opacity: 1;
+  transition: opacity .3s ease;
+}
+.confirm-grid-shell[data-scroll-bottom="true"] .confirm-grid-scroll-hint,
+.confirm-grid-shell[data-has-overflow="false"] .confirm-grid-scroll-hint {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* reduce-motion 降级支持 */
+.reduce-motion .option-card::before { display: none; }
+.reduce-motion .preview-skeleton { animation: none; background: var(--field); }
+.reduce-motion .option-card:active,
+.reduce-motion .icon-button:active,
+.reduce-motion .settings-trigger:active,
+.reduce-motion button:active:not(:disabled) { transform: none; }
+.reduce-motion .progress-track span,
+.reduce-motion .progress-bar-bottom span {
+  transition: width 0.2s linear;
+  will-change: auto;
+}
+.reduce-motion .progress-track span[data-complete="true"],
+.reduce-motion .progress-bar-bottom span[data-complete="true"] {
+  animation: none;
+  transform: none;
+}
+.reduce-motion .dialog-enter-active,
+.reduce-motion .dialog-leave-active,
+.reduce-motion .settings-enter-active,
+.reduce-motion .settings-leave-active {
+  transition: opacity 0.15s ease !important;
+}
+.reduce-motion .dialog-enter-from,
+.reduce-motion .dialog-leave-to,
+.reduce-motion .settings-enter-from,
+.reduce-motion .settings-leave-to {
+  transform: none !important;
+}
+.reduce-motion .settings-backdrop,
+.reduce-motion .confirmation-backdrop,
+.reduce-motion .report-backdrop,
+.reduce-motion .settings-overlay {
+  transition: opacity 0.15s ease;
+}
+.reduce-motion .confirmation-dialog .confirm-card {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
+}
+.reduce-motion .confirm-preview img {
+  opacity: 1;
+  transition: none;
+}
+.reduce-motion .confirm-grid-scroll-hint {
+  transition: opacity 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:hover:not(:disabled),
+  button:active:not(:disabled),
+  .option-card:hover,
+  .option-card:active { transform: none !important; }
+  .option-card::before { display: none; }
+  .progress-track span,
+  .progress-bar-bottom span { transition: width 0.2s linear !important; }
+  .progress-track span[data-complete="true"],
+  .progress-bar-bottom span[data-complete="true"] { animation: none !important; }
+  .confirmation-dialog .confirm-card { animation: none !important; }
+}

@@ -650,12 +650,14 @@ class V3EngineAdapter:
                     result_metadata = dict(getattr(result, "metadata", {}) or {})
                     if result_metadata.get("requires_review"):
                         item = review_items.setdefault(str(source), {"source": str(source), "sizes": [], "review_hint": "", "protected_regions": []})
-                        item["sizes"].append(size)  # type: ignore[union-attr]
+                        if size not in item["sizes"]:  # type: ignore[operator]
+                            item["sizes"].append(size)  # type: ignore[union-attr]
                         item["review_hint"] = result_metadata.get("review_hint") or item["review_hint"]
                         item["protected_regions"] = [region.to_dict() for region in (plan.protected_regions if plan else ())]
                     if result_metadata.get("fallback"):
                         item = fallback_items.setdefault(str(source), {"source": str(source), "sizes": [], "fallback_reason": ""})
-                        item["sizes"].append(size)  # type: ignore[union-attr]
+                        if size not in item["sizes"]:  # type: ignore[operator]
+                            item["sizes"].append(size)  # type: ignore[union-attr]
                         item["fallback_reason"] = result_metadata.get("fallback_reason") or item["fallback_reason"]
                     if result.success:
                         outputs.extend(result.outputs)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, emitTo, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window'
@@ -29,6 +29,8 @@ interface MaterialDecision {
   previewUrl?: string
   previewFailed?: boolean
   previewLoading?: boolean
+  previewReady?: boolean
+  isVisible?: boolean
 }
 
 interface SettingsSnapshot {
@@ -108,6 +110,26 @@ const systemDark = ref(initialSystemDark)
 const reducedMotion = ref(false)
 const { progress, setProgress } = useTaskProgress(reducedMotion)
 const { progress: classificationProgress, setProgress: setClassificationProgress } = useTaskProgress(reducedMotion)
+const progressComplete = ref(false)
+let progressCompleteTimer: number | undefined
+
+function clearProgressComplete() {
+  progressComplete.value = false
+  if (progressCompleteTimer) {
+    window.clearTimeout(progressCompleteTimer)
+    progressCompleteTimer = undefined
+  }
+}
+
+function markProgressComplete() {
+  if (progressCompleteTimer) window.clearTimeout(progressCompleteTimer)
+  progressComplete.value = true
+  progressCompleteTimer = window.setTimeout(() => {
+    progressComplete.value = false
+    progressCompleteTimer = undefined
+  }, 700)
+}
+
 const classificationConcurrency = ref('auto')
 const inputRoot = ref('')
 const outputRoot = ref('')
@@ -226,6 +248,9 @@ let previewBackgroundIndex = 0
 let previewScrollTimer = 0
 let previewScrolling = false
 let previewScrollRoot: HTMLElement | undefined
+const cardObserver = ref<IntersectionObserver | null>(null)
+const isConfirmGridScrolledToBottom = ref(false)
+const confirmGridHasOverflow = ref(false)
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 const appVersion = '3.0.0-beta.1'
@@ -458,7 +483,7 @@ function showReport() {
 function confirmSnapshot(): ConfirmSnapshot {
   return {
     inputRoot: inputRoot.value,
-    materials: materials.value.map(({ previewUrl: _previewUrl, previewFailed: _previewFailed, previewLoading: _previewLoading, ...material }) => material),
+    materials: materials.value.map(({ previewUrl: _previewUrl, previewFailed: _previewFailed, previewLoading: _previewLoading, previewReady: _previewReady, isVisible: _isVisible, ...material }) => material),
     excludedModelSources: [...excludedModelSources.value],
     scaleAdjustments: { ...scaleAdjustments.value },
     categorySuggestion: categorySuggestion.value,
@@ -483,11 +508,18 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
   classifiedInputRoot.value = snapshot.inputRoot || classifiedInputRoot.value
   const previousMaterials = new Map(materials.value.map((material) => [material.source, material]))
   materials.value = Array.isArray(snapshot.materials)
-    ? snapshot.materials.map((material) => {
+    ? snapshot.materials.map((material, index) => {
       const previous = previousMaterials.get(material.source)
       return previous
-        ? { ...material, previewUrl: previous.previewUrl, previewFailed: previous.previewFailed, previewLoading: previous.previewLoading }
-        : material
+        ? {
+          ...material,
+          previewUrl: previous.previewUrl,
+          previewFailed: previous.previewFailed,
+          previewLoading: previous.previewLoading,
+          previewReady: previous.previewReady,
+          isVisible: index < 20 && previous.isVisible === true,
+        }
+        : { ...material, isVisible: false }
     })
     : []
   excludedModelSources.value = Array.isArray(snapshot.excludedModelSources)
@@ -502,6 +534,7 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
     void nextTick(() => {
       refreshMaterialPreviews()
       startPreviewObserver()
+      setupCardObserver()
     })
   }
 }
@@ -662,6 +695,21 @@ function probeModels() {
   modelTesting.value = true
   modelStatus.value = '状态：正在检测外部模型…'
   modelProbeRequestId.value = worker.request('probe_models', { model_root: localModelPath.value })
+}
+
+async function discoverDefaultModelPath() {
+  if (!window.__TAURI_INTERNALS__ || localModelPath.value.trim()) return
+  try {
+    const discovered = await invoke<string | null>('discover_models_directory')
+    if (!discovered || localModelPath.value.trim()) return
+    localModelPath.value = discovered
+    localModelEnabled.value = true
+    modelStatus.value = '状态：已发现文稿中的外部模型目录，正在检测…'
+    publishSettingsImmediately()
+    if (workerConnected.value) probeModels()
+  } catch {
+    // Auto-discovery is an optional convenience; manual directory selection remains available.
+  }
 }
 
 function publishSettingsImmediately() {
@@ -953,12 +1001,17 @@ async function revealMainWindow() {
 }
 
 onMounted(() => {
+  let hasSavedModelPath = false
   try {
     theme.value = readInitialTheme()
     reducedMotion.value = localStorage.getItem('pixelflow.reduced-motion') === 'true'
     classificationConcurrency.value = localStorage.getItem('pixelflow.classification-concurrency') || 'auto'
     const savedSettings = localStorage.getItem('pixelflow.output-settings')
-    if (savedSettings) applySettings(JSON.parse(savedSettings) as Partial<SettingsSnapshot>)
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings) as Partial<SettingsSnapshot>
+      hasSavedModelPath = typeof parsed.localModelPath === 'string' && Boolean(parsed.localModelPath.trim())
+      applySettings(parsed)
+    }
     const savedSizes = JSON.parse(localStorage.getItem('pixelflow.selected-sizes') || 'null')
     if (Array.isArray(savedSizes) && savedSizes.every((item) => ['1440x1440', '1440x1920', '1125x1500'].includes(item))) selectedSizes.value = savedSizes
     maxSizeMb.value = localStorage.getItem('pixelflow.max-size-mb') || maxSizeMb.value
@@ -984,6 +1037,7 @@ onMounted(() => {
     worker.request('ping', {})
     Object.entries(logoOverrides.value).forEach(([key, path]) => { void loadLogoPreview(key, path) })
   }
+  if (!hasSavedModelPath && !isReportWindow && !isConfirmWindow) void discoverDefaultModelPath()
   if (!isSettingsWindow && !isReportWindow && !isConfirmWindow && window.__TAURI_INTERNALS__) {
     void listen<{ paths?: string[] }>('tauri://drag-drop', (event) => {
       applyDroppedPaths(event.payload?.paths || [])
@@ -1034,12 +1088,16 @@ onMounted(() => {
   if (!isSettingsWindow && !isReportWindow && !isConfirmWindow && window.__TAURI_INTERNALS__) {
     void revealMainWindow()
   }
+
+  if (isConfirmWindow) void nextTick(() => setupCardObserver())
 })
 
 onBeforeUnmount(() => worker?.dispose())
+onBeforeUnmount(() => clearProgressComplete())
 onBeforeUnmount(() => previewUrls.forEach((url) => URL.revokeObjectURL(url)))
 onBeforeUnmount(() => {
   previewObserver?.disconnect()
+  cardObserver.value?.disconnect()
   if (previewBackgroundTimer) window.clearTimeout(previewBackgroundTimer)
   if (previewScrollTimer) window.clearTimeout(previewScrollTimer)
   previewScrollRoot?.removeEventListener('scroll', onPreviewScroll)
@@ -1119,6 +1177,16 @@ watch(
 watch(logoOverrides, () => { if (isSettingsWindow) publishSettingsImmediately() }, { deep: true })
 watch(darkMode, () => syncNativeWindowTheme())
 
+watch(materials, () => {
+  nextTick(() => {
+    if (confirmGridElement.value) {
+      const grid = confirmGridElement.value
+      confirmGridHasOverflow.value = grid.scrollHeight > grid.clientHeight
+      isConfirmGridScrolledToBottom.value = grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 10
+    }
+  })
+}, { flush: 'post' })
+
 watch(confirmOpen, (open) => {
   if (!open) {
     previewSession += 1
@@ -1164,7 +1232,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       taskPhase.value = '准备就绪'
       taskDetail.value = '准备就绪'
     }
-    if (isSettingsWindow && !modelTesting.value && localModelEnabled.value && localModelPath.value.trim()) probeModels()
+    if (!isReportWindow && !isConfirmWindow && !modelTesting.value && localModelEnabled.value && localModelPath.value.trim()) probeModels()
   } else if (message.type === 'status' && message.request_id === classificationRequestId.value) {
     classificationRunning.value = true
     status.value = '正在分析素材'
@@ -1206,6 +1274,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       ? result.decisions.map((material) => ({
         ...material,
         previewUrl: '',
+        isVisible: false,
       }))
       : []
     previewQueue.length = 0
@@ -1220,6 +1289,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       ? result.suggested_exclusions.filter((source) => materials.value.some((material) => material.source === source))
       : []
     setClassificationProgress(1000, true)
+    markProgressComplete()
     materialConfirmed.value = false
     status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材，请确认后继续'
     taskPhase.value = '识别分类'
@@ -1234,7 +1304,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       const model = models?.[key]
       return `${model?.state || '未配置'}${model?.error ? `（${model.error.split('\n')[0]}）` : ''}`
     }
-    modelStatus.value = `状态：Pose ${modelLabel('pose')}；Seg ${modelLabel('segmentation')}`
+    modelStatus.value = `状态：Pose ${modelLabel('pose')}；Seg ${modelLabel('segmentation')}；Detection ${modelLabel('detection')}`
   } else if (message.type === 'status' && message.request_id === modelProbeRequestId.value) {
     modelTesting.value = true
     modelStatus.value = `状态：${String(payload.message || '正在检测外部模型…')}`
@@ -1252,6 +1322,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     isRunning.value = false
     isCancelling.value = false
     setProgress(1000, true)
+    markProgressComplete()
     status.value = '生成完成'
     taskPhase.value = '已完成'
     taskDetail.value = '所有任务已完成，输出已整理。'
@@ -1334,6 +1405,7 @@ function classifyMaterials() {
   excludedModelSources.value = []
   scaleAdjustments.value = {}
   materialConfirmed.value = false
+  clearProgressComplete()
   setClassificationProgress(0, true)
   classificationRunning.value = true
   isCancelling.value = false
@@ -1374,7 +1446,56 @@ function onMaterialPreviewError(material: MaterialDecision) {
   if (material.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(material.previewUrl)
   material.previewUrl = ''
   material.previewFailed = true
+  material.previewReady = false
   previewFailedSources.add(material.source)
+}
+
+function onPreviewLoad(material: MaterialDecision) {
+  material.previewReady = true
+}
+
+function setupCardObserver() {
+  if (!confirmOpen.value) return
+  cardObserver.value?.disconnect()
+  cardObserver.value = null
+  if (typeof IntersectionObserver !== 'function') {
+    materials.value.forEach((material) => { material.isVisible = true })
+    return
+  }
+  const root = confirmGridElement.value
+  cardObserver.value = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return
+      const source = entry.target.getAttribute('data-source')
+      const material = materials.value.find((item) => item.source === source)
+      if (material) material.isVisible = true
+    })
+  }, { root, threshold: 0.1, rootMargin: '50px' })
+  previewElements.forEach((element, source) => {
+    if (!materials.value.some((item) => item.source === source)) return
+    element.setAttribute('data-source', source)
+    cardObserver.value?.observe(element)
+  })
+}
+
+function observeCard(el: Element | ComponentPublicInstance | null, material: MaterialDecision) {
+  if (!el) return
+  const element = el instanceof Element ? el : (el as ComponentPublicInstance).$el
+  if (element instanceof HTMLElement) {
+    element.setAttribute('data-source', material.source)
+    if (cardObserver.value) cardObserver.value.observe(element)
+    else if (typeof IntersectionObserver !== 'function') material.isVisible = true
+  }
+}
+
+function onConfirmGridScroll(event: Event) {
+  const element = event.target as HTMLElement
+  const scrollTop = element.scrollTop
+  const scrollHeight = element.scrollHeight
+  const clientHeight = element.clientHeight
+
+  // 判断是否滚动到底部（容差 10px）
+  isConfirmGridScrolledToBottom.value = scrollTop + clientHeight >= scrollHeight - 10
 }
 
 async function loadMaterialPreview(material: MaterialDecision, session = previewSession) {
@@ -1399,12 +1520,14 @@ async function loadMaterialPreview(material: MaterialDecision, session = preview
     const url = URL.createObjectURL(new Blob([bytes], { type: preview.mime_type }))
     previewUrls.add(url)
     previewLoadedSources.add(material.source)
+    target.previewReady = false
     target.previewUrl = url
     target.previewFailed = false
   } catch {
     const target = session === previewSession ? (currentMaterial() || material) : material
     target.previewUrl = ''
     target.previewFailed = true
+    target.previewReady = false
     previewFailedSources.add(material.source)
   } finally {
     material.previewLoading = false
@@ -1678,6 +1801,7 @@ function startGeneration() {
     return
   }
   setProgress(0, true)
+  clearProgressComplete()
   isRunning.value = true
   status.value = '任务已准备'
   taskPhase.value = '准备素材'
@@ -1728,7 +1852,7 @@ function startGeneration() {
           <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong>{{ taskDetail }}</strong></div>
           <div class="run-actions"><button class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
         </section>
-        <div v-if="classificationRunning || isRunning" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :style="{ width: `${displayProgress / 10}%` }" /></div>
+        <div v-if="classificationRunning || isRunning || progressComplete" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :data-complete="progressComplete" :style="{ width: `${displayProgress / 10}%` }" /></div>
       </div>
     </section>
 
@@ -1791,10 +1915,10 @@ function startGeneration() {
         <div class="settings-header"><div><p class="eyebrow">CONFIRMATION</p><h2>确认素材分类 · {{ materials.length }} 张</h2><p>核对 v2.6 的自动识别结果，必要时调整分类、跳过模特素材或修改商品主体比例。</p></div><button class="modal-close" aria-label="关闭确认页" @click="dismissMaterialConfirmation">×</button></div>
         <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
-        <div ref="confirmGridElement" class="confirm-grid"><article v-for="material in materials" :key="material.source" :ref="(element) => setPreviewElement(material, element)" class="confirm-card">
-          <div class="confirm-preview"><img v-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
+        <div class="confirm-grid-shell" :data-scroll-bottom="isConfirmGridScrolledToBottom" :data-has-overflow="confirmGridHasOverflow"><div ref="confirmGridElement" class="confirm-grid" @scroll="onConfirmGridScroll"><article v-for="(material, index) in materials" :key="material.source" :style="{ '--card-index': Math.min(index, 19) }" :data-visible="material.isVisible === true" :ref="(element) => { setPreviewElement(material, element); observeCard(element, material) }" class="confirm-card">
+          <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
           <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' }"><div class="scale-row"><span>主体大小 {{ (scaleAdjustments[material.source] || 0) >= 0 ? '+' : '' }}{{ scaleAdjustments[material.source] || 0 }}%</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong><input v-model.number="scaleAdjustments[material.source]" :style="scaleTrack(material.source)" type="range" min="-50" max="50" step="1" /></div></div>
-        </article></div>
+        </article></div><div class="confirm-grid-scroll-hint" aria-hidden="true" /></div>
         <div class="page-actions"><button class="outline-button" @click="dismissMaterialConfirmation">取消</button><button class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>
       </section>
     </div>

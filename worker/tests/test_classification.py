@@ -14,11 +14,20 @@ from pixelflow_core.classification import (
     V26ClassifierAdapter,
     _merge_composition_metadata,
     classification_summary,
+    _material_sources,
 )
 from pixelflow_core.worker import WorkerRuntime, _preflight_materials
 
 
 class ClassificationAdapterTests(unittest.TestCase):
+    def test_webp_is_a_supported_v3_material_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            from PIL import Image
+
+            Image.new("RGB", (8, 8), "white").save(root / "source.webp", format="WEBP")
+            self.assertEqual(_material_sources(root), [root / "source.webp"])
+
     def test_bundled_classifier_does_not_modify_import_path(self) -> None:
         before = list(sys.path)
         V26ClassifierAdapter(bundled_only=True)._load_classifier()

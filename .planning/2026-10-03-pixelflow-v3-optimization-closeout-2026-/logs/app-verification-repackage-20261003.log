@@ -1,0 +1,4 @@
+strict_deep_signature=valid
+3.0.0-beta.1
+app_architectures=arm64
+worker_architectures=arm64

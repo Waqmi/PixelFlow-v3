@@ -1,0 +1,2 @@
+2026-10-03 19:30:17.840 Python[8399:7431008] 2026-10-03 19:30:17.840545 [W:onnxruntime:Default, telemetry.cc:800 operator()] Failed to persist telemetry device ID; using an in-memory identifier
+{"report": ".planning/2026-10-03-pixelflow-v3-optimization-closeout-2026-/logs/knee-pads-real-rerun.json", "status": "passed", "inputs": 5}

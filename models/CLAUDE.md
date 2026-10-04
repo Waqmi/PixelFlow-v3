@@ -21,7 +21,7 @@ models/
     └── yolov8m-worldv2-pixelflow.classes.json  # 必须与同名 onnx 放一起
 ```
 
-- `detection/` 可选。ONNX 与 `.classes.json` 缺任一，鞋类构图回退到 Pose 推算。`classes.json` 含 `classes`（如 shoe、sneaker、sock、glove、hat、shirt、jacket、shorts、pants 等）和 `category_map`（类别 -> 品类，如 shoe/sneaker -> shoes）。
+- `detection/` 可选。当前检测框路由覆盖 `shoes`、`long_pants` / `pants` / `shorts`、`socks`、`knee_pads`、`hat`、`gloves`；`bag` 刻意复用 shirt 锚点规则且不使用检测框。ONNX 与 `.classes.json` 缺任一时，对应品类回退到 Pose、Seg 或规则构图。`classes.json` 含 `classes`（如 shoe、sneaker、sock、glove、hat、shirt、jacket、shorts、pants 等）和 `category_map`（类别 -> 品类，如 shoe/sneaker -> shoes）。
 - 当前 SHA-256（以 `README.md` 为准）：pose `86e1275f...`、seg `52269a89...`、detection `467b89a9...`。校验：`shasum -a 256 models/pose/yolo11n-pose.onnx models/segmentation/yolo11n-seg.onnx models/detection/yolov8m-worldv2-pixelflow.onnx`。
 - 运行还需要 Worker Python 环境有 `numpy` 与 `onnxruntime`；缺失时 Worker 仍可启动并返回带原因的 fallback。
 

@@ -11,7 +11,11 @@ models/
     └── yolov8m-worldv2-pixelflow.classes.json
 ```
 
-`detection/` 为可选的鞋检测模型（YOLO-World 固定类别导出，导出过程见 `detection/EXPORT_REPORT.md`），目前只在鞋类品类使用；ONNX 必须与同名 `.classes.json` 放在一起，缺任一文件时鞋类构图回退到 Pose 推算。
+`detection/` 为可选的 YOLO-World 检测模型（固定类别导出，导出过程见
+`detection/EXPORT_REPORT.md`）。当前路由把检测框作为 `shoes`、`long_pants` / `pants` /
+`shorts`、`socks`、`knee_pads`、`hat` 和 `gloves` 的辅助证据；`bag` 使用 shirt 锚点规则，
+不使用检测框。ONNX 必须与同名 `.classes.json` 放在一起，缺任一文件时对应品类回退到
+Pose、Seg 或规则构图。
 
 模型不会打包进 App，也不会由 App 下载。模型文件需拥有合法使用权，并兼容当前 ONNX Runtime；不兼容时对应能力会自动关闭并回退规则判断。
 

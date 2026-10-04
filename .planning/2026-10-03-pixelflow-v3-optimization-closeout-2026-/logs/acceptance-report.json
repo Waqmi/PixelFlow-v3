@@ -1,0 +1,39 @@
+{
+  "schema_version": "pixelflow-v3-closeout-2026-10-03-v1",
+  "generated_at_utc": "2026-10-03T11:58:53Z",
+  "status": "app-built-and-verified; no-dmg",
+  "checks": {
+    "frontend_build": "passed; 34 modules; frontend-build-final.log",
+    "worker_tests": "passed; 192 total, 191 passed, 1 skipped; worker-full.log",
+    "knee_pads": "passed; 5 inputs, 27 checks passed, 0 failed/skipped, no fallback, 4 need manual review; knee-pads-real-rerun.json",
+    "git_diff_check": "passed; root accepted animation CSS cascade and reduced-motion checks"
+  },
+  "package": {
+    "requested_command": "tools/package_macos.sh --app-only",
+    "initial_result": "app built; script ignored the flag and attempted hdiutil; hdiutil create failed with 设备未配置; no DMG produced",
+    "script_fix": "argument validation and app-only exit before DMG staging/cleanup",
+    "validated_command": "PIXELFLOW_SKIP_TAURI_BUILD=1 PIXELFLOW_BUILT_APP=apps/desktop/src-tauri/target/release/bundle/macos/PixelFlow.app tools/package_macos.sh --app-only",
+    "validated_result": "exit 0; package-macos-app-only-fastpath.log",
+    "build_log": "package-macos-app-only.log",
+    "dmg_created": false
+  },
+  "app": {
+    "path": "dist/PixelFlow-v3-beta.app",
+    "version": "3.0.0-beta.1",
+    "bundle_id": "com.pixelflow.desktop",
+    "app_and_worker_architecture": "arm64",
+    "strict_deep_signature": "valid; ad-hoc signature",
+    "worker_smoke": "startup ready, ping ready, shutdown done; exit 0; bundled-worker-smoke.log",
+    "pillow": "worker lock pins 12.3.0; PyInstaller log and app archive contain PIL/PIL.Image; four get_flattened_data() replacements present"
+  },
+  "preserved_constraints": {
+    "head": "d388bbdb388d9278d2231d9e1a19faf2d4bf5903",
+    "unused_detection_sidecars_deleted": true,
+    "legacy_engine_observation_unchanged": true,
+    "committed_or_pushed": false
+  },
+  "limitations": [
+    "Initial script invocation may have removed a prior target DMG before hdiutil failed; no surviving copy or evidence of a preexisting target was found, so pre-run state is unknown.",
+    "No Tauri UI motion inspection or 300-card performance run; ad-hoc local signature is not Developer ID signing/notarization."
+  ]
+}

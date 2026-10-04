@@ -12,8 +12,8 @@
 - 设置页已提供版本/Worker 哈希/规则版本、Pose/Seg 文件名与 SHA-256 状态；桌面端可导出包含诊断 JSON、失败报告、最近 Worker 日志和最近结果的 ZIP 诊断包。
 - 已修复模型检测的 `file_version(include_digest=True)` 参数错误；最新修复包在宿主设置页显示 Pose、Seg 均“已就绪”且 SHA-256 匹配。
 - v3 同名输出默认复用固定路径，不自动改名或覆盖；显式强制重跑才覆盖，生成前会检查输出磁盘空间并在低于 200 MB 时预警。
-- 最新提交 `2f39ae1` 已为 `socks`、`hat`、`gloves`、`knee_pads`、`bag` 接入锚点构图；帽子、手套、长袜已有真实素材渲染验收，护膝目前仅完成合成数据验证。
-- 当前工作区的后续修复扩大了手套检测框安全边界，并让带锚点构图的帽子/手套特写保留为模特图；Python 3.14 下 Worker 全量测试为 191 项通过、1 项既有跳过。
+- 最新提交 `2f39ae1` 已为 `socks`、`hat`、`gloves`、`knee_pads`、`bag` 接入锚点构图；帽子、手套、长袜已有真实素材渲染验收。本轮已使用 `05_测试素材与输出/护膝` 的 5 个真实图片文件（含 2 个 WebP）完成 v3 Renderer 验证：27 个输出通过、0 个失败、4 个来源需要人工复核，证据见 [`baselines/v3/knee-pads-real-20261003.json`](../baselines/v3/knee-pads-real-20261003.json)。
+- 当前工作区的后续修复扩大了手套检测框安全边界，并让带锚点构图的帽子/手套特写保留为模特图；Python 3.14 下 Worker 全量测试为 192 项，191 项通过、1 项既有跳过。
 
 ## 进行中
 
@@ -23,10 +23,10 @@
 | T2 `.app` 完整回归 | ✅ 用户人工验收通过 | 当前收口报告：[`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json) |
 | T3 当前 legacy 基线 | ✅ 用户人工兼容验收通过 | 旧版机器报告已归档；当前报告不再把历史像素差异作为阻塞项 |
 | T4 预览与安全 | ✅ 已实现，性能待验 | Worker `read_preview` 有界缓存、canonical scope；300 张/300 响应证据见 `preview-300-audit.json`；桌面首屏交互仍待补 |
-| T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；macOS/Windows 故障注入待补 |
-| T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md`；五个剩余品类已接入锚点构图，护膝真实素材验收仍缺 |
-| T7 onedir/Python 3.12 | 进行中 | 最新 onedir `.app` 已用 Python 3.14.5 重建并通过 Worker ping/退出及宿主启动/退出；正式 Python 3.12 锁定依赖构建仍待完成 |
-| T8 复核与回退可见性 | ✅ 已实现，真实批次追踪待补 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`apps/desktop/src/App.vue` |
+| T5 Host 稳健性 | ✅ 已实现，平台待验 | stderr 滚动日志、60 秒 3 次重启上限、退避、任务 ID、版本握手和 Windows 无控制台已接入；`tools/check_host_fault_contract.py` 与 Rust 单测可运行，Windows 真实故障注入仍待 Windows 环境 |
+| T6 功能对齐 | 进行中 | `docs/v2.6-feature-parity.md`；五个剩余品类已接入锚点构图，护膝真实素材验证见 `baselines/v3/knee-pads-real-20261003.json` |
+| T7 onedir/Python 3.12 | 进行中 | 当前本机 `.app`/Worker 使用 Python 3.14.5；`tools/build_worker.sh` 和 `PIXELFLOW_PYTHON` 选择器已固定构建解释器，CI 仍使用 Python 3.12，正式 3.12 本机重建未伪称完成 |
+| T8 复核与回退可见性 | ✅ 已实现，真实批次追踪可登记 | 结果页展示 `requires_review`、`review_hint`、保护框、接受/保守重跑、fallback/skip/failure 统计；`tools/record_legacy_batch.py` 追加可审计真实批次 |
 | T9 前端和 CI | 进行中 | schema 运行时校验、协议检查和 CI 已完成；Worker CI job 已固定 `PYTHONPATH=worker`，已将进度状态和关于页抽出；完整 views 拆分与 Vitest 仍待处理（当前环境无法安装新 npm 依赖） |
 | T10 发布 | 受环境阻塞 | 最新 arm64 `.app` 已完成 ad-hoc 签名验证、宿主启动/退出和 Worker ping；Developer ID 签名、公证、DMG 和 Windows 安装仍待完成 |
 | T11 legacy 周期 | 🔄 观察中 | 技术验收已完成；legacy 仍保留一个兼容观察周期后再评估删除 |
@@ -49,9 +49,9 @@
 - `npm run build`：通过。
 - `cargo clean && cargo check`：通过（当前 onedir 资源布局）。
 - Worker 协议测试：`worker.tests.test_contracts` 7/7 通过；预览越界拒绝、缓存和 ready 版本握手 smoke 通过。
-- Worker 全量（最新本地验证）：`PYTHONPATH="$PWD/worker" worker/.venv/bin/python -m unittest discover -s worker/tests -p 'test_*.py'` 191 项，190 通过、1 项既有跳过。
+- Worker 全量（最新本地验证）：`PYTHONPATH="$PWD/worker" worker/.venv/bin/python -m unittest discover -s worker/tests -p 'test_*.py'` 192 项，191 通过、1 项既有跳过；无警告（已迁移至 Pillow `get_flattened_data()` API）。
 - `tools/run_acceptance.py --skip-desktop`：通过，报告位于 `baselines/v2.6/acceptance-20260927/acceptance.json`。
-- `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。
+- `tools/run_acceptance.py --skip-desktop --legacy-cycle-record docs/legacy-cycle-beta.2.json`：通过（Python 3.14），报告位于 `baselines/v2.6/acceptance-t8-t11-20260927/acceptance.json`；周期仍为 active，真实批次为 0。真实批次使用 `tools/record_legacy_batch.py --real-batch` 登记，smoke/fault injection 不计入。
 - `tools/run_acceptance.py --output baselines/v2.6/acceptance-t2-t11-final-20260927`：通过（Python 3.14，Worker 89/89、协议检查、Vue 构建、`cargo check`）；T10 签名、公证和 Windows 安装仍待对应环境。
 - `tools/run_acceptance.py --skip-desktop --full-evidence --output baselines/v2.6/acceptance-full-evidence-20260927-final`：通过（Worker 93/93、四类输出/冻结 Worker/哈希清单引用、candidate2 v3 基线报告）；生成图片目录按仓库规则忽略。
 - `cargo test --bin pixelflow-desktop`：通过（4/4，包含重启预算、任务 ID 和诊断 ZIP 结构校验）。
