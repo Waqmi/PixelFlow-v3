@@ -1,0 +1,14 @@
+{
+  "root": "/Users/weiheng/Desktop/测试/1000张上衣",
+  "input_count": 1271,
+  "cancel_after": 128,
+  "cancel_sent": true,
+  "progress_completed": 128,
+  "terminal_type": "cancelled",
+  "terminal_payload": {
+    "phase": "分类"
+  },
+  "duration_seconds": 37.647,
+  "child_max_rss_mb": 2088.0,
+  "returncode": 0
+}

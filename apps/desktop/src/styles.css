@@ -68,7 +68,7 @@ button{cursor:pointer}
 .status-phase{color:#347ff0;font-size:12px;font-weight:600;line-height:16px;animation:status-phase-in .16s ease-out}.status-copy strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;line-height:17px}
 .progress-area{flex:1;min-width:240px;max-width:420px;margin:0 28px}.progress-track{height:10px;overflow:hidden;border-radius:999px;background:var(--line)}.progress-track span{display:block;height:100%;border-radius:inherit;background:var(--accent)}.progress-meta{display:flex;justify-content:space-between;margin-top:8px;color:var(--muted);font-size:12px;line-height:16px}.progress-meta strong{color:var(--text);font-weight:600}
 .progress-bar-bottom{width:calc(100% - 96px);height:18px;margin:0 auto;border-radius:6px;background:var(--line)}.progress-bar-bottom span{display:block;height:100%;border-radius:inherit;background:#4b9d78}
-.run-actions{display:flex;align-items:center;gap:12px}
+.run-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.resume-button{color:var(--accent);border-color:var(--selected-border);background:var(--selected)}
 .primary-button,.cancel-button{height:56px;border-radius:10px;font-size:16px;line-height:19px}
 .primary-button{min-width:190px;display:flex;align-items:center;justify-content:center;border:1px solid #347ff0;color:#fff;background:#347ff0}
 .primary-button:hover:not(:disabled){background:#216bdd}

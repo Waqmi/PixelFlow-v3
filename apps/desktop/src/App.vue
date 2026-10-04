@@ -54,6 +54,25 @@ interface SettingsSnapshot {
 interface ReportSnapshot {
   result: Record<string, unknown>
   outputRoot: string
+  resume?: ResumeSnapshot | null
+}
+
+type ResumePhase = 'classifying' | 'generating' | 'cancelled' | 'interrupted' | 'failed'
+
+interface ResumeSnapshot {
+  schema_version: 1
+  phase: ResumePhase
+  request_kind: 'classification' | 'generation'
+  saved_at: string
+  input_root: string
+  output_root: string
+  generation_payload?: Record<string, unknown>
+  classification_payload?: Record<string, unknown>
+  progress?: { completed: number; total: number }
+  task_phase?: string
+  task_detail?: string
+  task_id?: string
+  result_summary?: Record<string, unknown>
 }
 
 interface ConfirmSnapshot {
@@ -199,6 +218,9 @@ const isRunning = ref(false)
 const isCancelling = ref(false)
 const workerConnected = ref(false)
 const workerInterrupted = ref(false)
+const resumeSnapshot = ref<ResumeSnapshot | null>(null)
+const resumeAvailable = computed(() => Boolean(resumeSnapshot.value
+  && ['classifying', 'generating', 'cancelled', 'interrupted', 'failed'].includes(resumeSnapshot.value.phase)))
 const status = ref('准备就绪')
 const taskPhase = ref('准备就绪')
 const taskDetail = ref('准备就绪')
@@ -358,6 +380,97 @@ function currentSettings(): SettingsSnapshot {
     maxSizeMb: maxSizeMb.value, logoOverrides: { ...logoOverrides.value },
   }
 }
+
+const RESUME_STORAGE_KEY = 'pixelflow.resume-task'
+
+function compactResumePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const compact = { ...payload }
+  const serialized = JSON.stringify(compact)
+  if (serialized.length <= 4_500_000) return compact
+  // Keep the run configuration and scale choices while allowing a very large
+  // batch to resume after localStorage quota limits. The worker reclassifies
+  // sources when the optional per-source metadata is omitted.
+  delete compact.source_metadata_overrides
+  delete compact.source_type_overrides
+  compact.enable_material_understanding = true
+  return compact
+}
+
+function saveResumeTask(snapshot: ResumeSnapshot) {
+  resumeSnapshot.value = snapshot
+  try {
+    localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(snapshot))
+  } catch {
+    const compact = snapshot.generation_payload
+      ? { ...snapshot, generation_payload: compactResumePayload(snapshot.generation_payload) }
+      : snapshot
+    try { localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(compact)) } catch { /* memory state remains usable */ }
+  }
+}
+
+function updateResumePhase(phase: ResumePhase, result?: Record<string, unknown>) {
+  const current = resumeSnapshot.value
+  if (!current) return
+  saveResumeTask({
+    ...current,
+    phase,
+    saved_at: new Date().toISOString(),
+    task_phase: taskPhase.value,
+    task_detail: taskDetail.value,
+    result_summary: result ? {
+      cancelled: Boolean(result.cancelled),
+      outputs: Array.isArray(result.outputs) ? result.outputs.length : undefined,
+      failures: Array.isArray(result.failures) ? result.failures.length : undefined,
+      performance: result.performance,
+    } : current.result_summary,
+  })
+}
+
+function clearResumeTask() {
+  resumeSnapshot.value = null
+  try { localStorage.removeItem(RESUME_STORAGE_KEY) } catch { /* optional storage */ }
+}
+
+function readResumeTask(): ResumeSnapshot | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(RESUME_STORAGE_KEY) || 'null') as ResumeSnapshot | null
+    return value?.schema_version === 1 && value.input_root && value.output_root ? value : null
+  } catch {
+    return null
+  }
+}
+
+function diagnosticsSnapshot() {
+  return {
+    generated_at: new Date().toISOString(),
+    app_version: appVersion,
+    user_agent: navigator.userAgent,
+    platform: navigator.platform,
+    worker_version: workerVersion.value,
+    worker_build_hash: workerBuildHash.value || null,
+    rules_version: workerRulesVersion.value,
+    worker_status: workerReadyState.value,
+    model_root: localModelPath.value || null,
+    models: modelDiagnostics.value,
+    input_root: inputRoot.value || null,
+    output_root: outputRoot.value || null,
+    task_state: {
+      status: status.value,
+      phase: taskPhase.value,
+      detail: taskDetail.value,
+      running: isRunning.value || classificationRunning.value,
+      cancelling: isCancelling.value,
+      resume_available: resumeAvailable.value,
+    },
+    last_result_summary: {
+      success: outputSummary.value.success,
+      failures: outputSummary.value.failures,
+      skipped: outputSummary.value.skipped,
+      performance: lastResult.value.performance || null,
+    },
+  }
+}
+
 function applySettings(value: Partial<SettingsSnapshot>) {
   if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') theme.value = value.theme
   if (typeof value.reducedMotion === 'boolean') reducedMotion.value = value.reducedMotion
@@ -425,12 +538,13 @@ async function closeSettings(save = false) {
 }
 
 function reportSnapshot(): ReportSnapshot {
-  return { result: { ...lastResult.value }, outputRoot: outputRoot.value }
+  return { result: { ...lastResult.value }, outputRoot: outputRoot.value, resume: resumeSnapshot.value }
 }
 
 function applyReportSnapshot(snapshot: ReportSnapshot) {
   lastResult.value = snapshot.result || {}
   outputRoot.value = snapshot.outputRoot || ''
+  resumeSnapshot.value = snapshot.resume || null
   reportOpen.value = true
 }
 
@@ -613,6 +727,7 @@ function armClassificationWatchdog() {
     status.value = '素材分析超时，请重试'
     taskPhase.value = '分析失败'
     taskDetail.value = 'Worker 在限定时间内没有返回分类结果；已请求停止当前任务。'
+    updateResumePhase('failed')
   }, 120_000)
 }
 
@@ -626,11 +741,13 @@ function settleCancellation(message: string, detail: string, phase = '已安全�
   clearClassificationWatchdog()
   const target = cancelTargetRequestId.value
   if (target && target === classificationRequestId.value) {
+    updateResumePhase('cancelled')
     classificationRunning.value = false
     setClassificationProgress(0, true)
     classificationRequestId.value = undefined
   }
   if (target && target === generationRequestId.value) {
+    updateResumePhase('cancelled')
     isRunning.value = false
     generationRequestId.value = undefined
   }
@@ -735,19 +852,12 @@ async function exportDiagnostics() {
     settingsNotice.value = '请在桌面 App 中导出诊断包'
     return
   }
-  const snapshot = {
-    app_version: appVersion,
-    worker_version: workerVersion.value,
-    worker_hash: workerBuildHash.value,
-    rules_version: workerRulesVersion.value,
-    model_status: modelStatus.value,
-    model_probe: modelDiagnostics.value,
-    generated_at: new Date().toISOString(),
-  }
+  const snapshot = { ...diagnosticsSnapshot(), model_status: modelStatus.value }
   const entries = [
     { name: 'diagnostics.json', content: JSON.stringify(snapshot, null, 2) },
     { name: 'failures.txt', content: failureReportText() },
     { name: 'last-result.json', content: JSON.stringify(lastResult.value, null, 2) },
+    { name: 'resume-task.json', content: JSON.stringify(resumeSnapshot.value, null, 2) },
   ]
   settingsNotice.value = '正在生成诊断包…'
   try {
@@ -850,8 +960,35 @@ function onCategoryKeydown(event: KeyboardEvent) {
   }
   void focusCategoryOption()
 }
+function trapDialogFocus(event: KeyboardEvent) {
+  if (event.key !== 'Tab') return
+  const dialog = event.currentTarget as HTMLElement
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )).filter((element) => element.offsetParent !== null)
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+function focusFirstDialogControl(selector: string) {
+  void nextTick(() => {
+    const dialog = document.querySelector<HTMLElement>(selector)
+    const first = dialog?.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    )
+    first?.focus()
+  })
+}
 function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
+  event.preventDefault()
   categoryOpen.value = false
   namingOpen.value = false
   if (failureOpen.value) failureOpen.value = false
@@ -877,15 +1014,7 @@ function modelFileLabel(diagnostic?: ModelDiagnostic) {
   return diagnostic?.model || diagnostic?.model_version?.path?.split(/[\\/]/).pop() || '未检测到'
 }
 async function copyDiagnostics() {
-  const diagnostics = {
-    app_version: expectedWorkerVersion,
-    worker_version: workerVersion.value,
-    worker_build_hash: workerBuildHash.value || null,
-    rules_version: workerRulesVersion.value,
-    worker_status: workerReadyState.value,
-    model_root: localModelPath.value || null,
-    models: modelDiagnostics.value,
-  }
+  const diagnostics = diagnosticsSnapshot()
   try {
     await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2))
     settingsNotice.value = '诊断信息已复制'
@@ -957,7 +1086,9 @@ function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   reportOpen.value = false
   failureOpen.value = false
   setProgress(0, true)
-  generationRequestId.value = worker.request('retry_failed', { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true })
+  const payload = { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true }
+  generationRequestId.value = worker.request('retry_failed', payload)
+  persistGenerationResume(payload)
   status.value = `准备重试 ${sourceFilter.length} 项失败素材`
 }
 function generationPayload(sourceFilter?: string[], forceRerender = false) {
@@ -984,6 +1115,65 @@ function generationPayload(sourceFilter?: string[], forceRerender = false) {
   }
 }
 
+function persistGenerationResume(payload: Record<string, unknown>, phase: ResumePhase = 'generating') {
+  saveResumeTask({
+    schema_version: 1,
+    phase,
+    request_kind: 'generation',
+    saved_at: new Date().toISOString(),
+    input_root: inputRoot.value,
+    output_root: outputRoot.value,
+    generation_payload: compactResumePayload(payload),
+    task_phase: taskPhase.value,
+    task_detail: taskDetail.value,
+    task_id: generationRequestId.value,
+  })
+}
+
+function resumeTask() {
+  const snapshot = resumeSnapshot.value
+  if (!snapshot || isRunning.value || classificationRunning.value) return
+  if (isReportWindow && window.__TAURI_INTERNALS__) {
+    void emit('report-action', { action: 'resume' })
+    void closeReport()
+    return
+  }
+  if (!worker) return
+  inputRoot.value = snapshot.input_root
+  outputRoot.value = snapshot.output_root
+  if (snapshot.request_kind === 'classification') {
+    const classification = snapshot.classification_payload
+    if (classification) {
+      if (typeof classification.category === 'string') categoryTemplate.value = classification.category
+      if (typeof classification.local_model_enabled === 'boolean') localModelEnabled.value = classification.local_model_enabled
+      if (typeof classification.local_model_path === 'string') localModelPath.value = classification.local_model_path
+    }
+    classifyMaterials(true)
+    return
+  }
+  const payload = snapshot.generation_payload
+  if (!payload) {
+    status.value = '未找到可恢复的任务参数，请重新开始'
+    clearResumeTask()
+    return
+  }
+  const selected = payload.selected_sizes
+  if (Array.isArray(selected) && selected.every((value) => typeof value === 'string')) selectedSizes.value = selected as string[]
+  materialConfirmed.value = true
+  reportOpen.value = false
+  workerInterrupted.value = false
+  isRunning.value = true
+  isCancelling.value = false
+  setProgress(0, true)
+  clearProgressComplete()
+  status.value = '正在继续未完成任务'
+  taskPhase.value = '恢复任务'
+  taskDetail.value = '已生成的输出会自动复用，继续处理未完成素材。'
+  const requestPayload = { ...payload, material_confirmation_completed: true, force_rerender: false }
+  generationRequestId.value = worker.request('start_generation', requestPayload)
+  persistGenerationResume(requestPayload)
+}
+
 async function revealMainWindow() {
   const current = getCurrentWindow()
   // A hidden Tauri window can finish WebView creation one turn after Vue
@@ -1002,6 +1192,19 @@ async function revealMainWindow() {
 
 onMounted(() => {
   let hasSavedModelPath = false
+  const savedResume = readResumeTask()
+  if (savedResume) {
+    resumeSnapshot.value = savedResume
+    if (!isSettingsWindow && !isReportWindow && !isConfirmWindow) {
+      inputRoot.value = savedResume.input_root
+      outputRoot.value = savedResume.output_root
+      const sizes = savedResume.generation_payload?.selected_sizes
+      if (Array.isArray(sizes) && sizes.every((value) => typeof value === 'string')) selectedSizes.value = sizes as string[]
+      status.value = '检测到未完成任务，可继续处理'
+      taskPhase.value = '任务可恢复'
+      taskDetail.value = '已完成的输出会自动复用。'
+    }
+  }
   try {
     theme.value = readInitialTheme()
     reducedMotion.value = localStorage.getItem('pixelflow.reduced-motion') === 'true'
@@ -1050,6 +1253,7 @@ onMounted(() => {
       .then((unlisten) => { stopReportReadyListener = unlisten })
     void listen<{ action?: string; sourceFilter?: string[]; forceRerender?: boolean }>('report-action', (event) => {
       if (event.payload?.action === 'retry') retryFailures(event.payload.sourceFilter || [], event.payload.forceRerender)
+      else if (event.payload?.action === 'resume') resumeTask()
     }).then((unlisten) => { stopReportActionListener = unlisten })
     void listen('confirm-ready', () => { void emitTo('confirm', 'confirm-data', confirmSnapshot()) })
       .then((unlisten) => { stopConfirmReadyListener = unlisten })
@@ -1090,6 +1294,9 @@ onMounted(() => {
   }
 
   if (isConfirmWindow) void nextTick(() => setupCardObserver())
+  if (isSettingsWindow) focusFirstDialogControl('.settings-dialog')
+  if (isConfirmWindow) focusFirstDialogControl('.confirmation-dialog')
+  if (isReportWindow) focusFirstDialogControl('.report-dialog')
 })
 
 onBeforeUnmount(() => worker?.dispose())
@@ -1209,6 +1416,12 @@ watch(confirmOpen, (open) => {
   })
 }, { immediate: isConfirmWindow })
 
+watch(settingsOpen, (open) => { if (open) focusFirstDialogControl('.settings-dialog') })
+watch(confirmOpen, (open) => { if (open) focusFirstDialogControl('.confirmation-dialog') })
+watch(reportOpen, (open) => { if (open) focusFirstDialogControl('.report-dialog') })
+watch(reviewOpen, (open) => { if (open) focusFirstDialogControl('.review-dialog') })
+watch(failureOpen, (open) => { if (open) focusFirstDialogControl('.failure-dialog') })
+
 function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>
   if (message.type === 'ready') {
@@ -1290,6 +1503,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       : []
     setClassificationProgress(1000, true)
     markProgressComplete()
+    clearResumeTask()
     materialConfirmed.value = false
     status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材，请确认后继续'
     taskPhase.value = '识别分类'
@@ -1327,6 +1541,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskPhase.value = '已完成'
     taskDetail.value = '所有任务已完成，输出已整理。'
     lastResult.value = (payload.result as Record<string, unknown>) || {}
+    clearResumeTask()
     materialConfirmed.value = false
     showReport()
   } else if (message.type === 'cancelled' && message.request_id === generationRequestId.value) {
@@ -1334,12 +1549,14 @@ function handleWorkerMessage(message: WorkerMessage) {
     isRunning.value = false
     isCancelling.value = false
     lastResult.value = (payload.result as Record<string, unknown>) || {}
+    updateResumePhase('cancelled', lastResult.value)
     materialConfirmed.value = false
     status.value = '任务已取消'
     taskPhase.value = '已安全停止'
     taskDetail.value = '已保留已完成的输出。'
     showReport()
   } else if (message.type === 'cancelled' && message.request_id === classificationRequestId.value) {
+    updateResumePhase('cancelled')
     settleCancellation('素材分析已取消', '素材识别已停止，未开始生成；可以调整选项后重新开始。')
   } else if (message.type === 'status' && message.request_id === cancelRequestId.value) {
     if (payload.state === 'cancelling') {
@@ -1368,6 +1585,9 @@ function handleWorkerMessage(message: WorkerMessage) {
         modelStatus.value = '状态：Worker 已中断，模型检测未完成'
       }
       if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
+      updateResumePhase('interrupted')
+    } else if (message.request_id === generationRequestId.value || message.request_id === classificationRequestId.value) {
+      updateResumePhase('failed')
     }
     clearClassificationWatchdog()
     isRunning.value = false
@@ -1380,7 +1600,7 @@ function handleWorkerMessage(message: WorkerMessage) {
   }
 }
 
-function classifyMaterials() {
+function classifyMaterials(fromResume = false) {
   if (!inputRoot.value) {
     status.value = '请先填写输入目录'
     return
@@ -1390,6 +1610,7 @@ function classifyMaterials() {
     return
   }
   if (classificationRunning.value || isRunning.value) return
+  if (!fromResume) clearResumeTask()
   workerInterrupted.value = false
   materials.value = []
   previewElements.clear()
@@ -1417,13 +1638,26 @@ function classifyMaterials() {
     : classificationConcurrency.value === 'performance'
       ? Math.min(4, navigator.hardwareConcurrency || 4)
       : Math.min(4, Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)))
-  classificationRequestId.value = worker.request('classify_materials', {
+  const classificationPayload = {
     product_root: inputRoot.value,
     output_root: outputRoot.value,
     workers,
     category: categoryTemplate.value === 'auto' || categoryTemplate.value === 'none' ? undefined : categoryTemplate.value,
     local_model_enabled: localModelEnabled.value,
     local_model_path: localModelPath.value || undefined,
+  }
+  classificationRequestId.value = worker.request('classify_materials', classificationPayload)
+  saveResumeTask({
+    schema_version: 1,
+    phase: 'classifying',
+    request_kind: 'classification',
+    saved_at: new Date().toISOString(),
+    input_root: inputRoot.value,
+    output_root: outputRoot.value,
+    classification_payload: classificationPayload,
+    task_phase: taskPhase.value,
+    task_detail: taskDetail.value,
+    task_id: classificationRequestId.value,
   })
   armClassificationWatchdog()
 }
@@ -1806,7 +2040,9 @@ function startGeneration() {
   status.value = '任务已准备'
   taskPhase.value = '准备素材'
   taskDetail.value = '正在整理生成任务……'
-  generationRequestId.value = worker.request('start_generation', generationPayload())
+  const payload = generationPayload()
+  generationRequestId.value = worker.request('start_generation', payload)
+  persistGenerationResume(payload)
 }
 </script>
 
@@ -1837,7 +2073,7 @@ function startGeneration() {
         <section class="options-section panel-enter delay-1">
           <div class="v26-heading"><span /> <h2>输出选项</h2></div>
           <div class="size-card-grid">
-            <button v-for="size in ['1440x1440', '1440x1920', '1125x1500']" :key="size" class="option-card size-option" :class="{ active: selectedSizes.includes(size) }" @click="toggleSize(size)"><i class="option-check" /> <strong>{{ size }}</strong><small>{{ size === '1440x1440' ? '1:1' : '3:4' }}</small></button>
+          <button v-for="size in ['1440x1440', '1440x1920', '1125x1500']" :key="size" type="button" class="option-card size-option" :class="{ active: selectedSizes.includes(size) }" :aria-pressed="selectedSizes.includes(size)" @click="toggleSize(size)"><i class="option-check" /> <strong>{{ size }}</strong><small>{{ size === '1440x1440' ? '1:1' : '3:4' }}</small></button>
           </div>
           <div class="toggle-card-grid">
             <label v-if="showLogoOption" class="option-card toggle-option" :class="{ active: includeLogo }"><input v-model="includeLogo" type="checkbox" /><i class="option-check" /><strong>生成含 Logo / 无 Logo</strong></label>
@@ -1849,8 +2085,8 @@ function startGeneration() {
         </section>
 
         <section class="panel progress-panel panel-enter delay-2">
-          <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong>{{ taskDetail }}</strong></div>
-          <div class="run-actions"><button class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
+          <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong aria-live="polite" aria-atomic="true">{{ taskDetail }}</strong></div>
+          <div class="run-actions"><button v-if="resumeAvailable && !isRunning && !classificationRunning" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button type="button" class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button type="button" class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
         </section>
         <div v-if="classificationRunning || isRunning || progressComplete" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :data-complete="progressComplete" :style="{ width: `${displayProgress / 10}%` }" /></div>
       </div>
@@ -1858,7 +2094,7 @@ function startGeneration() {
 
     <Transition name="settings" appear>
     <div v-if="settingsOpen" class="settings-backdrop settings-overlay" @click.self="closeSettings()">
-      <section class="settings-dialog panel" role="dialog" aria-modal="true" aria-label="设置">
+      <section class="settings-dialog panel" role="dialog" aria-modal="true" aria-label="设置" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><button class="settings-back" aria-label="返回主界面" title="返回主界面" @click="closeSettings()"><span class="back-arrow" /></button><h2>设置</h2></div>
         <div class="settings-tabs"><button v-for="tab in settingsTabs" :key="tab.key" :class="{ active: settingsTab === tab.key }" @click="settingsTab = tab.key">{{ tab.label }}</button></div>
         <div class="settings-body" :key="settingsTab">
@@ -1911,7 +2147,7 @@ function startGeneration() {
 
     <Transition name="dialog" appear>
     <div v-if="confirmOpen" class="settings-backdrop confirmation-backdrop" @click.self="dismissMaterialConfirmation">
-      <section class="page-dialog panel confirmation-dialog" role="dialog" aria-modal="true" aria-label="素材确认">
+      <section class="page-dialog panel confirmation-dialog" role="dialog" aria-modal="true" aria-label="素材确认" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><div><p class="eyebrow">CONFIRMATION</p><h2>确认素材分类 · {{ materials.length }} 张</h2><p>核对 v2.6 的自动识别结果，必要时调整分类、跳过模特素材或修改商品主体比例。</p></div><button class="modal-close" aria-label="关闭确认页" @click="dismissMaterialConfirmation">×</button></div>
         <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
@@ -1919,27 +2155,27 @@ function startGeneration() {
           <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
           <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' }"><div class="scale-row"><span>主体大小 {{ (scaleAdjustments[material.source] || 0) >= 0 ? '+' : '' }}{{ scaleAdjustments[material.source] || 0 }}%</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong><input v-model.number="scaleAdjustments[material.source]" :style="scaleTrack(material.source)" type="range" min="-50" max="50" step="1" /></div></div>
         </article></div><div class="confirm-grid-scroll-hint" aria-hidden="true" /></div>
-        <div class="page-actions"><button class="outline-button" @click="dismissMaterialConfirmation">取消</button><button class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>
+        <div class="page-actions"><button type="button" class="outline-button" @click="dismissMaterialConfirmation">取消</button><button type="button" class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>
       </section>
     </div>
     </Transition>
 
     <Transition name="dialog" appear>
     <div v-if="reportOpen" class="settings-backdrop report-backdrop" @click.self="closeReport()">
-      <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告">
+      <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告" tabindex="-1" @keydown="trapDialogFocus">
         <div class="report-header"><div class="report-success-icon">✓</div><div><p class="eyebrow">PIXELFLOW · 批量任务</p><h2>{{ resultCancelled ? '已安全停止' : '生成完成' }}</h2><p>{{ resultCancelled ? '已保留已完成的输出；未开始的任务不会继续处理。' : '输出已整理完成，可直接打开文件夹检查结果。' }}</p></div></div>
         <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div></div>
         <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
         <p v-if="lastResult.incremental_skipped" class="report-cache-hint">检测到素材和设置均未变化，本次已复用上次输出。</p><p v-else-if="Number(lastResult.incremental_reused || 0) > 0" class="report-cache-hint">本次复用 {{ lastResult.incremental_reused }} 张未变化素材，其余素材已重新生成。</p>
         <div v-if="failures.length" class="report-failures">有 {{ failures.length }} 项失败素材；成功输出已保留，可在后续任务中重试。</div>
-        <div class="page-actions report-actions"><div class="report-actions-left"><button class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="reviewItems.length || fallbackItems.length || skippedOutputs.length" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" class="outline-button" @click="retryFailures()">仅重试失败项</button><button class="outline-button" @click="closeReport">完成</button></div></div>
+        <div class="page-actions report-actions"><div class="report-actions-left"><button type="button" class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="resumeAvailable" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button v-if="reviewItems.length || fallbackItems.length || skippedOutputs.length" type="button" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" type="button" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" type="button" class="outline-button" @click="retryFailures()">仅重试失败项</button><button type="button" class="outline-button" @click="closeReport">完成</button></div></div>
       </section>
     </div>
     </Transition>
 
     <Transition name="dialog" appear>
     <div v-if="reviewOpen" class="settings-backdrop" @click.self="reviewOpen = false">
-      <section class="page-dialog panel failure-dialog review-dialog" role="dialog" aria-modal="true" aria-label="复核与回退">
+      <section class="page-dialog panel failure-dialog review-dialog" role="dialog" aria-modal="true" aria-label="复核与回退" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><div><p class="eyebrow">REVIEW QUEUE</p><h2>复核与兼容回退</h2><p>以下素材需要人工确认；已保留保护区域和回退原因。</p></div><button class="modal-close" aria-label="关闭复核列表" @click="reviewOpen = false">×</button></div>
         <div v-if="skippedOutputs.length" class="review-list report-skipped-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`" class="report-skipped-item"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
         <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small><small>保护框：{{ reviewProtectedRegions(item) }}</small></article></div>
@@ -1952,7 +2188,7 @@ function startGeneration() {
 
     <Transition name="dialog" appear>
     <div v-if="failureOpen" class="settings-backdrop" @click.self="failureOpen = false">
-      <section class="page-dialog panel failure-dialog" role="dialog" aria-modal="true" aria-label="失败素材">
+      <section class="page-dialog panel failure-dialog" role="dialog" aria-modal="true" aria-label="失败素材" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><div><p class="eyebrow">FAILED ITEMS</p><h2>失败素材</h2><p>以下素材未能输出；其余成功结果不受影响。</p></div><button class="modal-close" aria-label="关闭失败素材" @click="failureOpen = false">×</button></div>
         <pre class="failure-list">{{ failureReportText() }}</pre><p v-if="failureNotice" class="dialog-notice">{{ failureNotice }}</p>
         <div class="page-actions"><button class="outline-button" @click="copyFailureReport">复制清单</button><button class="outline-button" @click="exportFailureReport">导出报告</button><button class="outline-button" @click="failureOpen = false">关闭</button><button class="confirm-button" @click="retryFailures()">仅重试失败项</button></div>
