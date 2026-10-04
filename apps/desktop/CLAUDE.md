@@ -20,7 +20,7 @@ PixelFlow 桌面宿主：Vue 3 + TypeScript + Vite 前端（`src/`）与 Tauri 2
 
 | 文件 | 职责 |
 |---|---|
-| `src/App.vue`（约 1700 行） | 主界面与大部分逻辑；`expectedRulesVersion`（当前 `v3-composition-10`）在 ready 事件中与 Worker 的 `rules_version` 比对，不一致则提示 |
+| `src/App.vue`（约 1700 行） | 主界面与大部分逻辑；`expectedRulesVersion`（当前 `v3-composition-11`）在 ready 事件中与 Worker 的 `rules_version` 比对，不一致则提示 |
 | `src/workerProtocol.ts` | 协议常量与类型：`WORKER_REQUEST_TYPES`、`WORKER_EVENT_TYPES`、`GenerationPayload`、`ClassificationPayload`、`MaterialType`、`parseWorkerMessage`、`createRequest` |
 | `src/workerClient.ts` | `WorkerClient`（按 request_id 发送/订阅）、`WorkerBridge` 接口、`windowWorkerBridge()`（读 `window.__PIXELFLOW_WORKER__`） |
 | `src/tauriBridge.ts` | `installTauriWorkerBridge()`：监听 Tauri 事件 `worker-line`、`worker-exit`，通过 `invoke('worker_send')` 发送 |

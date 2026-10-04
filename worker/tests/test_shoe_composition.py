@@ -99,7 +99,7 @@ class ShoeCompositionTests(unittest.TestCase):
         self.assertIsNone(result.review_hint)
         self.assertEqual(
             result.composition_plans["1440x1440"].evidence["composition_rules_version"],
-            "v3-composition-10",
+            "v3-composition-11",
         )
         protected = result.by_size["1440x1440"].protected_crop_bbox
         self.assertIsNotNone(protected)

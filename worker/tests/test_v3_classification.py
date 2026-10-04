@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from pixelflow_core.classification import ClassificationRequest
 from pixelflow_core.v3_classification import V3ClassifierAdapter
@@ -174,7 +174,9 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
                 }
 
         with tempfile.TemporaryDirectory() as root:
-            product = Path(root) / "上衣"
+            # This folder shape is the real 1000-image batch convention and
+            # initially classifies as ``rules_product_folder``.
+            product = Path(root) / "FRTJ009-22 男 松石绿"
             product.mkdir()
             source = product / "model.jpg"
             Image.new("RGB", (32, 32), "white").save(source)
@@ -196,6 +198,58 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(plan.crop_ratio, 0.7)
         self.assertEqual(plan.protected_regions[0].bbox, (10.0, 10.0, 90.0, 80.0))
         self.assertFalse(plan.fallback)
+
+    def test_clean_background_model_photo_can_leave_product_path_for_anchor_plan(self) -> None:
+        """Pose must be allowed to correct the cheap white-background rule."""
+        class FakeModelService:
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
+                return {
+                    "model_view": "upper_body",
+                    "confidence": 0.95,
+                    "person_count": 1,
+                    "person_bboxes": [[20, 10, 80, 90]],
+                    "body_visibility": {
+                        "upper_body": True,
+                        "visible_keypoints": 8,
+                        "person_box_height_ratio": 0.80,
+                        "person_box_width_ratio": 0.60,
+                        "pose_geometry_score": 0.90,
+                        "relief_score": 0.90,
+                    },
+                    "by_size": {
+                        "1440x1440": {
+                            "composition_mode": "anchor_crop",
+                            "crop_box": [0.1, 0.0, 0.9, 0.8],
+                            "anchors": {"top": 0.05, "bottom": 0.75},
+                            "confidence": 0.95,
+                        }
+                    },
+                }
+
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "上衣"
+            product.mkdir()
+            source = product / "look-01.jpg"
+            image = Image.new("RGB", (100, 100), "white")
+            ImageDraw.Draw(image).rectangle((25, 10, 75, 90), fill="black")
+            image.save(source)
+            request = ClassificationRequest(
+                product,
+                local_model_enabled=True,
+                local_model_path=str(Path(root) / "models"),
+                category="shirt",
+            )
+
+            def candidates(_root, kind):
+                return (Path("pose.onnx"),) if kind == "pose" else ()
+
+            with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+                "pixelflow_core.model_service.get_model_process_service", return_value=FakeModelService()
+            ):
+                decision = V3ClassifierAdapter().classify(request)[0]
+
+        self.assertEqual(decision.source_type, "model")
+        self.assertEqual(decision.composition_plans["1440x1440"].composition_mode, "anchor_crop")
 
 if __name__ == "__main__":
     unittest.main()

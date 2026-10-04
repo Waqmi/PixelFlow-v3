@@ -277,7 +277,7 @@ const confirmGridHasOverflow = ref(false)
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 const appVersion = '3.0.0-beta.1'
 const expectedWorkerVersion = appVersion
-const expectedRulesVersion = 'v3-composition-10'
+const expectedRulesVersion = 'v3-composition-11'
 const workerVersion = ref(expectedWorkerVersion)
 const workerBuildHash = ref('')
 const workerRulesVersion = ref(expectedRulesVersion)
@@ -2165,7 +2165,7 @@ function startGeneration() {
       <section class="page-dialog panel report-dialog" role="dialog" aria-modal="true" aria-label="结果报告" tabindex="-1" @keydown="trapDialogFocus">
         <div class="report-header"><div class="report-success-icon">✓</div><div><p class="eyebrow">PIXELFLOW · 批量任务</p><h2>{{ resultCancelled ? '已安全停止' : '生成完成' }}</h2><p>{{ resultCancelled ? '已保留已完成的输出；未开始的任务不会继续处理。' : '输出已整理完成，可直接打开文件夹检查结果。' }}</p></div></div>
         <div class="report-summary"><div><b>{{ outputSummary.success }}</b><small>成功输出</small></div><div><b>{{ outputSummary.skipped }}</b><small>跳过素材</small></div><div><b>{{ outputSummary.failures }}</b><small>失败素材</small></div><div><b>{{ reviewItems.length }}</b><small>需要复核</small></div></div>
-        <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
+        <div class="report-info"><div class="report-info-row"><span>输出位置</span><span class="report-info-value">{{ outputRoot || '尚未选择' }}</span><button class="text-button report-copy-button" @click="copyOutputPath">复制</button></div><div class="report-info-row"><span>处理并发</span><span class="report-info-value">{{ resultWorkers }} 个工作线程</span></div><div class="report-info-row"><span>模型与审查</span><span class="report-info-value">Seg 疑难图 {{ resultSegUsed }} 张（{{ (resultSegRatio * 100).toFixed(1) }}%） · 尺寸提醒 {{ resultWarnings }} 条</span></div></div><p v-if="reportNotice" class="dialog-notice">{{ reportNotice }}</p>
         <p v-if="lastResult.incremental_skipped" class="report-cache-hint">检测到素材和设置均未变化，本次已复用上次输出。</p><p v-else-if="Number(lastResult.incremental_reused || 0) > 0" class="report-cache-hint">本次复用 {{ lastResult.incremental_reused }} 张未变化素材，其余素材已重新生成。</p>
         <div v-if="failures.length" class="report-failures">有 {{ failures.length }} 项失败素材；成功输出已保留，可在后续任务中重试。</div>
         <div class="page-actions report-actions"><div class="report-actions-left"><button type="button" class="confirm-button" @click="openOutputFolder()">打开输出文件夹</button></div><div class="report-actions-right"><button v-if="resumeAvailable" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button v-if="reviewItems.length || fallbackItems.length || skippedOutputs.length" type="button" class="outline-button" @click="reviewOpen = true">查看复核与回退</button><button v-if="failures.length" type="button" class="outline-button" @click="failureOpen = true">查看失败素材</button><button v-if="failures.length" type="button" class="outline-button" @click="retryFailures()">仅重试失败项</button><button type="button" class="outline-button" @click="closeReport">完成</button></div></div>
@@ -2174,12 +2174,14 @@ function startGeneration() {
     </Transition>
 
     <Transition name="dialog" appear>
-    <div v-if="reviewOpen" class="settings-backdrop" @click.self="reviewOpen = false">
+    <div v-if="reviewOpen" class="settings-backdrop review-backdrop" @click.self="reviewOpen = false">
       <section class="page-dialog panel failure-dialog review-dialog" role="dialog" aria-modal="true" aria-label="复核与回退" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><div><p class="eyebrow">REVIEW QUEUE</p><h2>复核与兼容回退</h2><p>以下素材需要人工确认；已保留保护区域和回退原因。</p></div><button class="modal-close" aria-label="关闭复核列表" @click="reviewOpen = false">×</button></div>
-        <div v-if="skippedOutputs.length" class="review-list report-skipped-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`" class="report-skipped-item"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
-        <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small><small>保护框：{{ reviewProtectedRegions(item) }}</small></article></div>
-        <div v-if="fallbackItems.length" class="review-list"><article v-for="item in fallbackItems" :key="`fallback-${String(item.source)}`"><strong>兼容模式：{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.fallback_reason || '未提供回退原因') }}</small></article></div>
+        <div class="review-scroll-region">
+          <div v-if="skippedOutputs.length" class="review-list report-skipped-list"><article v-for="item in skippedOutputs" :key="`skipped-${item.source}`" class="report-skipped-item"><strong>放弃出图：{{ item.source.split(/[\\/]/).pop() }} · 尺寸 {{ item.sizes.join('、') }}</strong><small>{{ item.reason }}</small></article></div>
+          <div v-if="reviewItems.length" class="review-list"><article v-for="item in reviewItems" :key="String(item.source)"><strong>{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.review_hint || '建议检查构图') }} · 尺寸 {{ reviewSizes(item) }}</small><small>保护框：{{ reviewProtectedRegions(item) }}</small></article></div>
+          <div v-if="fallbackItems.length" class="review-list"><article v-for="item in fallbackItems" :key="`fallback-${String(item.source)}`"><strong>兼容模式：{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.fallback_reason || '未提供回退原因') }}</small></article></div>
+        </div>
         <p v-if="acceptedReviewSources.length" class="dialog-notice">已接受 {{ acceptedReviewSources.length }} 项复核结果</p>
         <div class="page-actions"><button class="outline-button" @click="reviewOpen = false">关闭</button><button v-if="reviewItems.length" class="outline-button" @click="acceptReviewItems">接受当前结果</button><button v-if="reviewItems.length" class="confirm-button" @click="reviewOpen = false; retryFailures(reviewSources(), true)">保守构图重跑</button></div>
       </section>

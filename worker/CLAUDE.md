@@ -85,7 +85,7 @@ cd worker && python3 -m unittest tests/test_contracts.py
 
 ## 注意事项
 
-- **规则版本**：`worker.py` 的 `RULES_VERSION` 与 `model_cache.py` 的 `COMPOSITION_RULES_VERSION` 当前都是 `v3-composition-10`，另需同步 `apps/desktop/src/App.vue` 的 `expectedRulesVersion` 与 `tests/test_shoe_composition.py`。
+- **规则版本**：`worker.py` 的 `RULES_VERSION` 与 `model_cache.py` 的 `COMPOSITION_RULES_VERSION` 当前都是 `v3-composition-11`，另需同步 `apps/desktop/src/App.vue` 的 `expectedRulesVersion` 与 `tests/test_shoe_composition.py`。
 - **缓存 identity**：`build_cache_identity` 含模型文件版本（pose 与 seg 同时进入，避免新旧混用）、输出尺寸、用途与 `composition_rules_version`；改构图规则不升版本会命中旧缓存。
 - 不得改变 shirt / shoes / pants 既有行为而不跑回归；side fill 改动后必须 100% 缩放目视检查渲染图。
 - 缺少 `numpy` / `onnxruntime` 或模型文件时，Worker 仍启动并返回带原因的 fallback，不应抛错中断。

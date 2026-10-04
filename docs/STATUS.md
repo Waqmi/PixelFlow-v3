@@ -36,7 +36,7 @@
 - 目标平台：macOS arm64、Windows x64。
 - 当前默认发布策略：暂不提供 Intel，除非出现明确用户需求。
 - ONNX 模型不入 Git；SHA-256 记录在 `models/README.md` 和构建证据中。
-- 规则版本：`v3-composition-10`。
+- 规则版本：`v3-composition-11`。
 
 ## 证据约定
 
@@ -61,4 +61,4 @@
 - `useTaskProgress` self-check：通过（进度上下限和 reduced-motion 立即更新）；未伪造 Vitest/CI 平台结果。
 - 最新本地 `.app`：`dist/PixelFlow-v3-beta.app`，源码提交 `0097bd9`，Worker 哈希 `17f6ef32...`；证据见 `baselines/archive/2026-09-27-v3-recheck/mac-app-package-latest-20260927.json`。Tauri app-only bundle、ad-hoc codesign 校验、宿主启动/退出和 Worker ready/ping/shutdown 通过；默认 DMG bundler 仍失败。
 - 模型检测修复包：`dist/PixelFlow-v3-beta-model-fix.app`，源码提交 `3359911`，Worker 哈希 `e6f28644...`；Worker 94/94 通过，源码/冻结 Worker 对真实 Pose/Seg 模型均返回“已就绪”和完整匹配 SHA-256，宿主设置页点击“测试模型”得到相同结果。见 `baselines/archive/2026-09-27-v3-recheck/model-probe-fix-20260927.json`。旧 `dist/PixelFlow-v3-beta.app` 仍在运行，未覆盖。
-- 当前收口 app：`dist/PixelFlow-v3-beta.app`，使用 Python 3.14.5 onedir Worker；Worker 哈希 `8fb8f4b972415187e2a41ceb61f58655961eb2b81bcdcb84c039121f1c314d51`，规则版本 `v3-composition-10`。前端构建、协议检查、Worker 191 项测试、Rust 4 项测试、ad-hoc 签名和 Worker `ready/ping/shutdown` 冒烟均通过；用户人工验收通过。详见 [`baselines/v3/current-20261003/acceptance-report.json`](../baselines/v3/current-20261003/acceptance-report.json)。
+- 当前收口 app：`dist/PixelFlow-v3-beta.app`，使用 Python 3.14.5 onedir Worker；Worker 哈希 `05f4ccc69488d065b75e9ea9a561c97fcb56b4aa316f2579c1572925914559c0`，规则版本 `v3-composition-11`。前端构建、协议检查、Worker 193 项测试（1 项跳过）、ad-hoc 签名通过；锚点修复的 24 张真实上衣样本生成 0 失败。

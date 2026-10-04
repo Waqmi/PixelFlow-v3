@@ -302,9 +302,19 @@ class V3ClassifierAdapter:
         )
         from .model_cache import load_model_result, store_model_result
         by_source = {Path(item.source): item for item in decisions}
-        candidates = [item for item in decisions if item.source_type != "main_product"]
+        # Pose/Seg is also required for files that the filename/background
+        # rules initially call ``main_product``.  A model photo on a clean
+        # white background is otherwise rendered through the product path and
+        # never gets a chance to produce an anchor crop.  The model decision
+        # gate below still requires credible anatomy/wearing evidence before
+        # changing that initial classification.
         pose_models = configured_model_candidates(root, "pose")
         seg_models = configured_model_candidates(root, "segmentation")
+        candidates = list(decisions) if (pose_models or seg_models) else [
+            item for item in decisions if item.source_type != "main_product"
+        ]
+        if not candidates:
+            return decisions
         pose_model_path = Path(pose_models[0]) if pose_models else None
         seg_model_path = Path(seg_models[0]) if seg_models else None
         service = get_model_process_service()

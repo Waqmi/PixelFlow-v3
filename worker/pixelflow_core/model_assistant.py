@@ -1671,9 +1671,22 @@ def resolve_model_source_type(
             metadata["review_hint"] = "可能为模特细节图，请人工确认"
     except (TypeError, ValueError):
         pass
+    anchored_plan = isinstance(by_size, dict) and any(
+        isinstance(plan, dict)
+        and plan.get("composition_mode") == "anchor_crop"
+        and plan.get("crop_box") is not None
+        for plan in by_size.values()
+    )
     # Explicit user choices and strong product evidence always win over a
-    # noisy optional pose model.
-    if rule_decision.source in {"manual", "rules_product_folder"} or rule_decision.source_type == "main_product":
+    # noisy optional pose model.  A typed anchor plan is the deliberate
+    # exception: it is the model evidence that a clean-background source is
+    # actually a worn/model photo, and must be allowed to leave the product
+    # path or the renderer will ignore the crop entirely.
+    if rule_decision.source == "manual" or (
+        rule_decision.source == "rules_product_folder" and not anchored_plan
+    ) or (
+        rule_decision.source_type == "main_product" and not anchored_plan
+    ):
         return replace(rule_decision, metadata=metadata)
     visibility = composition.get("body_visibility")
     visibility = visibility if isinstance(visibility, dict) else {}
