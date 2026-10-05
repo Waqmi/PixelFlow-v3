@@ -327,12 +327,18 @@ class V3ClassifierAdapter:
             # outline for the head top and sole; its merge stays after pose.
             seg_evidence: dict[str, object] | None = None
             seg_error: Exception | None = None
+            model_cache: dict[str, str] = {}
             if seg_models:
                 try:
-                    seg_evidence = (
-                        load_model_result(source, seg_model_path, "segmentation", category, output_size="segmentation")
+                    seg_lookup = (
+                        load_model_result(
+                            source, seg_model_path, "segmentation", category,
+                            output_size="segmentation", return_status=True,
+                        )
                         if seg_model_path is not None else None
                     )
+                    model_cache["segmentation"] = seg_lookup.status if seg_lookup is not None else "not_configured"
+                    seg_evidence = seg_lookup.result if seg_lookup is not None and seg_lookup.hit else None
                     if seg_evidence is None:
                         seg_evidence = service.segment(root, source)
                         if seg_model_path is not None:
@@ -344,10 +350,15 @@ class V3ClassifierAdapter:
                     seg_error = error
             if pose_models:
                 try:
-                    composition = (
-                        load_model_result(source, pose_model_path, "pose", category, output_size="all")
+                    pose_lookup = (
+                        load_model_result(
+                            source, pose_model_path, "pose", category,
+                            output_size="all", return_status=True,
+                        )
                         if pose_model_path is not None else None
                     )
+                    model_cache["pose"] = pose_lookup.status if pose_lookup is not None else "not_configured"
+                    composition = pose_lookup.result if pose_lookup is not None and pose_lookup.hit else None
                     if composition is None:
                         composition = service.compose_for_sizes(
                             root, source, SIZES, product_category=category,
@@ -367,6 +378,7 @@ class V3ClassifierAdapter:
                     if pose_evidence.get("status") == "not_run":
                         pose_evidence["status"] = "fallback" if composition.get("fallback") else "ready"
                     metadata["pose_evidence"] = pose_evidence
+                    metadata["model_cache"] = model_cache
                     decision = self._with_metadata(source, updated, metadata)
                 except Exception as error:  # noqa: BLE001 - optional model fallback
                     reason = f"Pose：{error}"
@@ -377,6 +389,7 @@ class V3ClassifierAdapter:
                     )
                     metadata.update({"fallback": True, "fallback_reason": reason, "model_status": "fallback"})
                     metadata["pose_evidence"] = {"status": "fallback", "reason": reason}
+                    metadata["model_cache"] = model_cache
                     decision = self._with_metadata(source, decision, metadata)
             else:
                 reason = "pose/ 中没有 ONNX 模型"
@@ -387,6 +400,7 @@ class V3ClassifierAdapter:
                 )
                 metadata.update({"fallback": True, "fallback_reason": reason, "model_status": "fallback"})
                 metadata["pose_evidence"] = {"status": "not_run", "reason": reason}
+                metadata["model_cache"] = model_cache
                 decision = self._with_metadata(source, decision, metadata)
 
             if seg_models:

@@ -153,24 +153,45 @@ class ModelServiceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            model_bytes = {"pose": b"pose-model", "segmentation": b"seg-model"}
+            model_bytes = {"pose": b"pose-model", "segmentation": b"seg-model", "detection": b"detection-model"}
             for purpose, content in model_bytes.items():
                 model_dir = root / purpose
                 model_dir.mkdir()
                 (model_dir / "model.onnx").write_bytes(content)
+                if purpose == "detection":
+                    (model_dir / "model.classes.json").write_text('{"classes": []}', encoding="utf-8")
 
             requests = Queue([
                 {"task_id": "probe-1", "action": "probe", "model_root": str(root)},
                 {"action": "shutdown"},
             ])
             responses = Queue()
-            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant)):
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)):
                 _worker_main(requests, responses)
 
             result = responses.items[0]["result"]
             for purpose, content in model_bytes.items():
                 self.assertEqual(result[purpose]["state"], "已就绪")
                 self.assertEqual(result[purpose]["model_version"]["sha256"], hashlib.sha256(content).hexdigest())
+
+    def test_detection_probe_reports_unavailable_without_sidecar(self) -> None:
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            detection_dir = root / "detection"
+            detection_dir.mkdir()
+            (detection_dir / "model.onnx").write_bytes(b"detection-model")
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(root)
+                finally:
+                    service.close()
+            self.assertEqual(result["detection"]["state"], "不可用")
+            self.assertIn("classes.json", result["detection"]["error"])
 
     def test_missing_models_report_unconfigured_without_starting_process(self) -> None:
         service = ModelProcessService(timeout=1)
@@ -223,9 +244,15 @@ class ModelServiceTests(unittest.TestCase):
             pose_dir.mkdir()
             model = pose_dir / "model.onnx"
             model.write_bytes(b"v1")
+            detection_dir = root / "detection"
+            detection_dir.mkdir()
+            detection = detection_dir / "model.onnx"
+            detection.write_bytes(b"detection-v1")
+            (detection_dir / "model.classes.json").write_text('{"classes": []}', encoding="utf-8")
             service = ModelProcessService(timeout=1)
             try:
                 first = service.model_versions(root)["pose"]
+                self.assertEqual(service.model_versions(root)["detection"]["size"], len(b"detection-v1"))
                 model.write_bytes(b"v2")
                 # Same size and a coarse filesystem clock (Windows) can keep mtime equal; move it on.
                 stat = model.stat()

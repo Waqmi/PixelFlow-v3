@@ -68,6 +68,36 @@ def _write_v3_manifest(output_root: Path, relative_paths: set[str]) -> None:
         pass
 
 
+def _v3_diagnostics_path(output_root: Path, request_id: str) -> Path:
+    """Return a private per-run diagnostics path outside the output tree."""
+    key = hashlib.sha256(str(output_root.expanduser().resolve(strict=False)).encode("utf-8")).hexdigest()
+    token = re.sub(r"[^A-Za-z0-9._-]+", "_", request_id or "direct")[:96] or "direct"
+    return _v3_manifest_path(output_root).parent.parent / "diagnostics" / f"v3-{key}-{token}.json"
+
+
+def _write_v3_diagnostics(output_root: Path, request_id: str, rows: list[dict[str, object]]) -> str | None:
+    """Persist compact per-source generation evidence without failing a run."""
+    path = _v3_diagnostics_path(output_root, request_id)
+    payload = {
+        "schema_version": 1,
+        "request_id": request_id,
+        "generated_at": time.time(),
+        "sources": rows,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temporary.replace(path)
+        return str(path)
+    except (OSError, TypeError, ValueError):
+        try:
+            temporary.unlink()
+        except (OSError, UnboundLocalError):
+            pass
+        return None
+
+
 def _generated_relative_path(output_root: Path, path: Path) -> str | None:
     """Return the output-relative path only for images under a generated category."""
     try:
@@ -111,6 +141,7 @@ class GenerationRequest:
     material_confirmation_completed: bool = True
     mode: RunMode = "legacy"
     composition_plans: tuple[CompositionPlan, ...] = ()
+    request_id: str = ""
 
     def validate(self) -> None:
         validate_run_mode(self.mode)
@@ -163,6 +194,7 @@ class V3EngineAdapter:
         progress: ProgressCallback | None = None,
         cancel_event: Event | None = None,
     ) -> dict[str, object]:
+        wall_started = time.perf_counter()
         request.validate()
         if self._runner is None:
             result = self._render_sources(request, progress, cancel_event)
@@ -170,16 +202,22 @@ class V3EngineAdapter:
             result["renderer"] = "typed-v3"
             result["fallback"] = False
             result["typed_renderer"] = self._validate_outputs(request, result)
-            return result
-        result = self._runner(request, progress=progress, cancel_event=cancel_event)
-        if hasattr(result, "to_dict"):
-            result = result.to_dict()
-        if not isinstance(result, dict):
-            raise TypeError("v3 runner must return a mapping")
-        # The adapter owns the routing label even when a typed renderer uses
-        # its compatibility default of ``legacy``.
-        result["mode"] = "v3"
-        result["typed_renderer"] = self._validate_outputs(request, result)
+        else:
+            result = self._runner(request, progress=progress, cancel_event=cancel_event)
+            if hasattr(result, "to_dict"):
+                result = result.to_dict()
+            if not isinstance(result, dict):
+                raise TypeError("v3 runner must return a mapping")
+            # The adapter owns the routing label even when a typed renderer uses
+            # its compatibility default of ``legacy``.
+            result["mode"] = "v3"
+            result["typed_renderer"] = self._validate_outputs(request, result)
+        performance = result.get("performance")
+        if not isinstance(performance, dict):
+            performance = {}
+        performance.setdefault("render_wall_seconds", 0.0)
+        performance["wall_seconds"] = time.perf_counter() - wall_started
+        result["performance"] = performance
         return result
 
     @staticmethod
@@ -266,6 +304,46 @@ class V3EngineAdapter:
             skipped_by_scope=bool(metadata.get("skipped_by_scope", False)),
         )
 
+    @staticmethod
+    def _diagnostic_plan(plan: CompositionPlan | None) -> dict[str, object]:
+        evidence = plan.evidence if plan is not None and isinstance(plan.evidence, dict) else {}
+        side_fill = evidence.get("side_fill")
+        return {
+            "mode": plan.composition_mode if plan is not None else "missing",
+            "crop_box": list(plan.crop_box) if plan is not None and plan.crop_box is not None else None,
+            "fallback": bool(plan.fallback) if plan is not None else False,
+            "fallback_reason": plan.fallback_reason if plan is not None else "",
+            "skip_reason": str(evidence.get("skip_reason", "") or ""),
+            "side_fill": dict(side_fill) if isinstance(side_fill, dict) else None,
+        }
+
+    @classmethod
+    def _diagnostic_source(
+        cls,
+        source: Path,
+        source_type: str,
+        metadata: dict[str, object],
+    ) -> dict[str, object]:
+        model_view = metadata.get("model_view")
+        plans = metadata.get("composition_plans")
+        if isinstance(plans, dict):
+            first = next((value for value in plans.values() if isinstance(value, dict)), None)
+            evidence = first.get("evidence") if isinstance(first, dict) else None
+            if model_view is None and isinstance(evidence, dict):
+                model_view = evidence.get("model_view")
+        model_cache = metadata.get("model_cache")
+        return {
+            "source_path": str(source),
+            "source_type": source_type,
+            "model_view": str(model_view or "unknown"),
+            "plans": {},
+            "fallback": bool(metadata.get("fallback", False)),
+            "fallback_reason": str(metadata.get("fallback_reason", "") or ""),
+            "cache": dict(model_cache) if isinstance(model_cache, dict) else {},
+            "reused_output": False,
+            "outputs": [],
+        }
+
     def _render_sources(
         self,
         request: GenerationRequest,
@@ -317,6 +395,7 @@ class V3EngineAdapter:
         reused_outputs = 0
         expected_outputs = 0
         expected_output_paths: set[Path] = set()
+        diagnostics_by_source: dict[str, dict[str, object]] = {}
         main_count = model_count = transparent_count = vip_count = 0
         source_jobs: list[tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]] = []
         render_workers = 1 if len(sources) <= 1 else min(3, len(sources))
@@ -348,6 +427,8 @@ class V3EngineAdapter:
             metadata["source_scale_adjustment"] = (
                 float(source_scale_adjustment) if source_type == "main_product" else 0.0
             )
+            diagnostic = self._diagnostic_source(source, source_type, metadata)
+            diagnostics_by_source[str(source)] = diagnostic
             category = str(request.category_override or metadata.get("category") or "产品主图")
             group = "" if is_model_source else self._group_label(source)
             output_category = "模特图" if is_model_source else "产品主图"
@@ -405,6 +486,7 @@ class V3EngineAdapter:
 
                     plan = _typed_plans_from_metadata(source, metadata).get(size)
                 plans_by_size[size] = plan
+                diagnostic["plans"][size] = self._diagnostic_plan(plan)  # type: ignore[index]
                 filename = (
                     f"{short_names[source]}.jpg"
                     if request.naming_mode == "short"
@@ -470,6 +552,10 @@ class V3EngineAdapter:
                     if Path(typed_request.output_path).is_file() and not request.force_rerender:
                         outputs.append(typed_request.output_path)
                         reused_outputs += 1
+                        diagnostic["reused_output"] = True
+                        diagnostic["outputs"].append({  # type: ignore[union-attr]
+                            "kind": "main", "size": size, "path": typed_request.output_path, "reused": True,
+                        })
                         main_count += 1
                         model_count += int(is_model_source)
                         continue
@@ -529,6 +615,10 @@ class V3EngineAdapter:
                     outputs.append(vip_request.output_path)
                     vip_count += 1
                     reused_outputs += 1
+                    diagnostic["reused_output"] = True
+                    diagnostic["outputs"].append({
+                        "kind": "vip", "size": "1440x1440", "path": vip_request.output_path, "reused": True,
+                    })
                 else:
                     source_requests.append(
                         (
@@ -577,6 +667,10 @@ class V3EngineAdapter:
                         outputs.append(str(transparent_path))
                         transparent_count += 1
                         reused_outputs += 1
+                        diagnostic["reused_output"] = True
+                        diagnostic["outputs"].append({
+                            "kind": "transparent", "size": size, "path": str(transparent_path), "reused": True,
+                        })
                         continue
                     source_requests.append(
                         (
@@ -624,6 +718,7 @@ class V3EngineAdapter:
             results = tuple(self._renderer.render(item) for item in typed_requests)
             return results, {"total_seconds": time.perf_counter() - started}
 
+        render_wall_started = time.perf_counter()
         with ThreadPoolExecutor(max_workers=render_workers, thread_name_prefix="PixelFlowV3Render") as executor:
             future_jobs = {
                 executor.submit(render_source_job, job): job
@@ -646,6 +741,16 @@ class V3EngineAdapter:
                         render_timings[key] = render_timings.get(key, 0) + value
                 render_timings["source_tasks"] = render_timings.get("source_tasks", 0) + 1
                 for result, (_typed_request, kind, plan, source_type, skipped) in zip(results, source_requests):
+                    diagnostic = diagnostics_by_source[str(source)]
+                    output_path = _typed_request.output_path
+                    if output_path:
+                        diagnostic["outputs"].append({
+                            "kind": kind,
+                            "size": str(_typed_request.size),
+                            "path": output_path,
+                            "reused": False,
+                            "success": bool(result.success),
+                        })
                     size = str(result.metadata.get("size") or _typed_request.size)
                     result_metadata = dict(getattr(result, "metadata", {}) or {})
                     if result_metadata.get("requires_review"):
@@ -680,6 +785,7 @@ class V3EngineAdapter:
                             transparent_count += 1
                     else:
                         failures.append({"source": str(source), "message": "; ".join(result.errors)})
+        render_wall_seconds = time.perf_counter() - render_wall_started
         # Clean up only after rendering, so a failed render never loses old files first.
         stale_outputs_removed = self._remove_stale_outputs(
             request.output_root,
@@ -687,9 +793,15 @@ class V3EngineAdapter:
             full_batch=request.source_filter is None,
         )
         timings.update(render_timings)
+        timings["render_wall_seconds"] = render_wall_seconds
         timings["total_seconds"] = sum(
             float(timings.get(key, 0.0) or 0.0)
             for key in ("classification_seconds", "decode_seconds", "analysis_seconds", "compose_seconds", "overlay_seconds", "encode_seconds", "write_seconds")
+        )
+        diagnostics_path = _write_v3_diagnostics(
+            request.output_root,
+            request.request_id,
+            sorted(diagnostics_by_source.values(), key=lambda item: str(item["source_path"])),
         )
         return {
             "sources": len(sources),
@@ -712,6 +824,8 @@ class V3EngineAdapter:
             "fallback_count": len(fallback_items),
             "validation": {"passed": len(outputs) - skipped_outputs, "failed": len(failures), "skipped": skipped_outputs},
             "audit": {"checked_outputs": len(outputs)},
+            "diagnostics_path": diagnostics_path,
+            "diagnostics_sources": len(diagnostics_by_source),
             "performance": timings,
         }
 

@@ -1,0 +1,19 @@
+macOS-15.7.7-arm64-arm-64bit-Mach-O | cpu_count=10 | python=3.14.5 | Pillow=12.3.0 | numpy=2.5.3
+
+## Batch A: 护膝 5 sources -> 27 outputs (median of 3)
+| variant | workers | wall s | render pool s | process CPU s | CPU/wall | sum compose s | sum encode s | outputs | failures |
+| orig | 1 | 49.02 | 49.01 | 49.00 | 1.00 | 24.35 | 22.92 | 27 | 0 |
+| orig | 2 | 33.25 | 33.23 | 48.93 | 1.47 | 29.02 | 27.40 | 27 | 0 |
+| orig | 3 | 31.93 | 31.92 | 49.07 | 1.54 | 41.97 | 27.01 | 27 | 0 |
+| numpy | 1 | 26.94 | 26.93 | 26.94 | 1.00 | 2.33 | 22.90 | 27 | 0 |
+| numpy | 2 | 16.86 | 16.85 | 26.80 | 1.59 | 2.29 | 23.05 | 27 | 0 |
+| numpy | 3 | 11.16 | 11.15 | 26.75 | 2.40 | 2.43 | 23.13 | 27 | 0 |
+| numpy+gated | 1 | 11.42 | 11.41 | 11.39 | 1.00 | 2.37 | 7.28 | 27 | 0 |
+| numpy+gated | 2 | 6.62 | 6.61 | 11.15 | 1.68 | 2.27 | 7.57 | 27 | 0 |
+| numpy+gated | 3 | 5.84 | 5.83 | 11.23 | 1.92 | 2.55 | 7.51 | 27 | 0 |
+
+## Batch B: 热能长裤 3 model JPEG 4943x7415, side fill, 3 sizes -> 21 outputs (median of 3)
+| variant | workers | wall s | render pool s | process CPU s | CPU/wall | sum compose s | sum encode s | outputs | failures |
+| orig | 1 | 17.27 | 17.26 | 17.27 | 1.00 | 14.23 | 0.56 | 21 | 0 |
+| orig | 2 | 12.37 | 12.36 | 17.69 | 1.43 | 15.46 | 0.57 | 21 | 0 |
+| orig | 3 | 6.77 | 6.77 | 17.23 | 2.54 | 16.38 | 0.57 | 21 | 0 |

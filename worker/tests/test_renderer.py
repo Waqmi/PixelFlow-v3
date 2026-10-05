@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from io import BytesIO
 import tempfile
 import unittest
@@ -136,6 +137,85 @@ class RendererTests(unittest.TestCase):
             self.assertTrue(all(result.success for result in results), [result.errors for result in results])
             for key in ("decode_seconds", "analysis_seconds", "compose_seconds", "overlay_seconds", "encode_seconds", "write_seconds", "total_seconds"):
                 self.assertIn(key, timings)
+
+    def test_source_batch_reuses_compose_for_logo_variants(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "model.jpg"
+            Image.new("RGB", (96, 144), (220, 40, 40)).save(source)
+            plan = CompositionPlan(
+                source=str(source),
+                size="200x200",
+                composition_mode="anchor_crop",
+                crop_box=(0.0, 0.0, 1.0, 1.0),
+            )
+            cached_requests = (
+                RenderRequest(
+                    str(source),
+                    str(root / "cached"),
+                    "200x200",
+                    mode="v3",
+                    plan=plan,
+                    source_type="model",
+                    include_logo=True,
+                ),
+                RenderRequest(
+                    str(source),
+                    str(root / "cached"),
+                    "200x200",
+                    mode="v3",
+                    plan=plan,
+                    source_type="model",
+                    include_logo=False,
+                ),
+            )
+            renderer = Renderer()
+            with patch.object(renderer, "_compose", wraps=renderer._compose) as compose:
+                cached_results, _timings = renderer.render_source_batch(cached_requests)
+            self.assertEqual(compose.call_count, 1)
+            self.assertTrue(all(result.success for result in cached_results), [result.errors for result in cached_results])
+
+            uncached_root = root / "uncached"
+            uncached_results = tuple(Renderer().render(request) for request in (
+                replace(cached_requests[0], output_root=str(uncached_root)),
+                replace(cached_requests[1], output_root=str(uncached_root)),
+            ))
+            self.assertTrue(all(result.success for result in uncached_results), [result.errors for result in uncached_results])
+            for cached, uncached in zip(cached_results, uncached_results):
+                self.assertEqual(Path(cached.outputs[0]).read_bytes(), Path(uncached.outputs[0]).read_bytes())
+
+    def test_source_batch_compose_cache_key_keeps_scale_variants_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "product.jpg"
+            image = Image.new("RGB", (96, 96), "white")
+            image.paste((220, 40, 40), (28, 28, 68, 68))
+            image.save(source)
+            requests = (
+                RenderRequest(
+                    str(source),
+                    str(root / "out"),
+                    "200x200",
+                    mode="v3",
+                    include_logo=False,
+                    output_path=str(root / "out" / "first.jpg"),
+                    metadata={"source_scale_adjustment": 0},
+                ),
+                RenderRequest(
+                    str(source),
+                    str(root / "out"),
+                    "200x200",
+                    mode="v3",
+                    include_logo=False,
+                    output_path=str(root / "out" / "second.jpg"),
+                    metadata={"source_scale_adjustment": 50},
+                ),
+            )
+            renderer = Renderer()
+            with patch.object(renderer, "_compose", wraps=renderer._compose) as compose:
+                results, _timings = renderer.render_source_batch(requests)
+            self.assertEqual(compose.call_count, 2)
+            self.assertTrue(all(result.success for result in results), [result.errors for result in results])
 
     def test_source_batch_keeps_per_output_write_failures(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

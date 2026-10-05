@@ -1,0 +1,56 @@
+# PixelFlow v3 前端与 Tauri 宿主性能审计
+
+范围：`PixelFlow-App-v3-beta/apps/desktop/src` 与 `apps/desktop/src-tauri/src/main.rs`。只读静态审计；没有运行 UI 或 profiler，因此以下不包含耗时与加速比例。主要风险随素材数 N 增长，smoke 样本不能证明大批量表现。
+
+## 处理链与等待边界
+
+| 阶段 | 线程/调用链 | 当前等待行为 |
+|---|---|---|
+| 冷启动 | Tauri setup 调 `spawn_worker` 启动子进程，并创建独立 stdout reader 线程；Vue 同步挂载，不等 Worker ready。见 [`main.rs:641`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:641)、[`main.rs:678`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:678)、[`main.rs:723`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:723)、[`main.ts:6`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/main.ts:6)。 | `installTauriWorkerBridge()` 先暴露 bridge，再异步注册两个事件监听器；挂载时发出的 ping 在监听器完成前排队，注册完成后发送。启动 UI 不受 ready 门槛阻塞。见 [`tauriBridge.ts:25`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/tauriBridge.ts:25)、[`tauriBridge.ts:38`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/tauriBridge.ts:38)、[`App.vue:1237`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1237)。 | 
+| 分类 | App 发 `classify_materials` 请求，携带 `workers`；默认 auto 为硬件线程数的一半、至少 1、最多 4；performance 最多 4，conservative 为 1。见 [`App.vue:1636`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1636)。 | 前端分类 watchdog 在没有进度 120 秒后请求取消；每个分类 progress 都重新计时。见 [`App.vue:716`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:716)、[`App.vue:1460`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1460)。该并发值只发给分类请求；生成请求不携带此字段（[`App.vue:1094`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1094)）。 |
+| 分类确认和预览 | 确认页创建完整卡片列表；IntersectionObserver 触发 `read_preview`，最多同时请求 4 张，conservative 为 2 张。预览尺寸上限 198×138；worker 返回 base64 后在 WebView 解码成 Blob URL。见 [`App.vue:317`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:317)、[`App.vue:1735`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1735)、[`App.vue:1775`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1775)。 | 每张预览各走一次 `invoke('worker_send')` 和一条 `worker-line` 事件；`requestResult` 默认 30 秒，但预览外层 15 秒先超时。Rust 锁仅覆盖校验和 stdin 写入/flush，不等 worker 结果。见 [`workerClient.ts:49`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/workerClient.ts:49)、[`App.vue:1742`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1742)、[`main.rs:130`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:130)。 | 
+| 生成与报告 | 生成 payload 在 WebView 内构建并 JSON 序列化后，经 Tauri invoke 发给 worker；worker 完成后 Rust stdout 线程逐行向所有 WebView `emit`，App 收到 `done` 后缓存报告并创建报告 WebView。见 [`App.vue:1094`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1094)、[`main.rs:678`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:678)、[`App.vue:1535`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1535)、[`App.vue:555`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:555)。 | `cacheReportSnapshot()` 在创建/显示报告窗口前同步 `JSON.stringify` 并写 localStorage。报告页另通过 `report-ready`/`report-data` 事件取得主窗口快照，但先读本地缓存以便立即显示。见 [`App.vue:540`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:540)、[`App.vue:551`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:551)、[`App.vue:1264`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1264)。 |
+
+## 有代码证据的优化机会
+
+### 1. 确认页在大批次有 O(N²) 工作，优先处理
+
+确认页用 `v-for` 一次创建全部素材卡片，没有列表虚拟化（[`App.vue:2154`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:2154)）。卡片初始以 opacity 隐藏，但仍存在于 DOM，且每张卡片都注册两个 observer/ref。
+
+更明确的平方项是 `setupCardObserver()` 遍历 `previewElements`，每张卡再对 `materials` 做一次 `.some()`，因此初始化/重开时最坏 O(N²)（[`App.vue:1708`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1708)）。确认摘要中的 `skippedMaterialCount` 也是先过滤全部素材，再对每项在 `excludedModelSources` 中线性 `.includes()`；排除列表随批次增大时最坏 O(N²)（[`App.vue:358`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:358)）。Observer 回调对每个可见 entry 使用 `materials.find()`，是 O(V·N)；其中 V 是同一回调里相交的卡片数（[`App.vue:1700`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1700)、[`App.vue:1847`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1847)）。
+
+最小优化：在一次更新里预建 `Set/Map`，替换重复的 `.some/.includes/.find`；再测大批次确认页的首屏和滚动耗时。只有列表 DOM 本身仍成为主耗时时，才考虑虚拟列表，因为它会改变滚动、焦点和 observer 行为。
+
+### 2. 每次确认页滚动同步扫描所有卡片
+
+滚动事件监听器没有节流，每个 scroll event 都调用 `refreshMaterialPreviews(true)`；该函数遍历所有 `materials`，对已挂载元素逐个读 `getBoundingClientRect()`（[`App.vue:1805`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1805)、[`App.vue:1885`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1885)）。素材多或连续快速滚动时，这是主线程 O(N) DOM 查询/事件，可能抢占卡片交互和渲染。预览 observer 本身已有 380px root margin（[`App.vue:1847`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1847)）。
+
+最小优化：把可见项优先级扫描合并到每帧最多一次（requestAnimationFrame），保留现有优先队列语义；用滚动录制/profile 验证长列表 jank 是否下降。
+
+### 3. 确认快照和生成参数会多次同步复制/序列化 N 项数据
+
+打开确认页时，`confirmSnapshot()` 遍历素材去掉预览字段，随后写一份完整 JSON 到 localStorage，并经 WebView 事件传输（[`App.vue:597`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:597)、[`App.vue:672`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:672)、[`App.vue:676`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:676)）。新确认 WebView 又对完整快照 `JSON.stringify` 生成去重 key，并映射整批材料（[`App.vue:608`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:608)、[`App.vue:623`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:623)）。
+
+确认后，生成参数再遍历素材生成 `source_type_overrides` 和 `source_metadata_overrides`；发送前 JSON 序列化一次，`compactResumePayload()` 为检查 4.5MB 阈值再完整序列化一次，resume localStorage 保存再序列化一次（[`App.vue:1094`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1094)、[`App.vue:386`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:386)、[`App.vue:1118`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1118)、[`workerClient.ts:43`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/workerClient.ts:43)）。这是主线程线性 CPU 与多份大对象的候选阻塞点，尤其是 metadata 较大的模型分类结果。
+
+报告也有同类成本：任务完成时先把完整结果快照同步 stringify 并写 localStorage，再创建/显示报告 WebView；`report-ready` 后再经 Tauri event 传一次快照（[`App.vue:1535`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1535)、[`App.vue:540`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:540)、[`App.vue:551`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:551)、[`App.vue:1264`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1264)）。取消任务时快照还包含 resume payload。
+
+最小优化：给真实大批次记录快照/生成参数的 stringify 耗时和 payload 字节数；确认有明显停顿后，再复用已序列化字符串或减少快照中不需要跨 WebView 保存的字段。不要在没有 profile 前重写传输协议。
+
+### 4. Worker 每条 stdout 行都产生一次全 WebView IPC
+
+Rust reader 对 stdout 每行调用一次 `app.emit("worker-line", line)`，无进度合并（[`main.rs:678`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:678)）。每个打开的 WebView 都收到该事件并执行 JSON parse/协议校验；`WorkerClient` 再把消息给本地 handlers（[`tauriBridge.ts:12`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/tauriBridge.ts:12)、[`workerClient.ts:85`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/workerClient.ts:85)）。分类/生成 progress 还会逐条更新状态文本和 Vue refs（[`App.vue:1460`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1460)、[`App.vue:1527`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1527)）。进度条动画虽由 RAF 插值，但不能减少 IPC、JSON parse 或状态文本更新（[`useTaskProgress.ts:13`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/composables/useTaskProgress.ts:13)）。
+
+目前没有 worker 行数/频率证据。先记录每批 `progress` 行数和峰值频率；若它明显高于界面需要，最小改动是在宿主 stdout 转发层合并 progress，只保留最新状态并按固定低频 flush，立即转发 `ready/status/done/error/cancelled`。
+
+### 5. 新 WebView 的 ping 可能重复触发模型探测
+
+除报告窗外，每个 WebView mount 都发送 ping（[`App.vue:1237`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1237)）；worker 对 ping 回 `ready`（[`worker.py:543`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/worker.py:543)）。Tauri 把 stdout 行广播到所有窗口；App 的 `ready` 分支不按 `request_id` 过滤，且模型启用时会调用 `probeModels()`（[`main.rs:692`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:692)、[`App.vue:1425`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1425)、[`App.vue:1448`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1448)）。因此辅助窗 ping 会让已打开的主窗再次探测；Settings 窗口自己的 ready handler 也可能发探测。worker 将 `probe_models` 放入后台线程（[`worker.py:593`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/worker.py:593)），macOS 使用模型服务的进程内路径（[`model_service.py:249`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_service.py:249)、[`model_service.py:346`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_service.py:346)）；probe 与 `compose` 都在同一 `_lock` 内运行（[`model_service.py:377`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_service.py:377)、[`model_service.py:392`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_service.py:392)）；probe 对每个已配置模型调用带 digest 的 `file_version`，流式计算整个文件 SHA-256（[`model_service.py:421`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_service.py:421)、[`model_cache.py:50`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/model_cache.py:50)）。所以锁竞争链已确认，可阻塞分类推理的模型调用；具体停顿仍需计时。
+
+最小优化：按 worker 生命周期和模型路径去重探测，辅助 WebView 的 ping-ready 不触发重复 probe；用大模型目录计时确认对分类等待的实际影响。
+## 次要边界与验证建议
+
+- 预览默认并发 4（保守 2），确认页后台预览额外按 350ms 一张排队（[`App.vue:1861`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src/App.vue:1861)）。这限制确认页完整预览填充速率；首屏仍由 observer/刷新优先入队。调快之前应先确认同一 Worker 对 preview 命令的服务并发能力，避免只增加排队/内存占用。
+- Rust worker_send 的 Mutex 是单一 stdin 写锁，`write_all` 后 flush；代码没有把整个图片处理任务放在该锁里，也不等待每条 request 的 worker 结果（[`main.rs:130`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:130)）。仅凭此锁不能断言任务串行或它是吞吐瓶颈。stdout reader 在每行后才短暂取锁清理 active task（[`main.rs:683`](/Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/apps/desktop/src-tauri/src/main.rs:683)）。
+
+建议第一轮只采集：启动到首个 ready、分类耗时/每阶段 progress 数、确认页 snapshot 字节数与首屏/滚动长帧、预览请求/响应频率、点击确认到 generation `started`、done 到报告可见的同步 stringify 与窗口显示耗时。按素材数分组；有 profile 后先落地 Set/Map、滚动 RAF 合并和 progress 合并，再决定是否虚拟化或改报告快照协议。

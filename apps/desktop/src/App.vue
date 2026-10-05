@@ -165,7 +165,7 @@ const showLogoOption = ref(true)
 const showVipOption = ref(true)
 const showMaterialOption = ref(true)
 const outputNamingMode = ref('short')
-const modelStatus = ref('状态：当前使用规则判断；Seg 不可用（疑难图继续使用规则 + Pose）')
+const modelStatus = ref('状态：当前使用规则判断；Seg 不可用（疑难图继续使用规则 + Pose）；Detection 未检测')
 const modelTesting = ref(false)
 const settingsNotice = ref('')
 const categoryTemplate = ref('auto')
@@ -188,9 +188,13 @@ const currentWindowLabel = (() => {
   try { return getCurrentWindow().label }
   catch { return '' }
 })()
-const isSettingsWindow = viewParam === 'settings'
+const isSettingsWindow = viewParam === 'settings' || currentWindowLabel === 'settings'
 const isReportWindow = viewParam === 'report' || currentWindowLabel === 'report'
 const isConfirmWindow = viewParam === 'confirm' || currentWindowLabel === 'confirm'
+// ponytail: a short localStorage lease is enough for the two same-app WebViews; move this to the Worker supervisor if windows become independent clients.
+const modelProbeLockKey = 'pixelflow.model-probe-lock'
+const modelProbeLockTtlMs = 30_000
+const modelProbeOwner = `${isSettingsWindow ? 'settings' : 'main'}-${Math.random().toString(36).slice(2)}`
 const settingsOpen = ref(isSettingsWindow)
 const settingsTab = ref<'brand' | 'general' | 'output' | 'model' | 'about'>('brand')
 const settingsTabs: { key: 'brand' | 'general' | 'output' | 'model' | 'about'; label: string }[] = [
@@ -243,6 +247,9 @@ let worker: WorkerClient | undefined
 let classificationWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
+let modelProbeRoot = ''
+let modelProbeRetryTimer: number | undefined
+let modelProbeReadyHandled = false
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
 let stopNativeThemeListener: (() => void) | undefined
@@ -286,12 +293,14 @@ const workerReadyState = ref('未连接')
 const expectedModels = {
   pose: { label: 'Pose', filename: 'pose/yolo11n-pose.onnx', sha256: '86e1275fed40d3fce62acb80eae74c9e190e62c7e75da982de81787c4b3ef6f8' },
   segmentation: { label: 'Seg', filename: 'segmentation/yolo11n-seg.onnx', sha256: '52269a89f1e8d258d3e170f60a30b7bcb417f44b892d23f105f37759e582db55' },
+  detection: { label: 'Detection', filename: 'detection/yolov8m-worldv2-pixelflow.onnx', sha256: '467b89a95b8f9f99d81483e4d768fde008690600649e817964655ee590cff942' },
 } as const
+const requiredModelKeys = ['pose', 'segmentation'] as const
 const modelFallbackWarning = computed(() => {
   if (!localModelEnabled.value || !localModelPath.value.trim() || modelTesting.value) return false
-  return Object.keys(expectedModels).some((key) => modelDiagnostics.value[key]?.state !== '已就绪')
+  return requiredModelKeys.some((key) => modelDiagnostics.value[key]?.state !== '已就绪')
 })
-const modelDiagnosticRows = computed(() => (['pose', 'segmentation'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
+const modelDiagnosticRows = computed(() => (['pose', 'segmentation', 'detection'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
 const modelConfirmFallbackWarning = computed(() => localModelEnabled.value && materials.value.some((material) => material.metadata?.fallback === true || material.metadata?.model_status === 'fallback'))
 const classificationModelStatus = computed(() => {
   if (!localModelEnabled.value || !localModelPath.value.trim()) return 'Pose：未启用；Seg：未启用'
@@ -806,11 +815,67 @@ async function pickDirectory(target: 'input' | 'output' | 'model') {
     status.value = String(error)
   }
 }
+
+type ModelProbeLock = { owner: string; root: string; startedAt: number }
+
+function readModelProbeLock(): ModelProbeLock | undefined {
+  try {
+    const raw = localStorage.getItem(modelProbeLockKey)
+    if (!raw) return undefined
+    const value = JSON.parse(raw) as Partial<ModelProbeLock>
+    if (typeof value.owner !== 'string' || typeof value.root !== 'string' || typeof value.startedAt !== 'number') return undefined
+    return value as ModelProbeLock
+  } catch {
+    return undefined
+  }
+}
+
+function claimModelProbe(root: string): boolean {
+  const current = readModelProbeLock()
+  if (current && Date.now() - current.startedAt < modelProbeLockTtlMs && current.owner !== modelProbeOwner) return false
+  try {
+    localStorage.setItem(modelProbeLockKey, JSON.stringify({ owner: modelProbeOwner, root, startedAt: Date.now() }))
+    const claimed = readModelProbeLock()
+    return claimed?.owner === modelProbeOwner && claimed.root === root
+  } catch {
+    return true
+  }
+}
+
+function releaseModelProbe(root: string) {
+  try {
+    const current = readModelProbeLock()
+    if (current?.owner === modelProbeOwner && current.root === root) localStorage.removeItem(modelProbeLockKey)
+  } catch { /* optional storage */ }
+}
+
+function scheduleModelProbeRetry(root: string) {
+  if (modelProbeRetryTimer !== undefined) return
+  modelProbeRetryTimer = window.setTimeout(() => {
+    modelProbeRetryTimer = undefined
+    if (localModelPath.value.trim() !== root) return
+    const current = readModelProbeLock()
+    if (current && Date.now() - current.startedAt < modelProbeLockTtlMs) {
+      scheduleModelProbeRetry(root)
+      return
+    }
+    probeModels()
+  }, 250)
+}
+
 function probeModels() {
   if (!worker) { modelStatus.value = '状态：Worker 未连接，无法检测模型'; return }
   if (!localModelPath.value.trim()) { modelStatus.value = '状态：请先选择外部模型总目录'; return }
+  if (modelProbeRequestId.value && modelTesting.value) return
+  const root = localModelPath.value.trim()
+  if (!claimModelProbe(root)) {
+    modelStatus.value = '状态：正在检测外部模型…'
+    scheduleModelProbeRetry(root)
+    return
+  }
   modelTesting.value = true
   modelStatus.value = '状态：正在检测外部模型…'
+  modelProbeRoot = root
   modelProbeRequestId.value = worker.request('probe_models', { model_root: localModelPath.value })
 }
 
@@ -1301,6 +1366,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => worker?.dispose())
 onBeforeUnmount(() => clearProgressComplete())
+onBeforeUnmount(() => {
+  if (modelProbeRetryTimer !== undefined) window.clearTimeout(modelProbeRetryTimer)
+})
 onBeforeUnmount(() => previewUrls.forEach((url) => URL.revokeObjectURL(url)))
 onBeforeUnmount(() => {
   previewObserver?.disconnect()
@@ -1383,6 +1451,9 @@ watch(
 )
 watch(logoOverrides, () => { if (isSettingsWindow) publishSettingsImmediately() }, { deep: true })
 watch(darkMode, () => syncNativeWindowTheme())
+watch(localModelPath, (value, previous) => {
+  if (value !== previous) modelProbeReadyHandled = false
+})
 
 watch(materials, () => {
   nextTick(() => {
@@ -1445,7 +1516,11 @@ function handleWorkerMessage(message: WorkerMessage) {
       taskPhase.value = '准备就绪'
       taskDetail.value = '准备就绪'
     }
-    if (!isReportWindow && !isConfirmWindow && !modelTesting.value && localModelEnabled.value && localModelPath.value.trim()) probeModels()
+    if (!isReportWindow && !isConfirmWindow && !modelProbeReadyHandled && !modelTesting.value
+      && localModelEnabled.value && localModelPath.value.trim()) {
+      modelProbeReadyHandled = true
+      probeModels()
+    }
   } else if (message.type === 'status' && message.request_id === classificationRequestId.value) {
     classificationRunning.value = true
     status.value = '正在分析素材'
@@ -1511,6 +1586,8 @@ function handleWorkerMessage(message: WorkerMessage) {
     void openConfirmWindow()
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
   } else if (message.type === 'done' && message.request_id === modelProbeRequestId.value) {
+    const root = modelProbeRoot
+    modelProbeRoot = ''
     modelTesting.value = false
     const models = payload.models as Record<string, ModelDiagnostic> | undefined
     modelDiagnostics.value = models || {}
@@ -1519,6 +1596,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       return `${model?.state || '未配置'}${model?.error ? `（${model.error.split('\n')[0]}）` : ''}`
     }
     modelStatus.value = `状态：Pose ${modelLabel('pose')}；Seg ${modelLabel('segmentation')}；Detection ${modelLabel('detection')}`
+    releaseModelProbe(root)
   } else if (message.type === 'status' && message.request_id === modelProbeRequestId.value) {
     modelTesting.value = true
     modelStatus.value = `状态：${String(payload.message || '正在检测外部模型…')}`
@@ -1571,7 +1649,11 @@ function handleWorkerMessage(message: WorkerMessage) {
     }
     if (message.request_id === modelProbeRequestId.value) {
       modelTesting.value = false
-      modelStatus.value = `状态：模型检测失败；${String(payload.message || '请检查模型目录')}`
+      const messageText = String(payload.message || '请检查模型目录')
+      modelStatus.value = `状态：模型检测失败；${messageText}`
+      const root = modelProbeRoot
+      modelProbeRoot = ''
+      releaseModelProbe(root)
       return
     }
     if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
@@ -1583,6 +1665,10 @@ function handleWorkerMessage(message: WorkerMessage) {
       if (modelTesting.value) {
         modelTesting.value = false
         modelStatus.value = '状态：Worker 已中断，模型检测未完成'
+        const root = modelProbeRoot
+        modelProbeRoot = ''
+        modelProbeReadyHandled = false
+        releaseModelProbe(root)
       }
       if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
       updateResumePhase('interrupted')

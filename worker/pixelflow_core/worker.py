@@ -159,6 +159,7 @@ def _generation_request(payload: dict[str, Any]) -> GenerationRequest:
         local_model_path=str(payload["local_model_path"]) if payload.get("local_model_path") else None,
         material_confirmation_completed=bool(payload.get("material_confirmation_completed", True)),
         composition_plans=tuple(composition_plans),
+        request_id=str(payload.get("_request_id", "")),
         mode=validate_run_mode(
             payload.get(
                 "mode",
@@ -341,7 +342,9 @@ class WorkerRuntime:
         with self._lock:
             if self.busy:
                 raise RuntimeError("a generation job is already running")
-            request = _generation_request(payload)
+            request_payload = dict(payload)
+            request_payload["_request_id"] = request_id
+            request = _generation_request(request_payload)
             request.validate()
             self._request_id = request_id
             self._cancel_event = threading.Event()

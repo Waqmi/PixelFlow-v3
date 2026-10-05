@@ -110,6 +110,21 @@ def _float(value: Any, default: float) -> float:
         return default
 
 
+def _hashable(value: Any) -> Any:
+    """Convert renderer metadata values into stable local cache-key parts."""
+    if isinstance(value, dict):
+        return tuple(sorted((str(key), _hashable(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_hashable(item) for item in value)
+    if isinstance(value, set):
+        return tuple(sorted((_hashable(item) for item in value), key=repr))
+    try:
+        hash(value)
+    except TypeError:
+        return repr(value)
+    return value
+
+
 def _box(value: Any) -> tuple[float, float, float, float] | None:
     if not isinstance(value, (tuple, list)) or len(value) < 4:
         return None
@@ -809,6 +824,34 @@ class Renderer:
             return _resize_cover(image, target, focus, protected, source_scale)
         return _resize_cover(image, target, focus, protected, source_scale)
 
+    @staticmethod
+    def _compose_key(request: RenderRequest, target: tuple[int, int], transparent: bool) -> tuple[Any, ...]:
+        """Key every input read by ``_compose`` for one source batch."""
+        metadata = request.metadata
+        layout = request.layout
+        return (
+            target,
+            bool(transparent),
+            bool(request.transparent),
+            id(request.plan) if request.plan is not None else None,
+            request.source_type,
+            _hashable(request.background),
+            _hashable(layout.category),
+            bool(layout.enable_category_template),
+            _hashable(layout.scale),
+            bool(layout.allow_mirror_extension),
+            _hashable(metadata.get("source_type")),
+            _hashable(metadata.get("material_type")),
+            _hashable(metadata.get("background")),
+            _hashable(metadata.get("source_scale_adjustment")),
+            _hashable(metadata.get("category")),
+            _hashable(metadata.get("enable_category_template")),
+            _hashable(metadata.get("scale")),
+            _hashable(metadata.get("position_x")),
+            _hashable(metadata.get("position_y")),
+            _hashable(metadata.get("allow_mirror_extension")),
+        )
+
     def _overlay(self, image: Image.Image, request: RenderRequest, vip: bool) -> Image.Image:
         metadata = request.metadata
         assets = request.assets
@@ -913,6 +956,7 @@ class Renderer:
         source_image: Image.Image,
         analysis: SourceAnalysis,
         source_stage_times: dict[str, float],
+        compose_cache: dict[tuple[Any, ...], Image.Image] | None = None,
     ) -> RenderResult:
         """Render one output from a decoded and analysed source image."""
         size_name, target = _size(request.size)
@@ -928,7 +972,13 @@ class Renderer:
         failed_by_exception = False
         try:
             compose_started = time.perf_counter()
-            composed = self._compose(source_image, request, target, transparent, analysis)
+            compose_key = self._compose_key(request, target, transparent)
+            if compose_cache is not None and compose_key in compose_cache:
+                composed = compose_cache[compose_key]
+            else:
+                composed = self._compose(source_image, request, target, transparent, analysis)
+                if compose_cache is not None:
+                    compose_cache[compose_key] = composed
             compose_seconds = time.perf_counter() - compose_started
 
             if not transparent:
@@ -1145,9 +1195,17 @@ class Renderer:
             }
 
         compose_total = overlay_total = encode_total = write_total = 0.0
+        compose_cache: dict[tuple[Any, ...], Image.Image] = {}
         for index, request, _size_name, _target, _transparent, _vip in work:
             try:
-                result = self._render_prepared(request, source, source_image, analysis, source_stage_times)
+                result = self._render_prepared(
+                    request,
+                    source,
+                    source_image,
+                    analysis,
+                    source_stage_times,
+                    compose_cache,
+                )
             except Exception as error:  # noqa: BLE001 - preserve one-output failure
                 result = self._result_failure(
                     request,

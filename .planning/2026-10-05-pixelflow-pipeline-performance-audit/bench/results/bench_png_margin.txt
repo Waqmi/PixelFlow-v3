@@ -1,0 +1,66 @@
+macOS-15.7.7-arm64-arm-64bit-Mach-O | cpu_count=10 | python=3.14.5 | Pillow=12.3.0 | numpy=2.5.3
+limit=0.9 MB (943718 B); margins=(0.1, 0.2, 0.35, 0.5); workers(phase A)=3
+
+## Corpus: 302 eligible sources in 23 leaf dirs; sampled 60 (round-robin quota over sorted leaf dirs, evenly spaced picks within a dir)
+- 上衣: 3/26
+- 冲锋裤主图/FRPN015-1 男 暗夜黑: 3/18
+- 冲锋裤主图/FRPN016-1 女 暗夜黑: 3/18
+- 帽子: 3/20
+- 成品主图/卖点主图: 3/15
+- 手套: 3/16
+- 护膝: 3/5
+- 新品类锚点验收/审核后总览/gloves/1125x1500: 3/12
+- 新品类锚点验收/审核后总览/gloves/1440x1440: 3/12
+- 新品类锚点验收/审核后总览/gloves/1440x1920: 3/12
+- 新品类锚点验收/审核后总览/hat/1125x1500: 3/20
+- 新品类锚点验收/审核后总览/hat/1440x1440: 3/20
+- 新品类锚点验收/审核后总览/hat/1440x1920: 3/20
+- 新品类锚点验收/审核后总览/socks/1125x1500: 3/5
+- 新品类锚点验收/审核后总览/socks/1440x1440: 3/5
+- 新品类锚点验收/审核后总览/socks/1440x1920: 3/5
+- 新品类锚点验收/帽子: 1/1
+- 新品类锚点验收/手套: 1/1
+- 新品类锚点验收/长袜: 1/1
+- 热能长裤: 3/18
+- 速干短裤: 2/16
+- 长袜: 2/5
+- 鞋: 2/31
+
+phase A: 244 canvases in 278.4s
+
+## L6/L9 over 1220 (canvas, candidate) entries from 244 canvases
+min=0.687 p50=0.950 p95=1.059 p99=1.081 max=1.113
+
+| source kind | sources | canvases | entries | max L6/L9 | p99 |
+| alpha | 1 | 4 | 20 | 1.090 | 1.079 |
+| light_bg | 19 | 76 | 380 | 1.063 | 1.049 |
+| opaque_non_light | 41 | 164 | 820 | 1.113 | 1.082 |
+
+| candidate | entries | max L6/L9 |
+| raw | 244 | 1.113 |
+| q256 | 244 | 1.042 |
+| q128 | 244 | 1.042 |
+| q64 | 244 | 1.042 |
+| q32 | 244 | 1.090 |
+
+## Entries with L6/L9 > 1.10  (risk = L6 > limit*1.10 and L9 <= limit; diverges = risk on the candidate the original returns)
+| file | size | kind | cand | L6 | L9 | ratio | risk | diverges@0.10 |
+| 鞋/2026-8-3Bmai3014.jpg | 1440x1920 | opaque_non_light | raw | 4116787 | 3699346 | 1.113 | False | False |
+| 鞋/2026-8-3Bmai3014.jpg | 1440x2160 | opaque_non_light | raw | 5293433 | 4761282 | 1.112 | False | False |
+| 上衣/2026-8-3Bmai3387向上扩图.jpg | 1440x2160 | opaque_non_light | raw | 2319431 | 2104900 | 1.102 | False | False |
+| 上衣/2026-8-3Bmai3387向上扩图.jpg | 1440x1920 | opaque_non_light | raw | 2318024 | 2103683 | 1.102 | False | False |
+| 上衣/2026-8-3Bmai3387向上扩图.jpg | 1440x1440 | opaque_non_light | raw | 2313300 | 2099622 | 1.102 | False | False |
+
+original picks: 244 canvases fit some candidate, 0 fall back (nothing fits)
+minimum exact margin from L6/L9 data: 0.0484 (上衣/2026-8-3Bmai5120.jpg 1440x1440)
+original chosen candidate histogram: {'raw': 72, 'q256': 145, 'q64': 11, 'q32': 12, 'q128': 4}
+
+phase B: 1278.6s (sequential)
+
+## Byte equality vs HEAD _encode_png and total encode seconds (knee = 12 护膝 PNG canvases, corpus = 240 sampled canvases)
+| variant | knee s | knee mismatches | corpus s | corpus mismatches |
+| HEAD | 22.54 | - | 369.85 | - |
+| 0.10 | 12.32 | 0 | 205.98 | 0 |
+| 0.20 | 12.33 | 0 | 211.18 | 0 |
+| 0.35 | 14.07 | 0 | 227.35 | 0 |
+| 0.50 | 14.65 | 0 | 242.89 | 0 |

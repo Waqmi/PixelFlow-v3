@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from .model_cache import file_version
 
 
-MODEL_PURPOSES = ("pose", "segmentation")
+MODEL_PURPOSES = ("pose", "segmentation", "detection")
 STATE_UNCONFIGURED = "未配置"
 STATE_LOADING = "加载中…"
 STATE_READY = "已就绪"
@@ -65,13 +65,21 @@ def model_candidates(model_root: Union[str, Path], purpose: str) -> Tuple[Path, 
     return configured_model_candidates(model_root, purpose)
 
 
-def _assistant_types() -> Tuple[type, type]:
+def _assistant_types() -> Tuple[type, type, type]:
     """Load the bundled assistant without depending on an external checkout."""
     try:
         from .model_assistant import LocalDetectionAssistant, LocalModelAssistant, LocalSegmentationAssistant
     except ImportError as error:
         raise ModelProcessError("内置 Pose/Seg 模块不可用：{}".format(error)) from error
     return LocalModelAssistant, LocalSegmentationAssistant, LocalDetectionAssistant
+
+
+def _assistant_model_candidates(model_root: Union[str, Path], purpose: str) -> Tuple[Path, ...]:
+    normalized = _normal_purpose(purpose)
+    candidates = configured_model_candidates(model_root, normalized)
+    if normalized == "detection":
+        return tuple(path for path in candidates if path.with_suffix(".classes.json").is_file())
+    return candidates
 
 
 def _model_cache_key(model_root: Union[str, Path], purpose: str, model_path: Path) -> Tuple[Any, ...]:
@@ -87,8 +95,10 @@ def _model_cache_key(model_root: Union[str, Path], purpose: str, model_path: Pat
 
 def _load_assistant(cache: Dict[Tuple[Any, ...], object], model_root: str, purpose: str) -> object:
     normalized = _normal_purpose(purpose)
-    candidates = configured_model_candidates(model_root, normalized)
+    candidates = _assistant_model_candidates(model_root, normalized)
     if not candidates:
+        if normalized == "detection" and configured_model_candidates(model_root, normalized):
+            raise ModelProcessError("detection/ 中缺少与 ONNX 同名的 .classes.json")
         raise ModelProcessError("{}/ 中没有 ONNX 模型".format(normalized))
     assistant_type = _assistant_types()[("pose", "segmentation", "detection").index(normalized)]
     errors: List[str] = []
@@ -208,9 +218,18 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                             "fallback": True,
                         }
                         continue
+                    assistant_candidates = _assistant_model_candidates(request["model_root"], purpose)
+                    if not assistant_candidates:
+                        result[purpose] = {
+                            "state": STATE_UNAVAILABLE,
+                            "status": STATUS_UNAVAILABLE,
+                            "fallback": True,
+                            "error": "detection/ 中缺少与 ONNX 同名的 .classes.json",
+                        }
+                        continue
                     try:
                         assistant = _load_assistant(assistants, request["model_root"], purpose)
-                        model_path = getattr(assistant, "model_path", candidates[0])
+                        model_path = getattr(assistant, "model_path", assistant_candidates[0])
                         result[purpose] = {
                             "state": STATE_READY,
                             "status": STATUS_READY,
@@ -429,13 +448,22 @@ class ModelProcessService:
                             "fallback": True,
                         }
                         continue
+                    assistant_candidates = _assistant_model_candidates(payload["model_root"], purpose)
+                    if not assistant_candidates:
+                        result[purpose] = {
+                            "state": STATE_UNAVAILABLE,
+                            "status": STATUS_UNAVAILABLE,
+                            "fallback": True,
+                            "error": "detection/ 中缺少与 ONNX 同名的 .classes.json",
+                        }
+                        continue
                     try:
                         assistant = _load_assistant(
                             self._direct_assistants,
                             payload["model_root"],
                             purpose,
                         )
-                        model_path = getattr(assistant, "model_path", candidates[0])
+                        model_path = getattr(assistant, "model_path", assistant_candidates[0])
                         result[purpose] = {
                             "state": STATE_READY,
                             "status": STATUS_READY,
@@ -585,7 +613,7 @@ class ModelProcessService:
     def detect_shoes(self, model_root: Union[str, Path], source: Path) -> List[List[float]]:
         """Shoe boxes (source px) from the optional detector; empty when it is off or fails."""
         root = str(model_root)
-        candidates = [path for path in configured_model_candidates(root, "detection") if path.with_suffix(".classes.json").is_file()]
+        candidates = _assistant_model_candidates(root, "detection")
         if not candidates:
             return []
         try:
@@ -596,7 +624,7 @@ class ModelProcessService:
     def detect_boxes(self, model_root: Union[str, Path], source: Path, category: str) -> List[List[float]]:
         """Category-mapped detector boxes; failures return an empty list."""
         root = str(model_root)
-        candidates = [path for path in configured_model_candidates(root, "detection") if path.with_suffix(".classes.json").is_file()]
+        candidates = _assistant_model_candidates(root, "detection")
         if not candidates:
             return []
         try:

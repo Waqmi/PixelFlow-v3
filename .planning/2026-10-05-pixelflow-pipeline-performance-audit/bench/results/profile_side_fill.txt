@@ -1,0 +1,21 @@
+macOS-15.7.7-arm64-arm-64bit-Mach-O | cpu_count=10 | python=3.14.5 | Pillow=12.3.0 | numpy=2.5.3
+         53457 function calls in 0.914 seconds
+
+   Ordered by: internal time
+   List reduced from 152 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.235    0.235    0.235    0.235 {method 'resize' of 'ImagingCore' objects}
+       48    0.177    0.004    0.177    0.004 {method 'cumsum' of 'numpy.ndarray' objects}
+        2    0.097    0.049    0.105    0.053 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/side_fill.py:87(_patch_field)
+      112    0.095    0.001    0.095    0.001 {method 'take' of 'numpy.ndarray' objects}
+       16    0.069    0.004    0.069    0.004 {method 'partition' of 'numpy.ndarray' objects}
+        2    0.050    0.025    0.638    0.319 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/side_fill.py:112(extend_side)
+       48    0.048    0.001    0.354    0.007 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/side_fill.py:30(_box)
+        8    0.027    0.003    0.381    0.048 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/side_fill.py:42(blur_f)
+      101    0.019    0.000    0.019    0.000 {method 'astype' of 'numpy.ndarray' objects}
+       48    0.017    0.000    0.018    0.000 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/.venv/lib/python3.14/site-packages/numpy/lib/_arraypad_impl.py:87(_pad_simple)
+        1    0.016    0.016    0.016    0.016 {method 'crop' of 'ImagingCore' objects}
+        1    0.012    0.012    0.914    0.914 /Users/weiheng/Desktop/PixelFlow/PixelFlow-App-v3-beta/worker/pixelflow_core/renderer.py:168(_side_filled_window)
+
+

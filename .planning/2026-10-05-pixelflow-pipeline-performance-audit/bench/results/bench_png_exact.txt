@@ -1,0 +1,15 @@
+macOS-15.7.7-arm64-arm-64bit-Mach-O | cpu_count=10 | python=3.14.5 | Pillow=12.3.0 | numpy=2.5.3
+| source | size | orig s | exact-gated s | encodes/skipped L9 | bytes equal |
+| image-1791010568432.png | 800x800 | 0.271 | 0.282 | 2/0 | True |
+| image-1791010568432.png | 1440x1440 | 1.285 | 0.722 | 3/1 | True |
+| image-1791010568432.png | 1440x1920 | 3.190 | 2.598 | 7/1 | True |
+| image-1791010568432.png | 1440x2160 | 3.859 | 1.402 | 5/3 | True |
+| image-1791010575047.png | 800x800 | 0.465 | 0.494 | 2/0 | True |
+| image-1791010575047.png | 1440x1440 | 1.962 | 0.729 | 3/1 | True |
+| image-1791010575047.png | 1440x1920 | 2.679 | 0.917 | 3/1 | True |
+| image-1791010575047.png | 1440x2160 | 2.695 | 0.922 | 3/1 | True |
+| image-1791010585868.png | 800x800 | 0.225 | 0.226 | 2/0 | True |
+| image-1791010585868.png | 1440x1440 | 1.055 | 0.595 | 3/1 | True |
+| image-1791010585868.png | 1440x1920 | 1.645 | 0.892 | 3/1 | True |
+| image-1791010585868.png | 1440x2160 | 3.224 | 2.547 | 7/1 | True |
+sum orig=22.55s exact-gated=12.33s

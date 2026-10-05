@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import threading
 import time
@@ -124,6 +125,10 @@ class EngineAdapterTests(unittest.TestCase):
         self.assertEqual(len(renderer.batches), 1)
         self.assertEqual(len(renderer.batches[0]), 5)  # 2 sizes × 2 logos + VIP
         self.assertEqual(result["failures"], [])
+        performance = result["performance"]
+        self.assertGreater(performance["wall_seconds"], 0.0)
+        self.assertGreaterEqual(performance["render_wall_seconds"], 0.0)
+        self.assertLessEqual(performance["render_wall_seconds"], performance["wall_seconds"])
 
     def test_v3_progress_counts_actual_output_files(self) -> None:
         class BatchRenderer:
@@ -482,6 +487,72 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(third["incremental_reused"], 0)
             self.assertFalse(third["incremental_skipped"])
             self.assertEqual(third["failures"], [])
+
+    def test_v3_diagnostics_records_anchor_plan_and_reused_output(self) -> None:
+        class BatchRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3"))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir) / "input"
+            source_root.mkdir()
+            source = source_root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            request = GenerationRequest(
+                product_root=source_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=True,
+                source_type_overrides={str(source): "model"},
+                composition_plans=(CompositionPlan(
+                    source=str(source),
+                    size="1440x1440",
+                    composition_mode="anchor_crop",
+                    crop_box=(0.1, 0.2, 0.9, 1.0),
+                    evidence={"side_fill": {"left": 0.1}},
+                ),),
+                request_id="diagnostics-test",
+                mode="v3",
+            )
+            adapter = V3EngineAdapter(renderer=BatchRenderer())
+            first = adapter.run(request)
+            first_payload = json.loads(Path(first["diagnostics_path"]).read_text(encoding="utf-8"))
+            first_source = first_payload["sources"][0]
+            self.assertEqual(first["diagnostics_sources"], 1)
+            self.assertEqual(first_source["plans"]["1440x1440"]["mode"], "anchor_crop")
+            self.assertEqual(first_source["plans"]["1440x1440"]["crop_box"], [0.1, 0.2, 0.9, 1.0])
+            self.assertFalse(first_source["reused_output"])
+            self.assertFalse(first_source["outputs"][0]["reused"])
+            self.assertTrue(first_source["outputs"][0]["success"])
+
+            second = adapter.run(request)
+            second_payload = json.loads(Path(second["diagnostics_path"]).read_text(encoding="utf-8"))
+            second_source = second_payload["sources"][0]
+            self.assertTrue(second_source["reused_output"])
+            self.assertTrue(second_source["outputs"][0]["reused"])
+
+    def test_v3_diagnostics_distinguishes_missing_and_skipped_plans(self) -> None:
+        missing = V3EngineAdapter._diagnostic_plan(None)
+        self.assertEqual(missing["mode"], "missing")
+        skipped = V3EngineAdapter._diagnostic_plan(CompositionPlan(
+            source="model.jpg",
+            size="1440x1440",
+            composition_mode="skipped",
+            evidence={"skip_reason": "背景不适合补边"},
+        ))
+        self.assertEqual(skipped["mode"], "skipped")
+        self.assertEqual(skipped["skip_reason"], "背景不适合补边")
 
     def test_v3_same_name_reuses_by_default_and_force_rerender_overwrites(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
