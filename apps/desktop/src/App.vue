@@ -282,7 +282,7 @@ const isConfirmGridScrolledToBottom = ref(false)
 const confirmGridHasOverflow = ref(false)
 
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
-const appVersion = '3.0.0-beta.1'
+const appVersion = '3.0.0'
 const expectedWorkerVersion = appVersion
 const expectedRulesVersion = 'v3-composition-11'
 const workerVersion = ref(expectedWorkerVersion)

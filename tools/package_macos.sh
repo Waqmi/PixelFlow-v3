@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 PYTHON="${PIXELFLOW_PYTHON:-$ROOT/worker/.venv/bin/python}"
-APP_NAME="PixelFlow-v3-beta.app"
-DMG_NAME="PixelFlow-v3-beta-macOS-arm64.dmg"
+APP_NAME="PixelFlow-v3.0.app"
+DMG_NAME="PixelFlow-v3.0-macOS-arm64.dmg"
 APP_ONLY=0
 
 if [[ "$#" -gt 1 ]]; then
@@ -89,7 +89,7 @@ ln -s "$HOME/Documents" "$STAGING/文稿"
 cat > "$STAGING/安装说明.txt" <<'EOF'
 PixelFlow v3 安装
 
-1. 将 PixelFlow-v3-beta.app 拖到“应用程序”。
+1. 将 PixelFlow-v3.0.app 拖到“应用程序”。
 2. 将 models 文件夹拖到“文稿”。
 3. 启动 App 后，设置页会自动发现“文稿/models”；也可以手动选择模型目录。
 EOF
@@ -102,7 +102,7 @@ fi
 
 DMG="$DIST/$DMG_NAME"
 rm -f "$DMG"
-hdiutil create -volname "PixelFlow v3 beta" -srcfolder "$STAGING" -format UDZO -ov "$DMG" >/dev/null
+hdiutil create -volname "PixelFlow v3.0" -srcfolder "$STAGING" -format UDZO -ov "$DMG" >/dev/null
 hdiutil verify "$DMG"
 find "$DIST" -maxdepth 1 -type f -name 'rw.*.dmg' -delete
 echo "app: $DIST/$APP_NAME"

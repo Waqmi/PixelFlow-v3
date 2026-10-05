@@ -14,7 +14,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section class="settings-page-intro"><h3>关于 PixelFlow</h3><p>本地批量整理电商素材并生成规范主图。</p></section>
+  <section class="settings-page-intro"><h3>关于 PixelFlow v3.0</h3><p>PixelFlow v3.0 正式版：本地批量整理电商素材并生成规范主图。</p></section>
   <dl class="about-list">
     <div><dt>版本号</dt><dd>{{ expectedWorkerVersion }}</dd></div>
     <div><dt>Worker 版本</dt><dd>{{ workerVersion }}</dd></div>

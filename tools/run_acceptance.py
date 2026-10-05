@@ -210,8 +210,8 @@ def main() -> int:
         "checks": checks,
         "artifacts": {
             "bundled_worker": {
-                "path": "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker",
-                "sha256": sha256(ROOT / "dist/PixelFlow-v3-beta.app/Contents/Resources/pixelflow-worker"),
+                "path": "dist/PixelFlow-v3.0.app/Contents/Resources/pixelflow-worker",
+                "sha256": sha256(ROOT / "dist/PixelFlow-v3.0.app/Contents/Resources/pixelflow-worker"),
             },
             "source_worker": {
                 "path": "worker/dist/pixelflow-worker",

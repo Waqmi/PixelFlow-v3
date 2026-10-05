@@ -1,7 +1,7 @@
 [package]
 name = "pixelflow-desktop"
-version = "3.0.0-beta.1"
-description = "PixelFlow v3 beta desktop host"
+version = "3.0.0"
+description = "PixelFlow v3.0 desktop host"
 authors = ["PixelFlow"]
 edition = "2021"
 

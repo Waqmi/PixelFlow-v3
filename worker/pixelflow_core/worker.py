@@ -25,7 +25,7 @@ from .classification import (
 from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 
 
-WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0-beta.1")
+WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0")
 RULES_VERSION = "v3-composition-11"
 
 
