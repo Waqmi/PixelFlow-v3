@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from io import BytesIO
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from PIL import Image
 
 from pixelflow_core.contracts import CompositionPlan, ProtectedRegion, RenderRequest
-from pixelflow_core.renderer import RenderConfig, Renderer, _light_foreground_touches_edge
+from pixelflow_core.renderer import (
+    RenderConfig,
+    Renderer,
+    _background_to_alpha,
+    _encode_png,
+    _light_foreground_touches_edge,
+)
 
 
 class RendererTests(unittest.TestCase):
@@ -373,6 +381,136 @@ class RendererTests(unittest.TestCase):
                     ]
                 widths.append(max(x for x, _ in foreground) - min(x for x, _ in foreground))
             self.assertGreater(widths[1], widths[0])
+
+
+def _reference_background_to_alpha(image: Image.Image, background: tuple[int, int, int]) -> Image.Image:
+    """Per-pixel implementation the vectorised version must match byte for byte."""
+    rgba = image.convert("RGBA")
+    pixels = list(rgba.convert("RGB").get_flattened_data())
+    alpha = []
+    for pixel in pixels:
+        distance = max(abs(channel - base) for channel, base in zip(pixel, background))
+        alpha.append(0 if distance <= 8 else 255 if distance >= 48 else round((distance - 8) * 255 / 40))
+    rgba.putalpha(Image.frombytes("L", rgba.size, bytes(alpha)))
+    return rgba
+
+
+def _reference_encode_png(image: Image.Image, max_size_mb: float | None) -> bytes:
+    """Eager level-9 implementation the probed version must match byte for byte."""
+    rgba = image if image.mode == "RGBA" else image.convert("RGBA")
+    limit = None if max_size_mb is None else max_size_mb * 1024 * 1024
+    candidates = [rgba]
+    if limit is not None:
+        for colors in (256, 128, 64, 32):
+            try:
+                candidates.append(rgba.quantize(colors=colors, method=Image.Quantize.FASTOCTREE).convert("RGBA"))
+            except (ValueError, OSError):
+                break
+    best = b""
+    for candidate in candidates:
+        stream = BytesIO()
+        candidate.save(stream, format="PNG", optimize=True, compress_level=9)
+        payload = stream.getvalue()
+        if not best or len(payload) < len(best):
+            best = payload
+        if limit is None or len(payload) <= limit:
+            return payload
+    return best
+
+
+class EncodingParityTests(unittest.TestCase):
+    def test_background_to_alpha_matches_per_pixel_reference(self) -> None:
+        background = (200, 120, 0)
+        # Distances at both thresholds, just inside them and at .5 rounding points
+        # (distance 12 -> 25.5, 20 -> 76.5) plus the extremes.
+        distances = [0, 1, 7, 8, 9, 10, 12, 20, 27, 28, 47, 48, 49, 55, 255]
+        rng = np.random.default_rng(20261005)
+        rows = []
+        for distance in distances:
+            row = []
+            for channel in range(3):
+                # Each channel moves up or down by exactly `distance` where possible,
+                # so the max-channel distance is the one under test.
+                up = background[channel] + distance
+                down = background[channel] - distance
+                value = up if up <= 255 else down
+                if value < 0:
+                    value = background[channel]
+                row.append(value)
+            rows.append(row)
+        exact = np.zeros((len(distances), 4, 3), dtype=np.uint8)
+        for index, row in enumerate(rows):
+            exact[index, :, :] = row
+            # Vary which channel carries the max distance.
+            exact[index, 1, 1] = background[1]
+            exact[index, 2, 0] = background[0]
+            exact[index, 3, :] = background
+            exact[index, 3, index % 3] = row[index % 3]
+        noise = rng.integers(0, 256, size=(37, 53, 3), dtype=np.uint8)
+        near = np.clip(
+            np.asarray(background, dtype=np.int16) + rng.integers(-60, 61, size=(41, 29, 3)), 0, 255
+        ).astype(np.uint8)
+        images = [Image.fromarray(exact, "RGB"), Image.fromarray(noise, "RGB"), Image.fromarray(near, "RGB")]
+        rgba_noise = rng.integers(0, 256, size=(19, 23, 4), dtype=np.uint8)
+        images.append(Image.fromarray(rgba_noise, "RGBA"))
+        for image in images:
+            with self.subTest(size=image.size, mode=image.mode):
+                expected = _reference_background_to_alpha(image, background)
+                actual = _background_to_alpha(image, background)
+                self.assertEqual(actual.mode, expected.mode)
+                self.assertEqual(actual.size, expected.size)
+                self.assertEqual(actual.tobytes(), expected.tobytes())
+
+    def test_encode_png_matches_eager_level9_reference(self) -> None:
+        rng = np.random.default_rng(1005)
+        noise = Image.fromarray(rng.integers(0, 256, size=(160, 200, 4), dtype=np.uint8), "RGBA")
+        smooth_rgb = np.zeros((300, 240, 3), dtype=np.uint8)
+        smooth_rgb[..., 0] = np.linspace(0, 255, 240, dtype=np.uint8)[None, :]
+        smooth_rgb[..., 1] = np.linspace(0, 255, 300, dtype=np.uint8)[:, None]
+        smooth = Image.fromarray(smooth_rgb, "RGB")
+        # Smooth gradient with mild noise: raw misses a tight limit but quantized fits.
+        textured = np.clip(
+            np.dstack([smooth_rgb, np.full((300, 240), 255, dtype=np.uint8)]).astype(np.int16)
+            + rng.integers(-12, 13, size=(300, 240, 4)),
+            0,
+            255,
+        ).astype(np.uint8)
+        textured_image = Image.fromarray(textured, "RGBA")
+
+        def l9_size(image: Image.Image, colors: int | None = None) -> int:
+            rgba = image if image.mode == "RGBA" else image.convert("RGBA")
+            if colors is not None:
+                rgba = rgba.quantize(colors=colors, method=Image.Quantize.FASTOCTREE).convert("RGBA")
+            stream = BytesIO()
+            rgba.save(stream, format="PNG", optimize=True, compress_level=9)
+            return len(stream.getvalue())
+
+        mb = 1024 * 1024
+        textured_raw = l9_size(textured_image)
+        textured_q64 = l9_size(textured_image, 64)
+        textured_q32 = l9_size(textured_image, 32)
+        self.assertLess(textured_q64, textured_raw)
+        cases = [
+            ("noise-unlimited", noise, None),
+            ("noise-loose", noise, 10.0),
+            ("noise-tiny", noise, 1 / mb),
+            ("smooth-unlimited", smooth, None),
+            ("smooth-loose", smooth, 10.0),
+            ("smooth-tiny", smooth, 1 / mb),
+            # Raw misses, a quantized candidate fits.
+            ("textured-quantized-fits", textured_image, textured_q64 / mb),
+            ("textured-raw-just-misses", textured_image, (textured_raw - 1) / mb),
+            # Every candidate misses; the last one is probed at level 9, earlier ones are deferred.
+            ("textured-all-miss-mixed", textured_image, (textured_q32 - 1) / mb),
+            ("textured-tiny", textured_image, 1 / mb),
+        ]
+        for label, image, limit in cases:
+            with self.subTest(label):
+                expected = _reference_encode_png(image, limit)
+                self.assertEqual(_encode_png(image, limit), expected)
+                if limit is not None and label == "textured-quantized-fits":
+                    self.assertLessEqual(len(expected), limit * mb)
+                    self.assertLess(len(expected), textured_raw)
 
 
 if __name__ == "__main__":

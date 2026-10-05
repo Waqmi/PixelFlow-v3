@@ -35,6 +35,10 @@ TRANSPARENT_SIZES: dict[str, tuple[int, int]] = {
     "1440x1920": (1440, 1920),
     "1440x2160": (1440, 2160),
 }
+# Empirical, not a guarantee: across 1220 sampled candidates L6 was at most
+# 11.3% larger than L9+optimize (2026-10-05), so a candidate whose L6 misses
+# the limit by more than 20% is not expected to fit at L9 and is deferred.
+PNG_PROBE_MARGIN = 0.20
 
 
 @dataclass(frozen=True)
@@ -542,12 +546,12 @@ def _mirror_extend(image: Image.Image, target: tuple[int, int], focus_x: float =
 
 def _background_to_alpha(image: Image.Image, background: tuple[int, int, int]) -> Image.Image:
     rgba = image.convert("RGBA")
-    pixels = list(rgba.convert("RGB").get_flattened_data())
-    alpha = []
-    for pixel in pixels:
-        distance = max(abs(channel - base) for channel, base in zip(pixel, background))
-        alpha.append(0 if distance <= 8 else 255 if distance >= 48 else round((distance - 8) * 255 / 40))
-    rgba.putalpha(Image.frombytes("L", rgba.size, bytes(alpha)))
+    rgb = np.asarray(rgba.convert("RGB"), dtype=np.int16)
+    distance = np.abs(rgb - np.asarray(background, dtype=np.int16)).max(axis=2).astype(np.float64)
+    # np.rint and Python round() both round half to even on the same float64 value.
+    ramp = np.rint((distance - 8) * 255 / 40)
+    alpha = np.where(distance <= 8, 0, np.where(distance >= 48, 255, ramp)).astype(np.uint8)
+    rgba.putalpha(Image.fromarray(alpha, "L"))
     return rgba
 
 
@@ -566,25 +570,44 @@ def _encode_jpeg(image: Image.Image, max_size_mb: float | None) -> bytes:
 
 def _encode_png(image: Image.Image, max_size_mb: float | None) -> bytes:
     rgba = image if image.mode == "RGBA" else image.convert("RGBA")
-    limit = None if max_size_mb is None else max_size_mb * 1024 * 1024
-    candidates = [rgba]
-    if limit is not None:
-        # ponytail: quantize only when compression alone misses the limit;
-        # dimensions stay fixed and RGBA output remains the public contract.
-        for colors in (256, 128, 64, 32):
+
+    def encode(candidate: Image.Image, **options: Any) -> bytes:
+        stream = BytesIO()
+        candidate.save(stream, format="PNG", **options)
+        return stream.getvalue()
+
+    if max_size_mb is None:
+        return encode(rgba, optimize=True, compress_level=9)
+    limit = max_size_mb * 1024 * 1024
+    # Level-9 payloads (None = deferred) in candidate order, so the fallback
+    # below breaks size ties exactly like a plain left-to-right scan.
+    payloads: list[bytes | None] = []
+    skipped: dict[int, Image.Image] = {}
+    candidate = rgba
+    # ponytail: quantize only when compression alone misses the limit;
+    # dimensions stay fixed and RGBA output remains the public contract.
+    for colors in (None, 256, 128, 64, 32):
+        if colors is not None:
             try:
-                candidates.append(rgba.quantize(colors=colors, method=Image.Quantize.FASTOCTREE).convert("RGBA"))
+                candidate = rgba.quantize(colors=colors, method=Image.Quantize.FASTOCTREE).convert("RGBA")
             except (ValueError, OSError):
                 break
+        # Defer level 9 for candidates whose level-6 size misses by more than the margin.
+        if len(encode(candidate, compress_level=6)) > limit * (1 + PNG_PROBE_MARGIN):
+            skipped[len(payloads)] = candidate
+            payloads.append(None)
+            continue
+        payload = encode(candidate, optimize=True, compress_level=9)
+        if len(payload) <= limit:
+            return payload
+        payloads.append(payload)
+    # Nothing fits: return the smallest level-9 encoding over all candidates.
     best = b""
-    for candidate in candidates:
-        stream = BytesIO()
-        candidate.save(stream, format="PNG", optimize=True, compress_level=9)
-        payload = stream.getvalue()
+    for index, payload in enumerate(payloads):
+        if payload is None:
+            payload = encode(skipped[index], optimize=True, compress_level=9)
         if not best or len(payload) < len(best):
             best = payload
-        if limit is None or len(payload) <= limit:
-            return payload
     return best
 
 
