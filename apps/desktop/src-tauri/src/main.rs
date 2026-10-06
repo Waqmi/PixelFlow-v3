@@ -167,7 +167,10 @@ fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String
 }
 
 #[tauri::command]
-fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
+async fn pick_directory(
+    app: AppHandle,
+    state: State<'_, WorkerState>,
+) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
         if let Some(path) = &path {
             if let Ok(mut guard) = state.0.lock() {
@@ -182,10 +185,19 @@ fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Optio
     }
     #[cfg(target_os = "windows")]
     {
-        return Ok(remember(windows_dialog("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }")?));
+        return Ok(remember(native_folder_picker().await?));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     { Ok(None) }
+}
+
+#[cfg(target_os = "windows")]
+async fn native_folder_picker() -> Result<Option<String>, String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("选择目录")
+        .pick_folder()
+        .await;
+    Ok(folder.map(|handle| handle.path().to_string_lossy().into_owned()))
 }
 
 fn discover_models_under(home: &PathBuf) -> Option<PathBuf> {

@@ -162,10 +162,21 @@ jobs:
 
           "$seven_zip" a -tzip -mx=9 "$zip_file_win" "$portable_dir_win"
 
-          makensis /DPORTABLE_DIR="$portable_dir_win" /DOUTPUT_FILE="$sfx_file_win" "$nsi_file_win"
+          icon_file="$(cygpath -w "$PWD/src-tauri/icons/icon.ico")"
+          makensis /DPORTABLE_DIR="$portable_dir_win" /DICON_FILE="$icon_file" /DOUTPUT_FILE="$sfx_file_win" "$nsi_file_win"
 
           sha256sum "$zip_file" > "$zip_file.sha256"
           sha256sum "$sfx_file" > "$sfx_file.sha256"
+
+      - name: Verify Windows portable icons
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass \
+            -File tools/verify-windows-icon.ps1 \
+            -SfxPath "$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.exe" \
+            -AppPath "$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable/PixelFlow.exe" \
+            -IconPath "src-tauri/icons/icon.ico"
 
       - name: Package macOS artifact
         if: runner.os == 'macOS'

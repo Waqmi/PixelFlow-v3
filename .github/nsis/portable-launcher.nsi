@@ -5,6 +5,11 @@ SetCompressor /SOLID lzma
 
 OutFile "${OUTPUT_FILE}"
 
+!ifndef ICON_FILE
+  !error "ICON_FILE is required"
+!endif
+Icon "${ICON_FILE}"
+
 Section
   GetTempFileName $0
   Delete "$0"

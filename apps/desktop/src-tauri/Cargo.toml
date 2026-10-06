@@ -16,3 +16,6 @@ serde_json = "1"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSWindow"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["NSArray", "NSObject", "NSString", "NSURL"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+rfd = "0.15"
