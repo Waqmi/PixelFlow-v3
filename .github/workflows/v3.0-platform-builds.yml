@@ -136,7 +136,7 @@ jobs:
           sfx_file="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.exe"
           nsi_file="$GITHUB_WORKSPACE/.github/nsis/portable-launcher.nsi"
           seven_zip="$(cygpath -u 'C:/Program Files/7-Zip/7z.exe')"
-          app_exe="$release_dir/PixelFlow.exe"
+          app_exe="$release_dir/pixelflow-desktop.exe"
           resource_dir="$release_dir/pixelflow-worker"
           portable_dir_win="$(cygpath -w "$portable_dir")"
           zip_file_win="$(cygpath -w "$zip_file")"
