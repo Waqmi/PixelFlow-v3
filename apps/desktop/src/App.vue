@@ -800,6 +800,20 @@ function suggestedOutputRoot(path: string) {
   const name = normalized.slice(slash + 1)
   return `${parent ? `${parent}/` : ''}${name.endsWith('主图') ? name : `${name}主图`}`
 }
+
+function selectModelDirectory(path: string) {
+  localModelPath.value = path
+  localModelEnabled.value = true
+  modelDiagnostics.value = {}
+  modelStatus.value = '状态：正在检测外部模型…'
+  modelProbeReadyHandled = false
+  publishSettingsImmediately()
+  if (workerConnected.value) {
+    modelProbeReadyHandled = true
+    probeModels()
+  }
+}
+
 async function pickDirectory(target: 'input' | 'output' | 'model') {
   if (!window.__TAURI_INTERNALS__) {
     status.value = '请在桌面 App 中选择目录'
@@ -812,7 +826,7 @@ async function pickDirectory(target: 'input' | 'output' | 'model') {
       inputRoot.value = path
       outputRoot.value = suggestedOutputRoot(path)
     } else if (target === 'output') outputRoot.value = path
-    else localModelPath.value = path
+    else selectModelDirectory(path)
   } catch (error) {
     status.value = String(error)
   }
