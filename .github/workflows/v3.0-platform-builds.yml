@@ -135,6 +135,7 @@ jobs:
           zip_file="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.zip"
           sfx_file="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.exe"
           nsi_file="$GITHUB_WORKSPACE/.github/nsis/portable-launcher.nsi"
+          seven_zip="$(cygpath -u 'C:/Program Files/7-Zip/7z.exe')"
           app_exe="$release_dir/PixelFlow.exe"
           resource_dir="$release_dir/pixelflow-worker"
           portable_dir_win="$(cygpath -w "$portable_dir")"
@@ -159,7 +160,7 @@ jobs:
             PATH="$(dirname "$makensis_path"):$PATH"
           fi
 
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Force -Path '$portable_dir_win' -DestinationPath '$zip_file_win'"
+          "$seven_zip" a -tzip -mx=9 "$zip_file_win" "$portable_dir_win"
 
           makensis /DPORTABLE_DIR="$portable_dir_win" /DOUTPUT_FILE="$sfx_file_win" "$nsi_file_win"
 
