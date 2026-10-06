@@ -644,13 +644,14 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
         .resource_dir()
         .ok()
         .and_then(|root| {
+            let bundled_name = format!("pixelflow-worker{}", std::env::consts::EXE_SUFFIX);
             let resource = root.join("pixelflow-worker");
-            if resource.is_file() {
-                Some(resource)
-            } else {
-                let executable = resource.join("pixelflow-worker");
-                executable.is_file().then_some(executable)
-            }
+            let candidates = [
+                resource,
+                root.join(&bundled_name),
+                root.join("pixelflow-worker").join(&bundled_name),
+            ];
+            candidates.into_iter().find(|candidate| candidate.is_file())
         });
     let (program, args, working_dir) = match bundled_worker {
         Some(path) => (path.into_os_string(), Vec::<OsString>::new(), None),
