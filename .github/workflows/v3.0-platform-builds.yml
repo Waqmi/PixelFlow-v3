@@ -60,7 +60,12 @@ jobs:
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             PIXELFLOW_PYTHON="$(cygpath -u "$Python_ROOT_DIR/python.exe")"
           else
-            PIXELFLOW_PYTHON="$Python_ROOT_DIR/bin/python3"
+            PIXELFLOW_PYTHON="$RUNNER_TEMP/pixelflow-python-x64"
+            cat > "$PIXELFLOW_PYTHON" <<'EOF'
+#!/bin/bash
+exec arch -x86_64 "$Python_ROOT_DIR/bin/python3" "$@"
+EOF
+            chmod +x "$PIXELFLOW_PYTHON"
           fi
           echo "PIXELFLOW_PYTHON=$PIXELFLOW_PYTHON" >> "$GITHUB_ENV"
           "$PIXELFLOW_PYTHON" -c 'import platform, sys; print("Python:", sys.executable, platform.machine())'
