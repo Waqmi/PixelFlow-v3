@@ -109,6 +109,14 @@ jobs:
         working-directory: apps/desktop
         run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
+      - name: List Windows raw build outputs
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        run: |
+          release_dir="src-tauri/target/${{ matrix.target }}/release"
+          find "$release_dir" -maxdepth 2 -type f \( -name '*.exe' -o -name '*.dll' \) -print | sort
+          find "$release_dir/pixelflow-worker" -maxdepth 2 -type f -print | head -40 | sort
+
       - name: Package Windows artifact
         if: runner.os == 'Windows'
         working-directory: apps/desktop
@@ -117,6 +125,46 @@ jobs:
           test -n "$output_file"
           cp "$output_file" "$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-setup.exe"
           sha256sum "$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-setup.exe" > "$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-setup.exe.sha256"
+
+      - name: Package Windows portable artifact
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        run: |
+          release_dir="src-tauri/target/${{ matrix.target }}/release"
+          portable_dir="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable"
+          zip_file="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.zip"
+          sfx_file="$GITHUB_WORKSPACE/PixelFlow-v3.0-windows-x64-portable.exe"
+          nsi_file="$GITHUB_WORKSPACE/.github/nsis/portable-launcher.nsi"
+          app_exe="$release_dir/PixelFlow.exe"
+          resource_dir="$release_dir/pixelflow-worker"
+          portable_dir_win="$(cygpath -w "$portable_dir")"
+          zip_file_win="$(cygpath -w "$zip_file")"
+          sfx_file_win="$(cygpath -w "$sfx_file")"
+          nsi_file_win="$(cygpath -w "$nsi_file")"
+
+          test -f "$app_exe"
+          test -d "$resource_dir"
+          test -f "$resource_dir/pixelflow-worker.exe"
+
+          rm -rf "$portable_dir"
+          mkdir -p "$portable_dir"
+          cp "$app_exe" "$portable_dir/PixelFlow.exe"
+          cp -a "$resource_dir" "$portable_dir/"
+          find "$release_dir" -maxdepth 1 -type f -name '*.dll' -exec cp {} "$portable_dir/" \;
+
+          if ! command -v makensis >/dev/null 2>&1; then
+            local_tauri_dir="$(cygpath -u "$LOCALAPPDATA")/tauri"
+            makensis_path="$(find "$local_tauri_dir" -type f -name makensis.exe -print -quit 2>/dev/null || true)"
+            test -n "$makensis_path"
+            PATH="$(dirname "$makensis_path"):$PATH"
+          fi
+
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Force -Path '$portable_dir_win' -DestinationPath '$zip_file_win'"
+
+          makensis /DPORTABLE_DIR="$portable_dir_win" /DOUTPUT_FILE="$sfx_file_win" "$nsi_file_win"
+
+          sha256sum "$zip_file" > "$zip_file.sha256"
+          sha256sum "$sfx_file" > "$sfx_file.sha256"
 
       - name: Package macOS artifact
         if: runner.os == 'macOS'
@@ -136,6 +184,26 @@ jobs:
           path: |
             PixelFlow-v3.0-windows-x64-setup.exe
             PixelFlow-v3.0-windows-x64-setup.exe.sha256
+
+      - name: Upload Windows portable zip artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: PixelFlow-v3.0-windows-x64-portable-zip
+          if-no-files-found: error
+          path: |
+            PixelFlow-v3.0-windows-x64-portable.zip
+            PixelFlow-v3.0-windows-x64-portable.zip.sha256
+
+      - name: Upload Windows portable exe artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: PixelFlow-v3.0-windows-x64-portable-exe
+          if-no-files-found: error
+          path: |
+            PixelFlow-v3.0-windows-x64-portable.exe
+            PixelFlow-v3.0-windows-x64-portable.exe.sha256
 
       - name: Upload macOS artifact
         if: runner.os == 'macOS'
