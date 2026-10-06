@@ -1,6 +1,9 @@
 name: PixelFlow v3.0 platform builds
 
 on:
+  push:
+    branches:
+      - ci/v3.0-platform-builds-20261006
   workflow_dispatch:
 
 permissions:
