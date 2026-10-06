@@ -499,7 +499,10 @@ class ModelProcessService:
         for purpose in MODEL_PURPOSES:
             self._set_state(root, purpose, STATE_LOADING)
         try:
-            result = self._request("probe", model_root=root)
+            # Probing only reads model metadata.  Do not start the spawned
+            # inference process; a frozen Windows sidecar can hang before it
+            # is used for inference.
+            result = self._request_in_process("probe", model_root=root)
         except Exception as error:
             reason = str(error)
             for purpose in MODEL_PURPOSES:

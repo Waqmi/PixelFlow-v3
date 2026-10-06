@@ -167,6 +167,7 @@ const showMaterialOption = ref(true)
 const outputNamingMode = ref('short')
 const modelStatus = ref('状态：当前使用规则判断；Seg 不可用（疑难图继续使用规则 + Pose）；Detection 未检测')
 const modelTesting = ref(false)
+const modelProbeTimeoutMs = 120_000
 const settingsNotice = ref('')
 const categoryTemplate = ref('auto')
 const categoryOpen = ref(false)
@@ -249,6 +250,7 @@ let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
 let modelProbeRoot = ''
 let modelProbeRetryTimer: number | undefined
+let modelProbeTimeout: ReturnType<typeof window.setTimeout> | undefined
 let modelProbeReadyHandled = false
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
@@ -849,6 +851,24 @@ function releaseModelProbe(root: string) {
   } catch { /* optional storage */ }
 }
 
+function clearModelProbeTimeout() {
+  if (modelProbeTimeout !== undefined) {
+    window.clearTimeout(modelProbeTimeout)
+    modelProbeTimeout = undefined
+  }
+}
+
+function failModelProbe(message: string) {
+  clearModelProbeTimeout()
+  if (!modelTesting.value) return
+  modelProbeRequestId.value = undefined
+  modelTesting.value = false
+  modelStatus.value = message
+  const root = modelProbeRoot
+  modelProbeRoot = ''
+  releaseModelProbe(root)
+}
+
 function scheduleModelProbeRetry(root: string) {
   if (modelProbeRetryTimer !== undefined) return
   modelProbeRetryTimer = window.setTimeout(() => {
@@ -877,6 +897,11 @@ function probeModels() {
   modelStatus.value = '状态：正在检测外部模型…'
   modelProbeRoot = root
   modelProbeRequestId.value = worker.request('probe_models', { model_root: localModelPath.value })
+  clearModelProbeTimeout()
+  modelProbeTimeout = window.setTimeout(() => {
+    modelProbeTimeout = undefined
+    failModelProbe('状态：模型检测超时；Worker 未返回检测结果')
+  }, modelProbeTimeoutMs)
 }
 
 async function discoverDefaultModelPath() {
@@ -1368,6 +1393,7 @@ onBeforeUnmount(() => worker?.dispose())
 onBeforeUnmount(() => clearProgressComplete())
 onBeforeUnmount(() => {
   if (modelProbeRetryTimer !== undefined) window.clearTimeout(modelProbeRetryTimer)
+  clearModelProbeTimeout()
 })
 onBeforeUnmount(() => previewUrls.forEach((url) => URL.revokeObjectURL(url)))
 onBeforeUnmount(() => {
@@ -1586,8 +1612,10 @@ function handleWorkerMessage(message: WorkerMessage) {
     void openConfirmWindow()
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
   } else if (message.type === 'done' && message.request_id === modelProbeRequestId.value) {
+    clearModelProbeTimeout()
     const root = modelProbeRoot
     modelProbeRoot = ''
+    modelProbeRequestId.value = undefined
     modelTesting.value = false
     const models = payload.models as Record<string, ModelDiagnostic> | undefined
     modelDiagnostics.value = models || {}
@@ -1598,7 +1626,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     modelStatus.value = `状态：Pose ${modelLabel('pose')}；Seg ${modelLabel('segmentation')}；Detection ${modelLabel('detection')}`
     releaseModelProbe(root)
   } else if (message.type === 'status' && message.request_id === modelProbeRequestId.value) {
-    modelTesting.value = true
+    if (modelTesting.value) modelTesting.value = true
     modelStatus.value = `状态：${String(payload.message || '正在检测外部模型…')}`
   } else if (message.type === 'done' && message.request_id.startsWith('main-') && 'cleared' in payload) {
     settingsNotice.value = '缓存已清理'
@@ -1648,12 +1676,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       return
     }
     if (message.request_id === modelProbeRequestId.value) {
-      modelTesting.value = false
-      const messageText = String(payload.message || '请检查模型目录')
-      modelStatus.value = `状态：模型检测失败；${messageText}`
-      const root = modelProbeRoot
-      modelProbeRoot = ''
-      releaseModelProbe(root)
+      failModelProbe(`状态：模型检测失败；${String(payload.message || '请检查模型目录')}`)
       return
     }
     if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
@@ -1663,12 +1686,8 @@ function handleWorkerMessage(message: WorkerMessage) {
       workerInterrupted.value = true
       const taskId = String(payload.task_id || '')
       if (modelTesting.value) {
-        modelTesting.value = false
-        modelStatus.value = '状态：Worker 已中断，模型检测未完成'
-        const root = modelProbeRoot
-        modelProbeRoot = ''
         modelProbeReadyHandled = false
-        releaseModelProbe(root)
+        failModelProbe('状态：Worker 已中断，模型检测未完成')
       }
       if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
       updateResumePhase('interrupted')

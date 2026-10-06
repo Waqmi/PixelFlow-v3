@@ -184,12 +184,16 @@ class ModelServiceTests(unittest.TestCase):
             detection_dir = root / "detection"
             detection_dir.mkdir()
             (detection_dir / "model.onnx").write_bytes(b"detection-model")
-            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)):
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)), patch.object(
+                ModelProcessService,
+                "_start",
+            ) as start_process:
                 service = ModelProcessService(timeout=1)
                 try:
                     result = service.probe_models(root)
                 finally:
                     service.close()
+            start_process.assert_not_called()
             self.assertEqual(result["detection"]["state"], "不可用")
             self.assertIn("classes.json", result["detection"]["error"])
 
