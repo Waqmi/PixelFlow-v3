@@ -57,11 +57,13 @@ jobs:
 
       - name: Resolve Python path for worker build
         run: |
-          PIXELFLOW_PYTHON="$(python -c 'import sys; print(sys.executable)')"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            PIXELFLOW_PYTHON="$(cygpath -u "$PIXELFLOW_PYTHON")"
+            PIXELFLOW_PYTHON="$(cygpath -u "$Python_ROOT_DIR/python.exe")"
+          else
+            PIXELFLOW_PYTHON="$Python_ROOT_DIR/bin/python3"
           fi
           echo "PIXELFLOW_PYTHON=$PIXELFLOW_PYTHON" >> "$GITHUB_ENV"
+          "$PIXELFLOW_PYTHON" -c 'import platform, sys; print("Python:", sys.executable, platform.machine())'
 
       - name: Set up stable Rust
         run: |
@@ -76,15 +78,15 @@ jobs:
       - name: Verify Intel build toolchain
         if: runner.os == 'macOS'
         run: |
-          python -c 'import platform; assert platform.machine() == "x86_64"; print("Python:", platform.machine())'
+          "$PIXELFLOW_PYTHON" -c 'import platform; assert platform.machine() == "x86_64"; print("Python:", platform.machine())'
           rustc -vV | grep 'host:.*aarch64-apple-darwin'
           rustup target list --installed | grep '^x86_64-apple-darwin$'
 
       - name: Install worker dependencies
-        run: python -m pip install -r worker/requirements.lock
+        run: "$PIXELFLOW_PYTHON" -m pip install -r worker/requirements.lock
 
       - name: Run worker tests
-        run: python -m unittest discover -s worker/tests -p 'test_*.py'
+        run: "$PIXELFLOW_PYTHON" -m unittest discover -s worker/tests -p 'test_*.py'
 
       - name: Install desktop dependencies
         working-directory: apps/desktop
@@ -92,7 +94,7 @@ jobs:
 
       - name: Run protocol check
         working-directory: apps/desktop
-        run: python ../../tools/check_protocol_schema.py
+        run: "$PIXELFLOW_PYTHON" ../../tools/check_protocol_schema.py
 
       - name: Use bash for npm scripts on Windows
         if: runner.os == 'Windows'
