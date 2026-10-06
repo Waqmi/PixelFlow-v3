@@ -88,6 +88,7 @@ jobs:
 
       - name: Package Windows artifact
         if: runner.os == 'Windows'
+        working-directory: apps/desktop
         run: |
           output_file="$(find src-tauri/target/${{ matrix.target }}/release/bundle/nsis -maxdepth 1 -type f -name '*.exe' -print -quit)"
           test -n "$output_file"
@@ -96,6 +97,7 @@ jobs:
 
       - name: Package macOS artifact
         if: runner.os == 'macOS'
+        working-directory: apps/desktop
         run: |
           app_path="src-tauri/target/${{ matrix.target }}/release/bundle/macos/PixelFlow.app"
           test -d "$app_path"
