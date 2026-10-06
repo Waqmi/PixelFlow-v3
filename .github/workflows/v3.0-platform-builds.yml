@@ -83,10 +83,12 @@ jobs:
           rustup target list --installed | grep '^x86_64-apple-darwin$'
 
       - name: Install worker dependencies
-        run: "$PIXELFLOW_PYTHON" -m pip install -r worker/requirements.lock
+        run: |
+          "$PIXELFLOW_PYTHON" -m pip install -r worker/requirements.lock
 
       - name: Run worker tests
-        run: "$PIXELFLOW_PYTHON" -m unittest discover -s worker/tests -p 'test_*.py'
+        run: |
+          "$PIXELFLOW_PYTHON" -m unittest discover -s worker/tests -p 'test_*.py'
 
       - name: Install desktop dependencies
         working-directory: apps/desktop
@@ -94,7 +96,8 @@ jobs:
 
       - name: Run protocol check
         working-directory: apps/desktop
-        run: "$PIXELFLOW_PYTHON" ../../tools/check_protocol_schema.py
+        run: |
+          "$PIXELFLOW_PYTHON" ../../tools/check_protocol_schema.py
 
       - name: Use bash for npm scripts on Windows
         if: runner.os == 'Windows'
