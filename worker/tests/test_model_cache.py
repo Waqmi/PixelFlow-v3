@@ -354,6 +354,20 @@ class ModelServiceTests(unittest.TestCase):
                     self.assertEqual(result["segmentation"]["state"], STATE_READY)
                     self.assertIsNone(service._process)
                     self.assertFalse(service.is_running)
+                    for _ in range(100):
+                        result = service.probe_models(root)
+                        if all(
+                            result[purpose]["model_version"].get("sha256")
+                            for purpose in ("pose", "segmentation")
+                        ):
+                            break
+                        time.sleep(0.01)
+                    self.assertTrue(
+                        all(
+                            result[purpose]["model_version"].get("sha256")
+                            for purpose in ("pose", "segmentation")
+                        )
+                    )
                 finally:
                     service.close()
 
