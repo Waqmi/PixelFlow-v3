@@ -10,6 +10,7 @@ fallback evidence by default so a model is never required to finish a task.
 from __future__ import annotations
 
 import atexit
+from concurrent.futures import Future
 import multiprocessing
 import queue
 import sys
@@ -82,6 +83,19 @@ def _assistant_model_candidates(model_root: Union[str, Path], purpose: str) -> T
     return candidates
 
 
+def _readable_model_version(path: Path) -> Optional[Dict[str, Any]]:
+    """Return stat metadata after a bounded read-open check."""
+    version = file_version(path)
+    if version is None:
+        return None
+    try:
+        with path.open("rb") as handle:
+            handle.read(1)
+    except OSError:
+        return None
+    return version
+
+
 def _probe_model_metadata(model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
     """Report configured model files without constructing ONNX Runtime sessions.
 
@@ -111,7 +125,7 @@ def _probe_model_metadata(model_root: Union[str, Path]) -> Dict[str, Dict[str, A
             }
             continue
         model_path = assistant_candidates[0]
-        version = file_version(model_path, include_digest=True)
+        version = _readable_model_version(model_path)
         if version is None:
             result[purpose] = {
                 "state": STATE_UNAVAILABLE,
@@ -290,6 +304,10 @@ class ModelProcessService:
         self._states: Dict[Tuple[str, str], str] = {}
         self._statuses: Dict[Tuple[str, str], str] = {}
         self._reasons: Dict[Tuple[str, str], str] = {}
+        self._probe_lock = threading.RLock()
+        self._probe_inflight: Dict[str, Future] = {}
+        self._probe_digest_cache: Dict[Tuple[str, int, int], str] = {}
+        self._probe_digest_inflight: Dict[Tuple[str, int, int], Future] = {}
 
     @property
     def is_running(self) -> bool:
@@ -375,6 +393,86 @@ class ModelProcessService:
         else:
             self._reasons.pop(key, None)
 
+    @staticmethod
+    def _probe_key(model_root: Union[str, Path]) -> str:
+        return str(Path(model_root).expanduser().resolve())
+
+    @staticmethod
+    def _probe_digest_key(version: Dict[str, Any]) -> Optional[Tuple[str, int, int]]:
+        try:
+            return str(version["path"]), int(version["mtime_ns"]), int(version["size"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _start_probe_digest(self, key: Tuple[str, int, int], path: Path, future: Future) -> None:
+        """Compute one real model digest without holding the model request lock."""
+        digest: Optional[str] = None
+        try:
+            version = file_version(path, include_digest=True)
+            if version is not None and self._probe_digest_key(version) == key:
+                digest = str(version.get("sha256") or "") or None
+        except Exception:  # noqa: BLE001 - a digest is optional for readiness
+            digest = None
+        with self._probe_lock:
+            if digest:
+                self._probe_digest_cache[key] = digest
+            self._probe_digest_inflight.pop(key, None)
+        future.set_result(digest)
+
+    def _attach_probe_digests(self, result: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Attach cached SHA-256 values and schedule missing ones in the background."""
+        for status in result.values():
+            version = status.get("model_version")
+            if not isinstance(version, dict):
+                continue
+            key = self._probe_digest_key(version)
+            if key is None:
+                continue
+            path = Path(key[0])
+            start = False
+            with self._probe_lock:
+                digest = self._probe_digest_cache.get(key)
+                if digest:
+                    version["sha256"] = digest
+                elif key not in self._probe_digest_inflight:
+                    future = Future()
+                    self._probe_digest_inflight[key] = future
+                    start = True
+            if start:
+                threading.Thread(
+                    target=self._start_probe_digest,
+                    args=(key, path, future),
+                    daemon=True,
+                    name="pixelflow-model-digest",
+                ).start()
+        return result
+
+    def _probe_metadata(self, model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
+        """Deduplicate concurrent metadata probes while keeping them lock-free."""
+        root = str(model_root)
+        key = self._probe_key(root)
+        with self._probe_lock:
+            future = self._probe_inflight.get(key)
+            owner = future is None
+            if owner:
+                future = Future()
+                self._probe_inflight[key] = future
+        assert future is not None
+        if owner:
+            try:
+                result = _probe_model_metadata(root)
+            except Exception as error:  # noqa: BLE001 - preserve existing probe fallback
+                future.set_exception(error)
+                with self._probe_lock:
+                    self._probe_inflight.pop(key, None)
+                raise
+            future.set_result(result)
+            with self._probe_lock:
+                self._probe_inflight.pop(key, None)
+        else:
+            result = future.result()
+        return self._attach_probe_digests(result)
+
     def _request(self, action: str, **payload: Any) -> Any:
         if self._direct:
             return self._request_in_process(action, **payload)
@@ -408,6 +506,8 @@ class ModelProcessService:
 
     def _request_in_process(self, action: str, **payload: Any) -> Any:
         """Run one model request without spawning a second macOS process."""
+        if action == "probe":
+            return self._probe_metadata(payload["model_root"])
         with self._lock:
             if action == "ping":
                 return "ready"
@@ -450,8 +550,6 @@ class ModelProcessService:
             if action == "detect_boxes":
                 assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
                 return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
-            if action == "probe":
-                return _probe_model_metadata(payload["model_root"])
             raise ModelProcessError("未知模型任务：{}".format(action))
 
     def ping(self) -> str:
@@ -472,10 +570,9 @@ class ModelProcessService:
         for purpose in MODEL_PURPOSES:
             self._set_state(root, purpose, STATE_LOADING)
         try:
-            # Probing only reads model metadata.  Do not start the spawned
-            # inference process; a frozen Windows sidecar can hang before it
-            # is used for inference.
-            result = self._request_in_process("probe", model_root=root)
+            # Probe metadata outside the inference lock.  A frozen Windows
+            # sidecar or a large model digest must not delay readiness.
+            result = self._probe_metadata(root)
         except Exception as error:
             reason = str(error)
             for purpose in MODEL_PURPOSES:

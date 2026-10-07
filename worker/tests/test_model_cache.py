@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -26,6 +28,7 @@ from pixelflow_core.model_service import (
     ModelProcessService,
     _worker_main,
 )
+import pixelflow_core.model_service as model_service
 
 
 class ModelCacheTests(unittest.TestCase):
@@ -153,6 +156,12 @@ class ModelServiceTests(unittest.TestCase):
                 finally:
                     service.close()
             self.assertEqual(result["pose"]["state"], STATE_READY)
+            self.assertEqual(result["pose"]["model_version"]["size"], len(b"pose-model"))
+            for _ in range(100):
+                result = service.probe_models(root)
+                if result["pose"]["model_version"].get("sha256"):
+                    break
+                time.sleep(0.01)
             self.assertEqual(result["pose"]["model_version"]["sha256"], hashlib.sha256(b"pose-model").hexdigest())
 
     def test_probe_reports_unavailable_when_model_file_cannot_be_read(self) -> None:
@@ -170,7 +179,7 @@ class ModelServiceTests(unittest.TestCase):
             self.assertEqual(result["pose"]["state"], "不可用")
             self.assertEqual(result["pose"]["status"], "unavailable")
 
-    def test_probe_returns_sha256_for_configured_models(self) -> None:
+    def test_worker_probe_returns_readiness_metadata_without_digest(self) -> None:
         class Queue:
             def __init__(self, items=()):
                 self.items = list(items)
@@ -206,7 +215,80 @@ class ModelServiceTests(unittest.TestCase):
             result = responses.items[0]["result"]
             for purpose, content in model_bytes.items():
                 self.assertEqual(result[purpose]["state"], "已就绪")
-                self.assertEqual(result[purpose]["model_version"]["sha256"], hashlib.sha256(content).hexdigest())
+                self.assertEqual(result[purpose]["model_version"]["size"], len(content))
+                self.assertNotIn("sha256", result[purpose]["model_version"])
+
+    def test_probe_deduplicates_inflight_digest_and_returns_ready_first(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pose_dir = root / "pose"
+            pose_dir.mkdir()
+            model = pose_dir / "model.onnx"
+            model.write_bytes(b"pose-model")
+            real_file_version = model_service.file_version
+            digest_started = threading.Event()
+            digest_calls = 0
+            digest_lock = threading.Lock()
+
+            def slow_file_version(path, *, include_digest=False):
+                nonlocal digest_calls
+                if include_digest:
+                    with digest_lock:
+                        digest_calls += 1
+                    digest_started.set()
+                    time.sleep(0.15)
+                return real_file_version(path, include_digest=include_digest)
+
+            service = ModelProcessService(timeout=1)
+            try:
+                with patch.object(model_service, "file_version", side_effect=slow_file_version):
+                    started = time.monotonic()
+                    first = service.probe_models(root)
+                    elapsed = time.monotonic() - started
+                    second = service.probe_models(root)
+                    self.assertLess(elapsed, 0.1)
+                    self.assertEqual(first["pose"]["state"], STATE_READY)
+                    self.assertEqual(second["pose"]["state"], STATE_READY)
+                    self.assertNotIn("sha256", first["pose"]["model_version"])
+                    self.assertTrue(digest_started.wait(1))
+                    time.sleep(0.2)
+                    final = service.probe_models(root)
+                self.assertEqual(digest_calls, 1)
+                self.assertEqual(final["pose"]["model_version"]["sha256"], hashlib.sha256(b"pose-model").hexdigest())
+            finally:
+                service.close()
+
+    def test_concurrent_metadata_probes_share_one_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pose_dir = root / "pose"
+            pose_dir.mkdir()
+            (pose_dir / "model.onnx").write_bytes(b"pose-model")
+            real_probe = model_service._probe_model_metadata
+            calls = 0
+            calls_lock = threading.Lock()
+
+            def slow_probe(model_root):
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                time.sleep(0.1)
+                return real_probe(model_root)
+
+            service = ModelProcessService(timeout=1)
+            results = []
+            try:
+                with patch.object(model_service, "_probe_model_metadata", side_effect=slow_probe):
+                    threads = [threading.Thread(target=lambda: results.append(service.probe_models(root))) for _ in range(2)]
+                    for thread in threads:
+                        thread.start()
+                    for thread in threads:
+                        thread.join()
+                self.assertEqual(calls, 1)
+                self.assertEqual(len(results), 2)
+                self.assertTrue(all(result["pose"]["state"] == STATE_READY for result in results))
+            finally:
+                service.close()
 
     def test_detection_probe_reports_unavailable_without_sidecar(self) -> None:
         class Assistant:
