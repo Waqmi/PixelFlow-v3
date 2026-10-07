@@ -319,6 +319,19 @@ class ClassificationAdapterTests(unittest.TestCase):
 
 
 class ClassificationRuntimeTests(unittest.TestCase):
+    def test_runtime_reports_structured_preflight_errors(self) -> None:
+        events: list[tuple[str, dict]] = []
+        runtime = WorkerRuntime(emit=lambda _request_id, event_type, payload: events.append((event_type, payload)))
+
+        runtime.start_classification("missing-input", {"product_root": "/path/that/does/not/exist"})
+        self.assertEqual(events[-1][1]["code"], "input_path_missing")
+        self.assertIn("输入路径不存在", events[-1][1]["message"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime.start_classification("empty-input", {"product_root": str(root)})
+            self.assertEqual(events[-1][1]["code"], "no_images")
+
     def test_runtime_emits_classification_progress_and_done(self) -> None:
         events: list[tuple[str, dict]] = []
 
@@ -335,6 +348,9 @@ class ClassificationRuntimeTests(unittest.TestCase):
                 return [decision]
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            Image.new("RGB", (8, 8), "white").save(Path(temp_dir) / "source.jpg")
             runtime = WorkerRuntime(
                 classifier=FakeClassifier(),
                 emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
@@ -357,6 +373,9 @@ class ClassificationRuntimeTests(unittest.TestCase):
                 raise RuntimeError("synthetic classification failure")
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            Image.new("RGB", (8, 8), "white").save(Path(temp_dir) / "source.jpg")
             runtime = WorkerRuntime(
                 classifier=FailingClassifier(),
                 emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),

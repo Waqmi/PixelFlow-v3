@@ -49,6 +49,15 @@ def _worker_build_hash() -> str:
 BUILD_HASH = _worker_build_hash()
 
 
+class WorkerPreflightError(ValueError):
+    """A user-fixable input/output problem found before starting a job."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
 _PREVIEW_CACHE_LIMIT = 128
 _preview_cache: OrderedDict[tuple[str, int, int, int, int], dict[str, str]] = OrderedDict()
 _preview_cache_lock = threading.Lock()
@@ -191,12 +200,24 @@ def _classification_request(payload: dict[str, Any]) -> ClassificationRequest:
 def _preflight_materials(
     request: ClassificationRequest,
     sources: tuple[Path, ...] | list[Path] | None = None,
+    *,
+    strict: bool = False,
 ) -> list[str]:
     from PIL import Image
 
+    product_root = request.product_root.expanduser()
+    if not product_root.exists():
+        raise WorkerPreflightError("input_path_missing", f"输入路径不存在：{product_root}")
+    if not product_root.is_dir() or not os.access(product_root, os.R_OK | os.X_OK):
+        raise WorkerPreflightError("input_path_unreadable", f"输入路径不可读取：{product_root}")
+    try:
+        next(iter(product_root.iterdir()), None)
+    except OSError as error:
+        raise WorkerPreflightError("input_path_unreadable", f"输入路径不可读取：{product_root}（{error}）") from error
+
     sources = tuple(sources) if sources is not None else tuple(_material_sources(request.product_root))
     if not sources:
-        raise ValueError("文件夹内没有 JPG、JPEG 或 PNG 图片")
+        raise WorkerPreflightError("no_images", f"文件夹内没有 JPG、JPEG 或 PNG 图片：{product_root}")
     unreadable: list[str] = []
     oversized: list[str] = []
     for source in sources:
@@ -206,6 +227,9 @@ def _preflight_materials(
                     oversized.append(source.name)
         except Exception:
             unreadable.append(source.name)
+    if strict and unreadable:
+        examples = ", ".join(unreadable[:3])
+        raise WorkerPreflightError("input_image_unreadable", f"输入图片不可读取：{examples}")
     warnings = []
     if unreadable:
         warnings.append(f"无法读取 {len(unreadable)} 张图片（例如：{', '.join(unreadable[:3])}）。")
@@ -213,20 +237,28 @@ def _preflight_materials(
         warnings.append(f"有 {len(oversized)} 张图片超过 5000 万像素，处理时可能占用较多内存。")
     if request.output_root is not None:
         output = request.output_root
-        product_root = request.product_root.expanduser().resolve()
+        product_resolved = product_root.resolve()
         output_resolved = output.expanduser().resolve(strict=False)
-        if output_resolved == product_root or product_root in output_resolved.parents:
-            raise ValueError("输出目录不能与输入目录相同，也不能位于输入目录内")
+        if output_resolved == product_resolved or product_resolved in output_resolved.parents:
+            raise WorkerPreflightError("output_path_conflict", "输出目录不能与输入目录相同，也不能位于输入目录内")
         if output.exists() and not output.is_dir():
-            raise ValueError(f"输出位置不是文件夹：{output}")
+            raise WorkerPreflightError("output_path_invalid", f"输出位置不是文件夹：{output}")
         parent = output
         while not parent.exists() and parent != parent.parent:
             parent = parent.parent
-        if not os.access(parent, os.W_OK):
-            raise ValueError(f"输出位置不可写：{output}")
+        if not parent.exists() or not os.access(parent, os.W_OK):
+            raise WorkerPreflightError("output_path_unwritable", f"输出位置不可写：{output}")
         if shutil.disk_usage(parent).free < 200 * 1024 * 1024:
             warnings.append("输出磁盘可用空间低于 200 MB，批量生成可能中途失败。")
     return warnings
+
+
+def _preflight_generation(request: GenerationRequest) -> None:
+    """Run the same input/output checks before a generation thread starts."""
+    _preflight_materials(
+        ClassificationRequest(request.product_root, output_root=request.output_root),
+        strict=True,
+    )
 
 
 def _preview_roots(payload: dict[str, Any]) -> tuple[Path, ...]:
@@ -345,6 +377,11 @@ class WorkerRuntime:
             request_payload = dict(payload)
             request_payload["_request_id"] = request_id
             request = _generation_request(request_payload)
+            try:
+                _preflight_generation(request)
+            except WorkerPreflightError as error:
+                self._emit(request_id, "error", {"code": error.code, "message": error.message})
+                return
             request.validate()
             self._request_id = request_id
             self._cancel_event = threading.Event()
@@ -361,6 +398,11 @@ class WorkerRuntime:
             if self.busy:
                 raise RuntimeError("a job is already running")
             request = _classification_request(payload)
+            try:
+                _preflight_materials(request, strict=True)
+            except WorkerPreflightError as error:
+                self._emit(request_id, "error", {"code": error.code, "message": error.message})
+                return
             request.validate()
             self._request_id = request_id
             self._cancel_event = threading.Event()

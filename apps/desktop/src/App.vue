@@ -883,6 +883,12 @@ function failModelProbe(message: string) {
   releaseModelProbe(root)
 }
 
+function workerErrorDetail(stage: string, code: string, message: string) {
+  const input = inputRoot.value || '未设置'
+  const output = outputRoot.value || '未设置'
+  return `阶段：${stage}；错误：${code}：${message}；输入：${input}；输出：${output}`
+}
+
 function scheduleModelProbeRetry(root: string) {
   if (modelProbeRetryTimer !== undefined) return
   modelProbeRetryTimer = window.setTimeout(() => {
@@ -911,10 +917,11 @@ function probeModels() {
   modelStatus.value = '状态：正在检测外部模型…'
   modelProbeRoot = root
   modelProbeRequestId.value = worker.request('probe_models', { model_root: localModelPath.value })
+  const requestId = modelProbeRequestId.value
   clearModelProbeTimeout()
   modelProbeTimeout = window.setTimeout(() => {
     modelProbeTimeout = undefined
-    failModelProbe('状态：模型检测超时；Worker 未返回检测结果')
+    failModelProbe(`状态：模型检测超时；Worker 未返回检测结果（Worker：${worker ? '已连接' : '未连接'}；路径：${root}；请求 ID：${requestId}）`)
   }, modelProbeTimeoutMs)
 }
 
@@ -1713,9 +1720,16 @@ function handleWorkerMessage(message: WorkerMessage) {
     isCancelling.value = false
     if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
     classificationRunning.value = false
-    status.value = String(payload.message || 'Worker 执行失败')
-    taskPhase.value = '生成失败'
-    taskDetail.value = '任务未完成，请检查素材与输出位置后重试。'
+    const errorCode = String(payload.code || 'error')
+    const errorMessage = String(payload.message || 'Worker 执行失败')
+    const failedStage = message.request_id === classificationRequestId.value
+      ? '识别分类'
+      : message.request_id === generationRequestId.value
+        ? '生成图片'
+        : '任务'
+    status.value = errorMessage
+    taskPhase.value = `${failedStage}失败`
+    taskDetail.value = workerErrorDetail(failedStage, errorCode, errorMessage)
   }
 }
 
