@@ -17,9 +17,10 @@ export async function installTauriWorkerBridge(): Promise<boolean> {
     listeners.forEach((listener) => listener(line))
   }
   const sendLine = (line: string) => {
+    let request_id = 'worker'
+    try { request_id = String(JSON.parse(line).request_id || 'worker') } catch { /* malformed sends fail globally */ }
     void invoke('worker_send', { line }).catch((error) => {
-      const request_id = JSON.parse(line).request_id
-      emitLine(JSON.stringify({ protocol: 1, request_id, type: 'error', payload: { message: String(error) } }))
+      emitLine(JSON.stringify({ protocol: 1, request_id, type: 'error', payload: { code: 'send_failed', message: String(error) } }))
     })
   }
   const bridge: WorkerBridge = {
@@ -48,6 +49,7 @@ export async function installTauriWorkerBridge(): Promise<boolean> {
       request_id: 'worker',
       type: 'error',
       payload: {
+        code: 'worker_exit',
         message: payload?.message || 'Worker 已退出',
         task_id: payload?.task_id,
         retryable: payload?.retryable,

@@ -6,7 +6,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::PathBuf,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -34,6 +34,11 @@ const MAX_DIAGNOSTIC_LOG_BYTES: usize = 256 * 1024;
 struct WorkerProcess {
     child: Child,
     stdin: ChildStdin,
+}
+
+struct SpawnedWorker {
+    process: WorkerProcess,
+    stdout: ChildStdout,
 }
 
 struct WorkerSupervisor {
@@ -627,17 +632,10 @@ fn restart_worker(app: &AppHandle, task_id: Option<String>) {
     thread::sleep(delay);
     match spawn_worker(app) {
         Ok(next) => {
-            let state = app.state::<WorkerState>();
-            if let Ok(mut guard) = state.0.lock() {
-                if guard.shutting_down {
-                    drop(guard);
-                    let mut next = next;
-                    let _ = next.child.kill();
-                    let _ = next.child.wait();
-                } else {
-                    guard.process = Some(next);
-                }
-            };
+            if let Err(error) = install_worker(app, next) {
+                emit_worker_exit(app, &format!("Worker 重启失败：{error}"), task_id.clone(), true);
+                restart_worker(app, task_id);
+            }
         }
         Err(error) => {
             emit_worker_exit(app, &format!("Worker 重启失败：{error}"), task_id.clone(), true);
@@ -652,7 +650,148 @@ fn worker_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("../../worker"))
 }
 
-fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
+fn take_current_worker_exit(
+    guard: &mut WorkerSupervisor,
+    pid: u32,
+) -> Option<(WorkerProcess, Option<String>, bool)> {
+    if guard.process.as_ref().map(|process| process.child.id()) != Some(pid) {
+        return None;
+    }
+    let task_id = guard.active_task_id.take();
+    let process = guard.process.take()?;
+    Some((process, task_id, !guard.shutting_down))
+}
+
+fn emit_worker_transport_error(app: &AppHandle, pid: u32, code: &str, message: &str) {
+    let line = serde_json::json!({
+        "protocol": 1,
+        "request_id": "worker",
+        "type": "error",
+        "payload": { "code": code, "message": message },
+    })
+    .to_string();
+    let state = app.state::<WorkerState>();
+    if let Ok(guard) = state.0.lock() {
+        if guard.process.as_ref().map(|process| process.child.id()) == Some(pid) {
+            let _ = app.emit("worker-line", line);
+        }
+    };
+}
+
+fn install_worker(app: &AppHandle, spawned: SpawnedWorker) -> Result<(), String> {
+    let SpawnedWorker { mut process, stdout } = spawned;
+    let pid = process.child.id();
+    let state = app.state::<WorkerState>();
+    let mut guard = match state.0.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            let _ = process.child.kill();
+            let _ = process.child.wait();
+            return Err("worker state lock failed".to_string());
+        }
+    };
+    if guard.shutting_down || guard.process.is_some() {
+        drop(guard);
+        let _ = process.child.kill();
+        let _ = process.child.wait();
+        return Ok(());
+    }
+    guard.process = Some(process);
+    drop(guard);
+
+    let app = app.clone();
+    thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        loop {
+            let mut bytes = Vec::new();
+            match reader.read_until(b'\n', &mut bytes) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if bytes.last() == Some(&b'\n') {
+                        bytes.pop();
+                        if bytes.last() == Some(&b'\r') {
+                            bytes.pop();
+                        }
+                    }
+                    let line = match String::from_utf8(bytes) {
+                        Ok(line) => line,
+                        Err(error) => {
+                            emit_worker_transport_error(
+                                &app,
+                                pid,
+                                "stdout_decode_failed",
+                                &format!("Worker stdout is not UTF-8: {error}"),
+                            );
+                            continue;
+                        }
+                    };
+                    let message = match serde_json::from_str::<Value>(&line) {
+                        Ok(message) => message,
+                        Err(error) => {
+                            emit_worker_transport_error(
+                                &app,
+                                pid,
+                                "stdout_json_invalid",
+                                &format!("Worker stdout contains invalid JSON: {error}"),
+                            );
+                            continue;
+                        }
+                    };
+                    let state = app.state::<WorkerState>();
+                    let Ok(mut guard) = state.0.lock() else {
+                        return;
+                    };
+                    if guard.process.as_ref().map(|process| process.child.id()) != Some(pid) {
+                        return;
+                    }
+                    let request_id = message.get("request_id").and_then(Value::as_str);
+                    let event_type = message.get("type").and_then(Value::as_str);
+                    if matches!(event_type, Some("done" | "cancelled" | "error"))
+                        && guard.active_task_id.as_deref() == request_id
+                    {
+                        guard.active_task_id = None;
+                    }
+                    let _ = app.emit("worker-line", line);
+                    drop(guard);
+                }
+                Err(error) => {
+                    emit_worker_transport_error(
+                        &app,
+                        pid,
+                        "stdout_read_failed",
+                        &format!("Worker stdout read failed: {error}"),
+                    );
+                    break;
+                }
+            }
+        }
+
+        let state = app.state::<WorkerState>();
+        let (mut old, task_id, should_restart) = {
+            let Ok(mut guard) = state.0.lock() else { return };
+            let Some(exit) = take_current_worker_exit(&mut guard, pid) else { return };
+            if exit.2 {
+                let _ = app.emit(
+                    "worker-exit",
+                    worker_exit_payload(
+                        "Worker 意外退出；已保留完成的输出，正在重启",
+                        exit.1.clone(),
+                        true,
+                    ),
+                );
+            }
+            exit
+        };
+        let _ = old.child.kill();
+        let _ = old.child.wait();
+        if should_restart {
+            restart_worker(&app, task_id);
+        }
+    });
+    Ok(())
+}
+
+fn spawn_worker(app: &AppHandle) -> Result<SpawnedWorker, String> {
     let bundled_worker = app
         .path()
         .resource_dir()
@@ -677,6 +816,7 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
     };
     let mut command = Command::new(program);
     command.args(args);
+    command.env("PYTHONIOENCODING", "utf-8");
     if let Some(directory) = working_dir {
         command.current_dir(directory);
     }
@@ -689,42 +829,11 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
         .spawn()
         .map_err(|error| format!("worker start failed: {error}"))?;
     let stdout = child.stdout.take().ok_or_else(|| "worker stdout unavailable".to_string())?;
-    let app = app.clone();
-    thread::spawn(move || {
-        for line in BufReader::new(stdout).lines().flatten() {
-            if let Ok(message) = serde_json::from_str::<Value>(&line) {
-                let request_id = message.get("request_id").and_then(Value::as_str);
-                let event_type = message.get("type").and_then(Value::as_str);
-                let state = app.state::<WorkerState>();
-                if let Ok(mut guard) = state.0.lock() {
-                    if matches!(event_type, Some("done" | "cancelled" | "error"))
-                        && guard.active_task_id.as_deref() == request_id
-                    {
-                        guard.active_task_id = None;
-                    }
-                };
-            }
-            let _ = app.emit("worker-line", line);
-        }
-        let state = app.state::<WorkerState>();
-        let (task_id, should_restart) = if let Ok(mut guard) = state.0.lock() {
-            let task_id = guard.active_task_id.take();
-            let old = guard.process.take();
-            if let Some(mut old) = old {
-                let _ = old.child.kill();
-                let _ = old.child.wait();
-            }
-            (task_id, !guard.shutting_down)
-        } else {
-            (None, false)
-        };
-        if should_restart {
-            emit_worker_exit(&app, "Worker 意外退出；已保留完成的输出，正在重启", task_id.clone(), true);
-            restart_worker(&app, task_id);
-        }
-    });
     let stdin = child.stdin.take().ok_or_else(|| "worker stdin unavailable".to_string())?;
-    Ok(WorkerProcess { child, stdin })
+    Ok(SpawnedWorker {
+        process: WorkerProcess { child, stdin },
+        stdout,
+    })
 }
 
 fn main() {
@@ -739,16 +848,7 @@ fn main() {
         .manage(state)
         .setup(|app| {
             let process = spawn_worker(app.handle())?;
-            let state = app.state::<WorkerState>();
-            let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
-            if guard.process.is_none() {
-                guard.process = Some(process);
-            } else {
-                drop(guard);
-                let mut process = process;
-                let _ = process.child.kill();
-                let _ = process.child.wait();
-            }
+            install_worker(app.handle(), process)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -788,6 +888,37 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_worker_exit_does_not_take_replacement_process() {
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .arg("--list")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let current_pid = child.id();
+        let stdin = child.stdin.take().unwrap();
+        let mut guard = WorkerSupervisor {
+            process: Some(WorkerProcess { child, stdin }),
+            restart_history: VecDeque::new(),
+            active_task_id: Some("new-task".to_string()),
+            preview_roots: Vec::new(),
+            shutting_down: false,
+        };
+
+        assert!(take_current_worker_exit(&mut guard, current_pid.wrapping_add(1)).is_none());
+        assert_eq!(guard.process.as_ref().map(|process| process.child.id()), Some(current_pid));
+        assert_eq!(guard.active_task_id.as_deref(), Some("new-task"));
+
+        let (mut process, task_id, should_restart) = take_current_worker_exit(&mut guard, current_pid).unwrap();
+        assert_eq!(task_id.as_deref(), Some("new-task"));
+        assert!(should_restart);
+        assert!(guard.process.is_none());
+        let _ = process.child.kill();
+        let _ = process.child.wait();
+    }
 
     #[test]
     fn restart_budget_stops_after_three_attempts() {

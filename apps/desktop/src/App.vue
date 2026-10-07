@@ -749,6 +749,7 @@ function armClassificationWatchdog() {
     classificationWatchdog = undefined
     const requestId = classificationRequestId.value
     if (!requestId || !classificationRunning.value) return
+    worker?.cancelRequest(requestId)
     worker?.request('cancel_generation', { request_id: requestId })
     classificationRunning.value = false
     setClassificationProgress(0, true)
@@ -770,6 +771,8 @@ function settleCancellation(message: string, detail: string, phase = '已安全�
   clearCancelWatchdog()
   clearClassificationWatchdog()
   const target = cancelTargetRequestId.value
+  if (target) worker?.cancelRequest(target)
+  if (cancelRequestId.value) worker?.cancelRequest(cancelRequestId.value)
   if (target && target === classificationRequestId.value) {
     updateResumePhase('cancelled')
     classificationRunning.value = false
@@ -894,6 +897,7 @@ function clearModelProbeTimeout() {
 function failModelProbe(message: string) {
   clearModelProbeTimeout()
   if (!modelTesting.value) return
+  if (modelProbeRequestId.value) worker?.cancelRequest(modelProbeRequestId.value)
   modelProbeRequestId.value = undefined
   modelTesting.value = false
   modelStatus.value = message
@@ -1653,6 +1657,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskDetail.value = status.value
     void openConfirmWindow()
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
+    classificationRequestId.value = undefined
   } else if (message.type === 'done' && message.request_id === modelProbeRequestId.value) {
     clearModelProbeTimeout()
     const root = modelProbeRoot
@@ -1692,6 +1697,9 @@ function handleWorkerMessage(message: WorkerMessage) {
     clearResumeTask()
     materialConfirmed.value = false
     showReport()
+    generationRequestId.value = undefined
+    cancelRequestId.value = undefined
+    cancelTargetRequestId.value = undefined
   } else if (message.type === 'cancelled' && message.request_id === generationRequestId.value) {
     clearCancelWatchdog()
     isRunning.value = false
@@ -1703,8 +1711,11 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskPhase.value = '已安全停止'
     taskDetail.value = '已保留已完成的输出。'
     showReport()
+    generationRequestId.value = undefined
+    cancelRequestId.value = undefined
+    cancelTargetRequestId.value = undefined
   } else if (message.type === 'cancelled' && message.request_id === classificationRequestId.value) {
-    updateResumePhase('cancelled')
+    cancelTargetRequestId.value = message.request_id
     settleCancellation('素材分析已取消', '素材识别已停止，未开始生成；可以调整选项后重新开始。')
   } else if (message.type === 'status' && message.request_id === cancelRequestId.value) {
     if (payload.state === 'cancelling') {
@@ -1714,40 +1725,84 @@ function handleWorkerMessage(message: WorkerMessage) {
     }
   } else if (message.type === 'error') {
     if (message.request_id === cancelRequestId.value) {
-      settleCancellation('取消请求失败', String(payload.message || 'Worker 未接受取消请求'), '任务失败')
+      const target = cancelTargetRequestId.value
+      const classificationStillRunning = target === classificationRequestId.value && classificationRunning.value
+      const generationStillRunning = target === generationRequestId.value && isRunning.value
+      clearCancelWatchdog()
+      worker?.cancelRequest(message.request_id)
+      cancelRequestId.value = undefined
+      cancelTargetRequestId.value = undefined
+      isCancelling.value = false
+      if (classificationStillRunning || generationStillRunning) {
+        status.value = '取消请求失败'
+        taskPhase.value = classificationStillRunning ? '识别分类' : '生成图片'
+        taskDetail.value = `${String(payload.message || 'Worker 未接受取消请求')}；当前任务仍在运行，可以稍后重试取消。`
+      }
       return
     }
     if (message.request_id === modelProbeRequestId.value) {
       failModelProbe(`状态：模型检测失败；${String(payload.message || '请检查模型目录')}（${requestDiagnosticDetail(message.request_id)}）`)
       return
     }
-    if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
-    if (message.request_id === 'worker') {
+    const isWorkerError = message.request_id === 'worker'
+    if (isWorkerError) {
       workerConnected.value = false
-      workerReadyState.value = 'Worker 已退出'
-      workerInterrupted.value = true
-      const taskId = String(payload.task_id || '')
+      const errorCode = String(payload.code || 'error')
+      workerReadyState.value = errorCode === 'worker_exit' ? 'Worker 已退出' : 'Worker 通信异常'
+
+      const activeClassificationId = classificationRequestId.value
+      const activeGenerationId = generationRequestId.value
+      const activeModelProbeId = modelProbeRequestId.value
+      const activeTaskRequestId = activeClassificationId || activeGenerationId || cancelTargetRequestId.value
       if (modelTesting.value) {
         modelProbeReadyHandled = false
         failModelProbe('状态：Worker 已中断，模型检测未完成')
       }
-      if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
+      if (!activeTaskRequestId) return
+
+      const errorMessage = String(payload.message || 'Worker 执行失败')
+      const failedStage = activeClassificationId
+        ? '识别分类'
+        : activeGenerationId ? '生成图片' : activeModelProbeId ? '模型检测' : '任务'
       updateResumePhase('interrupted')
-    } else if (message.request_id === generationRequestId.value || message.request_id === classificationRequestId.value) {
-      updateResumePhase('failed')
+      workerInterrupted.value = true
+      clearClassificationWatchdog()
+      clearCancelWatchdog()
+      isRunning.value = false
+      isCancelling.value = false
+      if (activeClassificationId) setClassificationProgress(0, true)
+      classificationRunning.value = false
+      generationRequestId.value = undefined
+      classificationRequestId.value = undefined
+      cancelRequestId.value = undefined
+      cancelTargetRequestId.value = undefined
+      status.value = errorMessage
+      taskPhase.value = errorCode === 'worker_exit' ? `${failedStage}中断` : `${failedStage}失败`
+      taskDetail.value = workerErrorDetail(
+        failedStage,
+        errorCode,
+        errorMessage,
+        activeClassificationId || activeGenerationId || activeModelProbeId || message.request_id,
+      )
+      return
     }
-    clearClassificationWatchdog()
-    isRunning.value = false
-    isCancelling.value = false
-    if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
-    classificationRunning.value = false
+    const isGenerationError = message.request_id === generationRequestId.value
+    const isClassificationError = message.request_id === classificationRequestId.value
+    if (!isGenerationError && !isClassificationError) return
     const errorCode = String(payload.code || 'error')
     const errorMessage = String(payload.message || 'Worker 执行失败')
-    const failedStage = message.request_id === classificationRequestId.value
-      ? '识别分类'
-      : message.request_id === generationRequestId.value
-        ? '生成图片'
-        : '任务'
+    const failedStage = isClassificationError ? '识别分类' : '生成图片'
+    updateResumePhase('failed')
+    clearClassificationWatchdog()
+    clearCancelWatchdog()
+    isRunning.value = false
+    isCancelling.value = false
+    if (isClassificationError) setClassificationProgress(0, true)
+    classificationRunning.value = false
+    if (isGenerationError) generationRequestId.value = undefined
+    if (isClassificationError) classificationRequestId.value = undefined
+    cancelRequestId.value = undefined
+    cancelTargetRequestId.value = undefined
     status.value = errorMessage
     taskPhase.value = `${failedStage}失败`
     taskDetail.value = workerErrorDetail(failedStage, errorCode, errorMessage, message.request_id)
@@ -1896,11 +1951,9 @@ async function loadMaterialPreview(material: MaterialDecision, session = preview
     const request = workerClient.requestResult<{ path: string; max_width: number; max_height: number; allowed_roots: string[] }, { mime_type: string; data: string }>(
       'read_preview',
       { path: material.source, max_width: 198, max_height: 138, allowed_roots: [classifiedInputRoot.value || inputRoot.value] },
+      15_000,
     )
-    const preview = await Promise.race([
-      request,
-      new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('预览读取超时')), 15000)),
-    ])
+    const preview = await request
     if (session !== previewSession) return
     const target = currentMaterial() || material
     const binary = atob(preview.data)

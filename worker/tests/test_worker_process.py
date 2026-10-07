@@ -1,11 +1,71 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+
+class WorkerStdioTests(unittest.TestCase):
+    def test_unicode_jsonl_paths_use_utf8_with_legacy_stdio_setting(self) -> None:
+        worker_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "cp936"
+            env["PIXELFLOW_LOG_DIR"] = temp_dir
+            process = subprocess.Popen(
+                [sys.executable, "-m", "pixelflow_core.worker"],
+                cwd=worker_root,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=env,
+            )
+            assert process.stdin is not None and process.stdout is not None
+            try:
+                ready = json.loads(process.stdout.readline().decode("utf-8"))
+                self.assertEqual(ready["type"], "ready")
+                for request_id, input_name, output_name in (
+                    ("unicode-path", "不存在的中文输入目录", "中文输出目录"),
+                    ("ascii-path", "missing_ascii_input", "ascii_output"),
+                ):
+                    input_path = str(Path(temp_dir) / input_name)
+                    output_path = str(Path(temp_dir) / output_name)
+                    request = {
+                        "protocol": 1,
+                        "request_id": request_id,
+                        "type": "classify_materials",
+                        "payload": {"product_root": input_path, "output_root": output_path},
+                    }
+                    process.stdin.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
+                    process.stdin.flush()
+                    events = []
+                    while True:
+                        line = process.stdout.readline()
+                        self.assertTrue(line, "worker exited before returning the path result")
+                        event = json.loads(line.decode("utf-8"))
+                        if event.get("request_id") == request_id:
+                            events.append(event)
+                            if event.get("type") == "status":
+                                break
+                    error = next(event for event in events if event.get("type") == "error")
+                    self.assertIn(input_path, error["payload"]["message"])
+                    self.assertEqual([event["type"] for event in events], ["error", "status"])
+
+                process.stdin.write(b'{"protocol":1,"request_id":"shutdown","type":"shutdown","payload":{}}\n')
+                process.stdin.flush()
+                shutdown = json.loads(process.stdout.readline().decode("utf-8"))
+                self.assertEqual(shutdown["type"], "done")
+                process.stdin.close()
+                process.stdout.close()
+                self.assertEqual(process.wait(timeout=5), 0)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
 
 
 class WorkerProcessTests(unittest.TestCase):

@@ -720,7 +720,15 @@ def handle_message(message: Message) -> tuple[str, bool]:
     ), False
 
 
+def _configure_stdio_utf8() -> None:
+    for stream in (sys.stdin, sys.stdout):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
+
+
 def main() -> int:
+    _configure_stdio_utf8()
     output_lock = threading.Lock()
     preview_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pixelflow-preview")
 
