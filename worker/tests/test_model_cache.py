@@ -136,6 +136,40 @@ class ModelCacheTests(unittest.TestCase):
 
 
 class ModelServiceTests(unittest.TestCase):
+    def test_probe_reads_metadata_without_instantiating_onnx_assistants(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pose_dir = root / "pose"
+            pose_dir.mkdir()
+            model = pose_dir / "model.onnx"
+            model.write_bytes(b"pose-model")
+            with patch(
+                "pixelflow_core.model_service._load_assistant",
+                side_effect=AssertionError("probe must not instantiate an assistant"),
+            ):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(root)
+                finally:
+                    service.close()
+            self.assertEqual(result["pose"]["state"], STATE_READY)
+            self.assertEqual(result["pose"]["model_version"]["sha256"], hashlib.sha256(b"pose-model").hexdigest())
+
+    def test_probe_reports_unavailable_when_model_file_cannot_be_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pose_dir = root / "pose"
+            pose_dir.mkdir()
+            (pose_dir / "model.onnx").write_bytes(b"pose-model")
+            with patch("pixelflow_core.model_service.file_version", return_value=None):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(root)
+                finally:
+                    service.close()
+            self.assertEqual(result["pose"]["state"], "不可用")
+            self.assertEqual(result["pose"]["status"], "unavailable")
+
     def test_probe_returns_sha256_for_configured_models(self) -> None:
         class Queue:
             def __init__(self, items=()):

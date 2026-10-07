@@ -82,6 +82,54 @@ def _assistant_model_candidates(model_root: Union[str, Path], purpose: str) -> T
     return candidates
 
 
+def _probe_model_metadata(model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
+    """Report configured model files without constructing ONNX Runtime sessions.
+
+    Model probing runs while the desktop settings page is open.  Loading an
+    ONNX session here makes a read-only status check depend on the platform's
+    frozen runtime, antivirus, and external-drive latency.  Actual inference
+    still loads the assistant through ``_load_assistant`` when it is needed.
+    """
+    result: Dict[str, Dict[str, Any]] = {}
+    root = str(model_root)
+    for purpose in MODEL_PURPOSES:
+        candidates = configured_model_candidates(root, purpose)
+        if not candidates:
+            result[purpose] = {
+                "state": STATE_UNCONFIGURED,
+                "status": STATUS_UNCONFIGURED,
+                "fallback": True,
+            }
+            continue
+        assistant_candidates = _assistant_model_candidates(root, purpose)
+        if not assistant_candidates:
+            result[purpose] = {
+                "state": STATE_UNAVAILABLE,
+                "status": STATUS_UNAVAILABLE,
+                "fallback": True,
+                "error": "detection/ 中缺少与 ONNX 同名的 .classes.json",
+            }
+            continue
+        model_path = assistant_candidates[0]
+        version = file_version(model_path, include_digest=True)
+        if version is None:
+            result[purpose] = {
+                "state": STATE_UNAVAILABLE,
+                "status": STATUS_UNAVAILABLE,
+                "fallback": True,
+                "error": "模型文件不可读取",
+            }
+            continue
+        result[purpose] = {
+            "state": STATE_READY,
+            "status": STATUS_READY,
+            "fallback": False,
+            "model": model_path.name,
+            "model_version": version,
+        }
+    return result
+
+
 def _model_cache_key(model_root: Union[str, Path], purpose: str, model_path: Path) -> Tuple[Any, ...]:
     version = file_version(model_path) or {"path": str(model_path.resolve())}
     return (
@@ -208,42 +256,7 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                 assistant = _load_assistant(assistants, request["model_root"], "detection")
                 result = assistant.boxes_for(Path(request["source"]), str(request.get("category", "shoes")))
             elif action == "probe":
-                result = {}
-                for purpose in MODEL_PURPOSES:
-                    candidates = configured_model_candidates(request["model_root"], purpose)
-                    if not candidates:
-                        result[purpose] = {
-                            "state": STATE_UNCONFIGURED,
-                            "status": STATUS_UNCONFIGURED,
-                            "fallback": True,
-                        }
-                        continue
-                    assistant_candidates = _assistant_model_candidates(request["model_root"], purpose)
-                    if not assistant_candidates:
-                        result[purpose] = {
-                            "state": STATE_UNAVAILABLE,
-                            "status": STATUS_UNAVAILABLE,
-                            "fallback": True,
-                            "error": "detection/ 中缺少与 ONNX 同名的 .classes.json",
-                        }
-                        continue
-                    try:
-                        assistant = _load_assistant(assistants, request["model_root"], purpose)
-                        model_path = getattr(assistant, "model_path", assistant_candidates[0])
-                        result[purpose] = {
-                            "state": STATE_READY,
-                            "status": STATUS_READY,
-                            "fallback": False,
-                            "model": Path(model_path).name,
-                            "model_version": file_version(Path(model_path), include_digest=True),
-                        }
-                    except Exception as error:  # noqa: BLE001 - report each optional model
-                        result[purpose] = {
-                            "state": STATE_UNAVAILABLE,
-                            "status": STATUS_UNAVAILABLE,
-                            "fallback": True,
-                            "error": str(error),
-                        }
+                result = _probe_model_metadata(request["model_root"])
             else:
                 raise ModelProcessError("未知模型任务：{}".format(action))
             response_queue.put({"task_id": task_id, "result": result, "error": ""})
@@ -438,47 +451,7 @@ class ModelProcessService:
                 assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
                 return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
             if action == "probe":
-                result: Dict[str, Dict[str, Any]] = {}
-                for purpose in MODEL_PURPOSES:
-                    candidates = configured_model_candidates(payload["model_root"], purpose)
-                    if not candidates:
-                        result[purpose] = {
-                            "state": STATE_UNCONFIGURED,
-                            "status": STATUS_UNCONFIGURED,
-                            "fallback": True,
-                        }
-                        continue
-                    assistant_candidates = _assistant_model_candidates(payload["model_root"], purpose)
-                    if not assistant_candidates:
-                        result[purpose] = {
-                            "state": STATE_UNAVAILABLE,
-                            "status": STATUS_UNAVAILABLE,
-                            "fallback": True,
-                            "error": "detection/ 中缺少与 ONNX 同名的 .classes.json",
-                        }
-                        continue
-                    try:
-                        assistant = _load_assistant(
-                            self._direct_assistants,
-                            payload["model_root"],
-                            purpose,
-                        )
-                        model_path = getattr(assistant, "model_path", assistant_candidates[0])
-                        result[purpose] = {
-                            "state": STATE_READY,
-                            "status": STATUS_READY,
-                            "fallback": False,
-                            "model": Path(model_path).name,
-                            "model_version": file_version(Path(model_path), include_digest=True),
-                        }
-                    except Exception as error:  # noqa: BLE001 - keep probe per-model
-                        result[purpose] = {
-                            "state": STATE_UNAVAILABLE,
-                            "status": STATUS_UNAVAILABLE,
-                            "fallback": True,
-                            "error": str(error),
-                        }
-                return result
+                return _probe_model_metadata(payload["model_root"])
             raise ModelProcessError("未知模型任务：{}".format(action))
 
     def ping(self) -> str:
