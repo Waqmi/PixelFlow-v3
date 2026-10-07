@@ -1247,6 +1247,7 @@ class EngineAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"
             product_root.mkdir()
+            Image.new("RGB", (8, 8), "white").save(product_root / "source.jpg")
             runtime = WorkerRuntime(
                 adapter=FakeAdapter(),
                 emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
@@ -1279,6 +1280,7 @@ class EngineAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"
             product_root.mkdir()
+            Image.new("RGB", (8, 8), "white").save(product_root / "source.jpg")
             runtime = WorkerRuntime(
                 adapter=FakeAdapter(),
                 emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
@@ -1308,6 +1310,7 @@ class EngineAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"
             product_root.mkdir()
+            Image.new("RGB", (8, 8), "white").save(product_root / "source.jpg")
             runtime = WorkerRuntime(
                 adapter=FakeAdapter(),
                 emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
