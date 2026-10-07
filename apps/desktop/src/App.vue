@@ -93,6 +93,11 @@ interface ModelDiagnostic {
   model_version?: { path?: string; sha256?: string; size?: number; mtime_ns?: number }
 }
 
+interface RequestDiagnostics {
+  stage?: string
+  logPath?: string
+}
+
 function readInitialTheme(): Theme {
   try {
     const storedTheme = localStorage.getItem('pixelflow.theme')
@@ -147,6 +152,19 @@ function markProgressComplete() {
     progressComplete.value = false
     progressCompleteTimer = undefined
   }, 700)
+}
+
+function rememberRequestDiagnostics(requestId: string, payload: Record<string, unknown>) {
+  const stage = typeof payload.stage === 'string' ? payload.stage : undefined
+  const logPath = typeof payload.log_path === 'string' ? payload.log_path : undefined
+  if (!stage && !logPath) return
+  requestDiagnostics.set(requestId, { stage, logPath })
+  if (requestDiagnostics.size > 64) requestDiagnostics.delete(requestDiagnostics.keys().next().value as string)
+}
+
+function requestDiagnosticDetail(requestId: string) {
+  const detail = requestDiagnostics.get(requestId)
+  return `最后阶段：${detail?.stage || '未知'}；日志：${detail?.logPath || '未知'}`
 }
 
 const classificationConcurrency = ref('auto')
@@ -252,6 +270,7 @@ let modelProbeRoot = ''
 let modelProbeRetryTimer: number | undefined
 let modelProbeTimeout: ReturnType<typeof window.setTimeout> | undefined
 let modelProbeReadyHandled = false
+const requestDiagnostics = new Map<string, RequestDiagnostics>()
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
 let stopNativeThemeListener: (() => void) | undefined
@@ -737,7 +756,7 @@ function armClassificationWatchdog() {
     classificationRequestId.value = undefined
     status.value = '素材分析超时，请重试'
     taskPhase.value = '分析失败'
-    taskDetail.value = 'Worker 在限定时间内没有返回分类结果；已请求停止当前任务。'
+    taskDetail.value = `Worker 在限定时间内没有返回分类结果；已请求停止当前任务（请求 ID：${requestId}；${requestDiagnosticDetail(requestId)}）。`
     updateResumePhase('failed')
   }, 120_000)
 }
@@ -883,10 +902,11 @@ function failModelProbe(message: string) {
   releaseModelProbe(root)
 }
 
-function workerErrorDetail(stage: string, code: string, message: string) {
+function workerErrorDetail(stage: string, code: string, message: string, requestId?: string) {
   const input = inputRoot.value || '未设置'
   const output = outputRoot.value || '未设置'
-  return `阶段：${stage}；错误：${code}：${message}；输入：${input}；输出：${output}`
+  const diagnostic = requestId ? `；${requestDiagnosticDetail(requestId)}` : ''
+  return `阶段：${stage}；错误：${code}：${message}；输入：${input}；输出：${output}${diagnostic}`
 }
 
 function scheduleModelProbeRetry(root: string) {
@@ -921,7 +941,7 @@ function probeModels() {
   clearModelProbeTimeout()
   modelProbeTimeout = window.setTimeout(() => {
     modelProbeTimeout = undefined
-    failModelProbe(`状态：模型检测超时；Worker 未返回检测结果（Worker：${worker ? '已连接' : '未连接'}；路径：${root}；请求 ID：${requestId}）`)
+    failModelProbe(`状态：模型检测超时；Worker 未返回检测结果（Worker：${worker ? '已连接' : '未连接'}；路径：${root}；请求 ID：${requestId}；${requestDiagnosticDetail(requestId)}）`)
   }, modelProbeTimeoutMs)
 }
 
@@ -1542,6 +1562,7 @@ watch(failureOpen, (open) => { if (open) focusFirstDialogControl('.failure-dialo
 
 function handleWorkerMessage(message: WorkerMessage) {
   const payload = message.payload as Record<string, unknown>
+  rememberRequestDiagnostics(message.request_id, payload)
   if (message.type === 'ready') {
     workerConnected.value = true
     workerReadyState.value = '已连接'
@@ -1697,7 +1718,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       return
     }
     if (message.request_id === modelProbeRequestId.value) {
-      failModelProbe(`状态：模型检测失败；${String(payload.message || '请检查模型目录')}`)
+      failModelProbe(`状态：模型检测失败；${String(payload.message || '请检查模型目录')}（${requestDiagnosticDetail(message.request_id)}）`)
       return
     }
     if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
@@ -1729,7 +1750,7 @@ function handleWorkerMessage(message: WorkerMessage) {
         : '任务'
     status.value = errorMessage
     taskPhase.value = `${failedStage}失败`
-    taskDetail.value = workerErrorDetail(failedStage, errorCode, errorMessage)
+    taskDetail.value = workerErrorDetail(failedStage, errorCode, errorMessage, message.request_id)
   }
 }
 

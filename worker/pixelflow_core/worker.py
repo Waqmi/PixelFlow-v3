@@ -9,6 +9,7 @@ from io import BytesIO
 import shutil
 import sys
 import threading
+import time
 from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
@@ -47,6 +48,99 @@ def _worker_build_hash() -> str:
 
 
 BUILD_HASH = _worker_build_hash()
+
+
+_TRACE_REQUEST_TYPES = {"probe_models", "classify_materials", "start_generation", "retry_failed"}
+_TRACE_STAGES = {"start", "path_scan", "model_probe", "image_read", "lock", "emit"}
+_worker_log_lock = threading.Lock()
+
+
+def _worker_log_path() -> Path:
+    """Match the host's worker log path, with an explicit test/host override."""
+    configured = os.environ.get("PIXELFLOW_WORKER_LOG")
+    if configured:
+        return Path(configured).expanduser()
+    configured_dir = os.environ.get("PIXELFLOW_LOG_DIR")
+    if configured_dir:
+        return Path(configured_dir).expanduser() / "worker.log"
+    if os.name == "nt":
+        root = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        return Path(root) / "PixelFlow" / "logs" / "worker.log"
+    if sys.platform == "darwin":
+        return Path(os.environ.get("HOME") or Path.home()) / "Library" / "Logs" / "PixelFlow" / "worker.log"
+    state_root = os.environ.get("XDG_STATE_HOME")
+    if state_root:
+        return Path(state_root) / "PixelFlow" / "logs" / "worker.log"
+    return Path.home() / ".local" / "state" / "PixelFlow" / "logs" / "worker.log"
+
+
+def _append_worker_log(entry: dict[str, Any]) -> None:
+    """Append one diagnostic record without making logging failure affect a job."""
+    path = _worker_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n"
+        with _worker_log_lock:
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(line)
+    except OSError:
+        # The Rust host still captures stderr when the diagnostic path is not writable.
+        return
+
+
+class _RequestTrace:
+    def __init__(self, request_id: str, request_type: str) -> None:
+        self.request_id = request_id
+        self.request_type = request_type
+        self.started = time.monotonic()
+        self.stage = "start"
+        self.log_path = str(_worker_log_path())
+        self.mark("start")
+
+    def mark(self, stage: str, **fields: Any) -> None:
+        if stage not in _TRACE_STAGES:
+            return
+        self.stage = stage
+        elapsed_ms = round((time.monotonic() - self.started) * 1000, 3)
+        _append_worker_log(
+            {
+                "request_id": self.request_id,
+                "request_type": self.request_type,
+                "stage": stage,
+                "elapsed": elapsed_ms,
+                "elapsed_ms": elapsed_ms,
+                **fields,
+            }
+        )
+
+    def exception(self, error: BaseException, *, code: str | None = None) -> None:
+        elapsed_ms = round((time.monotonic() - self.started) * 1000, 3)
+        _append_worker_log(
+            {
+                "request_id": self.request_id,
+                "request_type": self.request_type,
+                "stage": self.stage,
+                "elapsed": elapsed_ms,
+                "elapsed_ms": elapsed_ms,
+                "exception": type(error).__name__,
+                "message": str(error),
+                **({"code": code} if code else {}),
+            }
+        )
+
+    def payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        elapsed_ms = round((time.monotonic() - self.started) * 1000, 3)
+        return {
+            **payload,
+            "request_id": self.request_id,
+            "stage": self.stage,
+            "elapsed_ms": elapsed_ms,
+            "log_path": self.log_path,
+        }
+
+    def emit(self, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self.mark("emit", event_type=event_type)
+        return self.payload(payload)
 
 
 class WorkerPreflightError(ValueError):
@@ -202,10 +296,13 @@ def _preflight_materials(
     sources: tuple[Path, ...] | list[Path] | None = None,
     *,
     strict: bool = False,
+    trace: _RequestTrace | None = None,
 ) -> list[str]:
     from PIL import Image
 
     product_root = request.product_root.expanduser()
+    if trace is not None:
+        trace.mark("path_scan", root=str(product_root))
     if not product_root.exists():
         raise WorkerPreflightError("input_path_missing", f"输入路径不存在：{product_root}")
     if not product_root.is_dir() or not os.access(product_root, os.R_OK | os.X_OK):
@@ -218,6 +315,8 @@ def _preflight_materials(
     sources = tuple(sources) if sources is not None else tuple(_material_sources(request.product_root))
     if not sources:
         raise WorkerPreflightError("no_images", f"文件夹内没有 JPG、JPEG 或 PNG 图片：{product_root}")
+    if trace is not None:
+        trace.mark("image_read", count=len(sources))
     unreadable: list[str] = []
     oversized: list[str] = []
     for source in sources:
@@ -253,11 +352,12 @@ def _preflight_materials(
     return warnings
 
 
-def _preflight_generation(request: GenerationRequest) -> None:
+def _preflight_generation(request: GenerationRequest, trace: _RequestTrace | None = None) -> None:
     """Run the same input/output checks before a generation thread starts."""
     _preflight_materials(
         ClassificationRequest(request.product_root, output_root=request.output_root),
         strict=True,
+        trace=trace,
     )
 
 
@@ -370,45 +470,62 @@ class WorkerRuntime:
     def busy(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, request_id: str, payload: dict[str, Any]) -> None:
+    @staticmethod
+    def _trace(request_id: str, request_type: str, trace: _RequestTrace | None) -> _RequestTrace:
+        return trace or _RequestTrace(request_id, request_type)
+
+    def _emit_traced(self, trace: _RequestTrace, event_type: str, payload: dict[str, Any]) -> None:
+        self._emit(trace.request_id, event_type, trace.emit(event_type, payload))
+
+    def start(self, request_id: str, payload: dict[str, Any], trace: _RequestTrace | None = None) -> None:
+        trace = self._trace(request_id, "start_generation", trace)
         with self._lock:
+            trace.mark("lock")
             if self.busy:
-                raise RuntimeError("a generation job is already running")
+                error = RuntimeError("a generation job is already running")
+                trace.exception(error, code="generation_busy")
+                raise error
             request_payload = dict(payload)
             request_payload["_request_id"] = request_id
             request = _generation_request(request_payload)
             try:
-                _preflight_generation(request)
+                _preflight_generation(request, trace)
             except WorkerPreflightError as error:
-                self._emit(request_id, "error", {"code": error.code, "message": error.message})
+                trace.exception(error, code=error.code)
+                self._emit_traced(trace, "error", {"code": error.code, "message": error.message})
                 return
             request.validate()
             self._request_id = request_id
             self._cancel_event = threading.Event()
             self._thread = threading.Thread(
                 target=self._run,
-                args=(request_id, request, self._cancel_event),
+                args=(request_id, request, self._cancel_event, trace),
                 daemon=True,
                 name="pixelflow-generation",
             )
             self._thread.start()
 
-    def start_classification(self, request_id: str, payload: dict[str, Any]) -> None:
+    def start_classification(self, request_id: str, payload: dict[str, Any], trace: _RequestTrace | None = None) -> None:
+        trace = self._trace(request_id, "classify_materials", trace)
         with self._lock:
+            trace.mark("lock")
             if self.busy:
-                raise RuntimeError("a job is already running")
+                error = RuntimeError("a job is already running")
+                trace.exception(error, code="classification_busy")
+                raise error
             request = _classification_request(payload)
             try:
-                _preflight_materials(request, strict=True)
+                _preflight_materials(request, strict=True, trace=trace)
             except WorkerPreflightError as error:
-                self._emit(request_id, "error", {"code": error.code, "message": error.message})
+                trace.exception(error, code=error.code)
+                self._emit_traced(trace, "error", {"code": error.code, "message": error.message})
                 return
             request.validate()
             self._request_id = request_id
             self._cancel_event = threading.Event()
             self._thread = threading.Thread(
                 target=self._run_classification,
-                args=(request_id, request, self._cancel_event),
+                args=(request_id, request, self._cancel_event, trace),
                 daemon=True,
                 name="pixelflow-classification",
             )
@@ -454,20 +571,25 @@ class WorkerRuntime:
         get_model_process_service().close()
         return result
 
-    def _run(self, request_id: str, request: GenerationRequest, cancel_event: threading.Event) -> None:
+    def _run(
+        self,
+        request_id: str,
+        request: GenerationRequest,
+        cancel_event: threading.Event,
+        trace: _RequestTrace,
+    ) -> None:
         def report(completed: int, total: int, phase: str) -> None:
-            self._emit(
-                request_id,
-                "progress",
-                {"completed": completed, "total": total, "phase": phase},
-            )
+            self._emit_traced(trace, "progress", {"completed": completed, "total": total, "phase": phase})
 
         try:
+            trace.mark("model_probe")
             result = self.engine.run(request, progress=report, cancel_event=cancel_event)
             event_type = "cancelled" if bool(result.get("cancelled")) else "done"
-            self._emit(request_id, event_type, {"result": result})
+            self._emit_traced(trace, event_type, {"result": result})
         except Exception as error:  # worker boundary must report failures, not die silently
-            self._emit(request_id, "error", {"code": "generation_failed", "message": str(error)})
+            code = "generation_timeout" if isinstance(error, TimeoutError) else "generation_failed"
+            trace.exception(error, code=code)
+            self._emit_traced(trace, "error", {"code": code, "message": str(error)})
         finally:
             with self._lock:
                 self._thread = None
@@ -479,6 +601,7 @@ class WorkerRuntime:
         request_id: str,
         request: ClassificationRequest,
         cancel_event: threading.Event,
+        trace: _RequestTrace,
     ) -> None:
         def report(
             completed: int,
@@ -488,8 +611,8 @@ class WorkerRuntime:
         ) -> None:
             if cancel_event.is_set():
                 raise ClassificationCancelled()
-            self._emit(
-                request_id,
+            self._emit_traced(
+                trace,
                 "progress",
                 {
                     "completed": completed,
@@ -503,8 +626,8 @@ class WorkerRuntime:
         def report_stage(stage: str, completed: int, total: int, source: Path) -> None:
             if cancel_event.is_set():
                 raise ClassificationCancelled()
-            self._emit(
-                request_id,
+            self._emit_traced(
+                trace,
                 "progress",
                 {
                     "completed": completed,
@@ -535,12 +658,13 @@ class WorkerRuntime:
                 cancel_event=cancel_event,
                 stage_progress=report_stage,
             )
+            trace.mark("model_probe")
             decisions = self.classifier.classify(
                 classified_request,
                 progress=report,
             )
             if cancel_event.is_set():
-                self._emit(request_id, "cancelled", {"phase": "分类"})
+                self._emit_traced(trace, "cancelled", {"phase": "分类"})
             else:
                 result: dict[str, Any] = {
                     "decisions": decisions,
@@ -567,11 +691,13 @@ class WorkerRuntime:
                         and isinstance(decision.metadata.get("body_visibility"), dict)
                         and category_compatibility(category.category, decision.metadata["body_visibility"])[0] == "incompatible"
                     ]
-                self._emit(request_id, "done", {"result": result})
+                self._emit_traced(trace, "done", {"result": result})
         except ClassificationCancelled:
-            self._emit(request_id, "cancelled", {"phase": "分类"})
+            self._emit_traced(trace, "cancelled", {"phase": "分类"})
         except Exception as error:  # worker boundary must report failures, not die silently
-            self._emit(request_id, "error", {"code": "classification_failed", "message": str(error)})
+            code = "classification_timeout" if isinstance(error, TimeoutError) else "classification_failed"
+            trace.exception(error, code=code)
+            self._emit_traced(trace, "error", {"code": code, "message": str(error)})
         finally:
             with self._lock:
                 self._thread = None
@@ -609,16 +735,20 @@ def main() -> int:
         line = line.strip()
         if not line:
             continue
+        trace: _RequestTrace | None = None
         try:
             message = Message.from_json(line)
             should_exit = False
             response: str | None = None
+            if message.type in _TRACE_REQUEST_TYPES:
+                trace = _RequestTrace(message.request_id, message.type)
+                trace.mark("lock")
             if message.type == "start_generation":
-                runtime.start(message.request_id, message.payload)
-                response = _event(message.request_id, "status", {"state": "started"})
+                runtime.start(message.request_id, message.payload, trace=trace)
+                response = _event(message.request_id, "status", trace.emit("status", {"state": "started"})) if trace else _event(message.request_id, "status", {"state": "started"})
             elif message.type == "classify_materials":
-                runtime.start_classification(message.request_id, message.payload)
-                response = _event(message.request_id, "status", {"state": "started", "phase": "分类"})
+                runtime.start_classification(message.request_id, message.payload, trace=trace)
+                response = _event(message.request_id, "status", trace.emit("status", {"state": "started", "phase": "分类"})) if trace else _event(message.request_id, "status", {"state": "started", "phase": "分类"})
             elif message.type == "cancel_generation":
                 cancelled = runtime.cancel(message.request_id)
                 response = _event(
@@ -637,20 +767,32 @@ def main() -> int:
                 should_exit = stopped
             elif message.type == "probe_models":
                 model_root = str(message.payload.get("model_root", ""))
-                emit(message.request_id, "status", {"state": "loading", "message": "正在检测外部模型…"})
 
-                def probe_models_async(request_id: str = message.request_id, root: str = model_root) -> None:
+                def probe_models_async(
+                    request_id: str = message.request_id,
+                    root: str = model_root,
+                    request_trace: _RequestTrace | None = trace,
+                ) -> None:
                     try:
-                        emit(request_id, "done", {"models": runtime.probe_models(root)})
+                        if request_trace is not None:
+                            request_trace.mark("model_probe", root=root)
+                        models = runtime.probe_models(root)
+                        payload = {"models": models}
+                        emit(request_id, "done", request_trace.emit("done", payload) if request_trace else payload)
                     except Exception as error:  # noqa: BLE001 - return probe failures through the protocol
-                        emit(request_id, "error", {"code": "model_probe_failed", "message": str(error)})
+                        code = "model_probe_timeout" if isinstance(error, TimeoutError) else "model_probe_failed"
+                        if request_trace is not None:
+                            request_trace.exception(error, code=code)
+                            emit(request_id, "error", request_trace.emit("error", {"code": code, "message": str(error)}))
+                        else:
+                            emit(request_id, "error", {"code": code, "message": str(error)})
 
+                response = _event(message.request_id, "status", trace.emit("status", {"state": "loading", "message": "正在检测外部模型…"})) if trace else None
                 threading.Thread(
                     target=probe_models_async,
                     name="pixelflow-model-probe",
                     daemon=True,
                 ).start()
-                response = None
             elif message.type == "clear_cache":
                 response = _event(
                     message.request_id,
@@ -666,15 +808,21 @@ def main() -> int:
 
                 preview_executor.submit(_read_preview, message.payload, True).add_done_callback(finish_preview)
             elif message.type == "retry_failed":
-                runtime.start(message.request_id, message.payload)
-                response = _event(message.request_id, "status", {"state": "started", "retry": True})
+                runtime.start(message.request_id, message.payload, trace=trace)
+                response = _event(message.request_id, "status", trace.emit("status", {"state": "started", "retry": True})) if trace else _event(message.request_id, "status", {"state": "started", "retry": True})
             else:
                 response, should_exit = handle_message(message)
         except ProtocolError as error:
             response = _event("unknown", "error", {"code": "invalid_message", "message": str(error)})
             should_exit = False
         except Exception as error:
-            response = _event(message.request_id if "message" in locals() else "unknown", "error", {"code": "invalid_request", "message": str(error)})
+            request_id = message.request_id if "message" in locals() else "unknown"
+            code = "invalid_request_timeout" if isinstance(error, TimeoutError) else "invalid_request"
+            if trace is not None:
+                trace.exception(error, code=code)
+                response = _event(request_id, "error", trace.emit("error", {"code": code, "message": str(error)}))
+            else:
+                response = _event(request_id, "error", {"code": code, "message": str(error)})
             should_exit = False
         if response is not None:
             print(response, flush=True)
