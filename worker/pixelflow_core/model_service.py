@@ -18,7 +18,7 @@ import threading
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .model_cache import file_version
 
@@ -39,6 +39,40 @@ STATUS_FALLBACK = "fallback"
 
 class ModelProcessError(RuntimeError):
     """A model task failed without taking down the calling process."""
+
+    def __init__(self, message: str, code: str = "model_failed") -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class ModelProcessCancelled(ModelProcessError):
+    """A model request was stopped because its classification was cancelled."""
+
+    def __init__(self) -> None:
+        super().__init__("模型任务已取消", "model_request_cancelled")
+
+
+_MODEL_TRACE_PHASES = {"start", "success", "failure"}
+_MODEL_TRACE_PURPOSES = {"pose", "segmentation", "detection"}
+
+
+def _emit_model_trace(
+    callback: Optional[Callable[[str, str, str, str, Optional[str]], None]],
+    event: str,
+    purpose: str,
+    task_id: str,
+    phase: str,
+    error_code: Optional[str] = None,
+) -> None:
+    if callback is None or event not in {"model_process", "session_create"}:
+        return
+    if purpose not in _MODEL_TRACE_PURPOSES or phase not in _MODEL_TRACE_PHASES:
+        return
+    safe_code = error_code if error_code and error_code.replace("_", "").isalnum() else None
+    try:
+        callback(event, purpose, task_id[:48], phase, safe_code)
+    except Exception:  # noqa: BLE001 - diagnostics must not affect model calls
+        return
 
 
 def _normal_purpose(purpose: str) -> str:
@@ -155,32 +189,46 @@ def _model_cache_key(model_root: Union[str, Path], purpose: str, model_path: Pat
     )
 
 
-def _load_assistant(cache: Dict[Tuple[Any, ...], object], model_root: str, purpose: str) -> object:
+def _load_assistant(
+    cache: Dict[Tuple[Any, ...], object],
+    model_root: str,
+    purpose: str,
+    trace_event: Optional[Callable[[str, Optional[str]], None]] = None,
+) -> object:
     normalized = _normal_purpose(purpose)
     candidates = _assistant_model_candidates(model_root, normalized)
     if not candidates:
         if normalized == "detection" and configured_model_candidates(model_root, normalized):
-            raise ModelProcessError("detection/ 中缺少与 ONNX 同名的 .classes.json")
-        raise ModelProcessError("{}/ 中没有 ONNX 模型".format(normalized))
-    assistant_type = _assistant_types()[("pose", "segmentation", "detection").index(normalized)]
+            raise ModelProcessError("detection/ 中缺少与 ONNX 同名的 .classes.json", "model_configuration_invalid")
+        raise ModelProcessError("{}/ 中没有 ONNX 模型".format(normalized), "model_not_found")
+    assistant_index = ("pose", "segmentation", "detection").index(normalized)
     errors: List[str] = []
     for candidate in candidates:
         key = _model_cache_key(model_root, normalized, candidate)
         if key in cache:
             return cache[key]
+        if trace_event is not None:
+            trace_event("start", None)
         try:
+            assistant_type = _assistant_types()[assistant_index]
             assistant = assistant_type(candidate)
+            if getattr(assistant, "session", None) is None:
+                raise ModelProcessError("ONNX session was not initialized", "model_session_create_failed")
             # One active assistant per root and purpose.  The versioned key
             # above ensures replacing an ONNX file cannot reuse old state.
             for cached_key in tuple(cache):
                 if cached_key[:2] == key[:2]:
                     del cache[cached_key]
             cache[key] = assistant
+            if trace_event is not None:
+                trace_event("success", None)
             return assistant
         except Exception as error:  # noqa: BLE001 - try the next model
+            if trace_event is not None:
+                trace_event("failure", "model_session_create_failed")
             errors.append("{}: {}".format(candidate.name, error))
     detail = "；".join(errors) if errors else "{} 模型加载失败".format(normalized)
-    raise ModelProcessError(detail)
+    raise ModelProcessError(detail, "model_session_create_failed")
 
 
 def _fallback_composition(sizes: Optional[Dict[str, Any]], reason: str) -> Dict[str, object]:
@@ -230,12 +278,30 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
         action = request.get("action")
         if action == "shutdown":
             return
+
+        def load_assistant(purpose: str) -> object:
+            def report_session(phase: str, error_code: Optional[str]) -> None:
+                if request.get("trace_enabled"):
+                    response_queue.put(
+                        {
+                            "task_id": task_id,
+                            "trace_event": {
+                                "event": "session_create",
+                                "purpose": purpose,
+                                "phase": phase,
+                                "error_code": error_code,
+                            },
+                        }
+                    )
+
+            return _load_assistant(assistants, request["model_root"], purpose, report_session)
+
         try:
             if action == "ping":
                 result: Any = "ready"
             elif action == "warmup":
                 purpose = _normal_purpose(request["purpose"])
-                assistant = _load_assistant(assistants, request["model_root"], purpose)
+                assistant = load_assistant(purpose)
                 result = {
                     "model": Path(getattr(assistant, "model_path", "")).name,
                     "purpose": purpose,
@@ -244,7 +310,7 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                     "model_version": file_version(getattr(assistant, "model_path", None)),
                 }
             elif action == "compose":
-                assistant = _load_assistant(assistants, request["model_root"], "pose")
+                assistant = load_assistant("pose")
                 result = assistant.compose_for_sizes(
                     Path(request["source"]),
                     request["sizes"],
@@ -258,28 +324,35 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
                 result.setdefault("state", STATE_READY)
                 result.setdefault("fallback", False)
             elif action == "segment":
-                assistant = _load_assistant(assistants, request["model_root"], "segmentation")
+                assistant = load_assistant("segmentation")
                 result = dict(assistant.segment(Path(request["source"])))
                 result.setdefault("model_status", STATUS_READY)
                 result.setdefault("state", STATE_READY)
                 result.setdefault("fallback", False)
             elif action == "detect_shoes":
-                assistant = _load_assistant(assistants, request["model_root"], "detection")
+                assistant = load_assistant("detection")
                 result = assistant.shoe_boxes(Path(request["source"]))
             elif action == "detect_boxes":
-                assistant = _load_assistant(assistants, request["model_root"], "detection")
+                assistant = load_assistant("detection")
                 result = assistant.boxes_for(Path(request["source"]), str(request.get("category", "shoes")))
             elif action == "probe":
                 result = _probe_model_metadata(request["model_root"])
             else:
                 raise ModelProcessError("未知模型任务：{}".format(action))
-            response_queue.put({"task_id": task_id, "result": result, "error": ""})
+            response_queue.put({"task_id": task_id, "result": result, "error": "", "error_code": ""})
         except Exception as error:  # noqa: BLE001 - isolate every inference failure
+            if isinstance(error, ModelProcessError):
+                error_code = error.code
+            elif action == "warmup":
+                error_code = "model_session_create_failed"
+            else:
+                error_code = "model_inference_failed"
             response_queue.put(
                 {
                     "task_id": task_id,
                     "result": None,
                     "error": "{}\n{}".format(error, traceback.format_exc()),
+                    "error_code": error_code,
                 }
             )
 
@@ -287,7 +360,7 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
 class ModelProcessService:
     """Synchronous client used from Worker background threads."""
 
-    def __init__(self, timeout: float = 180.0) -> None:
+    def __init__(self, timeout: float = 60.0) -> None:
         self.timeout = timeout
         # macOS TCC treats a multiprocessing-spawned frozen worker as a new
         # file-access identity.  Keep model reads in the already-authorized
@@ -299,6 +372,7 @@ class ModelProcessService:
         self._process: Any = None
         self._direct_assistants: Dict[Tuple[Any, ...], object] = {}
         self._lock = threading.Lock()
+        self._counter_lock = threading.Lock()
         self._counter = 0
         self._failures: List[Dict[str, str]] = []
         self._states: Dict[Tuple[str, str], str] = {}
@@ -318,6 +392,8 @@ class ModelProcessService:
         return tuple(self._failures)
 
     def _start(self) -> None:
+        if self._process is not None or self._request_queue is not None or self._response_queue is not None:
+            self._stop_process()
         self._request_queue = self._context.Queue()
         self._response_queue = self._context.Queue()
         self._process = self._context.Process(
@@ -328,7 +404,7 @@ class ModelProcessService:
         )
         self._process.start()
 
-    def _restart(self) -> None:
+    def _stop_process(self) -> None:
         if self._direct:
             self._direct_assistants.clear()
             self._states.clear()
@@ -336,13 +412,38 @@ class ModelProcessService:
             self._reasons.clear()
             return
         process = self._process
-        if process is not None and process.is_alive():
-            process.terminate()
-            process.join(timeout=2)
+        if process is not None:
+            if process.is_alive():
+                process.terminate()
+            try:
+                process.join(timeout=2)
+            except AssertionError:  # the process object was created but start() failed
+                pass
+        for model_queue in (self._request_queue, self._response_queue):
+            if model_queue is None:
+                continue
+            try:
+                model_queue.cancel_join_thread()
+                model_queue.close()
+            except (AttributeError, OSError, ValueError):
+                pass
+        self._process = None
+        self._request_queue = None
+        self._response_queue = None
         self._states.clear()
         self._statuses.clear()
         self._reasons.clear()
-        self._start()
+
+    @staticmethod
+    def _action_purpose(action: str, payload: Dict[str, Any]) -> str:
+        if action == "warmup":
+            return _normal_purpose(str(payload.get("purpose", "")))
+        return {
+            "compose": "pose",
+            "segment": "segmentation",
+            "detect_shoes": "detection",
+            "detect_boxes": "detection",
+        }.get(action, "")
 
     @staticmethod
     def _state_key(model_root: Union[str, Path], purpose: str) -> Tuple[str, str]:
@@ -473,47 +574,127 @@ class ModelProcessService:
             result = future.result()
         return self._attach_probe_digests(result)
 
-    def _request(self, action: str, **payload: Any) -> Any:
+    def _request(
+        self,
+        action: str,
+        *,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
+        **payload: Any,
+    ) -> Any:
+        purpose = self._action_purpose(action, payload)
         if self._direct:
-            return self._request_in_process(action, **payload)
+            with self._counter_lock:
+                self._counter += 1
+                task_id = "model-{}".format(self._counter)
+            if cancel_event is not None and cancel_event.is_set():
+                raise ModelProcessCancelled()
+            _emit_model_trace(trace_callback, "model_process", purpose, task_id, "start")
+            try:
+                result = self._request_in_process(
+                    action,
+                    trace_callback=trace_callback,
+                    task_id=task_id,
+                    **payload,
+                )
+            except Exception as error:
+                code = error.code if isinstance(error, ModelProcessError) else "model_inference_failed"
+                _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", code)
+                raise
+            if cancel_event is not None and cancel_event.is_set():
+                _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_request_cancelled")
+                raise ModelProcessCancelled()
+            _emit_model_trace(trace_callback, "model_process", purpose, task_id, "success")
+            return result
         with self._lock:
+            if cancel_event is not None and cancel_event.is_set():
+                raise ModelProcessCancelled()
+            with self._counter_lock:
+                self._counter += 1
+                task_id = "model-{}".format(self._counter)
+            _emit_model_trace(trace_callback, "model_process", purpose, task_id, "start")
             if not self.is_running:
-                self._start()
-            self._counter += 1
-            task_id = "model-{}".format(self._counter)
+                try:
+                    self._start()
+                except Exception as error:
+                    _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_process_start_failed")
+                    self._stop_process()
+                    raise ModelProcessError("推理子进程无法启动", "model_process_start_failed") from error
             assert self._request_queue is not None and self._response_queue is not None
-            self._request_queue.put({"task_id": task_id, "action": action, **payload})
+            request = {"task_id": task_id, "action": action, **payload}
+            if trace_callback is not None and request_id:
+                request["trace_enabled"] = True
+            try:
+                self._request_queue.put(request)
+            except Exception as error:
+                _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_process_start_failed")
+                self._stop_process()
+                raise ModelProcessError("模型任务无法提交", "model_process_start_failed") from error
             deadline = time.monotonic() + self.timeout
             while time.monotonic() < deadline:
+                if cancel_event is not None and cancel_event.is_set():
+                    _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_request_cancelled")
+                    self._failures.append({"task_id": task_id, "error": "model_request_cancelled"})
+                    self._stop_process()
+                    raise ModelProcessCancelled()
                 if not self.is_running:
-                    message = "推理子进程异常退出，任务 {} 已记录为失败；服务已自动重启".format(task_id)
-                    self._failures.append({"task_id": task_id, "error": message})
-                    self._restart()
-                    raise ModelProcessError(message)
+                    _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_process_exited")
+                    self._failures.append({"task_id": task_id, "error": "model_process_exited"})
+                    self._stop_process()
+                    raise ModelProcessError("推理子进程异常退出", "model_process_exited")
                 try:
                     response = self._response_queue.get(timeout=0.1)
                 except queue.Empty:
                     continue
                 if response.get("task_id") != task_id:
                     continue
+                trace_event = response.get("trace_event")
+                if isinstance(trace_event, dict):
+                    _emit_model_trace(
+                        trace_callback,
+                        str(trace_event.get("event", "")),
+                        str(trace_event.get("purpose", "")),
+                        task_id,
+                        str(trace_event.get("phase", "")),
+                        str(trace_event.get("error_code") or "") or None,
+                    )
+                    continue
                 if response.get("error"):
-                    raise ModelProcessError(str(response["error"]).splitlines()[0])
+                    code = str(response.get("error_code") or "model_failed")
+                    _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", code)
+                    raise ModelProcessError(str(response["error"]).splitlines()[0], code)
+                _emit_model_trace(trace_callback, "model_process", purpose, task_id, "success")
                 return response.get("result")
-            message = "模型任务 {} 超时，服务已自动重启".format(task_id)
-            self._failures.append({"task_id": task_id, "error": message})
-            self._restart()
-            raise ModelProcessError(message)
+            _emit_model_trace(trace_callback, "model_process", purpose, task_id, "failure", "model_request_timeout")
+            self._failures.append({"task_id": task_id, "error": "model_request_timeout"})
+            self._stop_process()
+            raise ModelProcessError("模型任务超时", "model_request_timeout")
 
-    def _request_in_process(self, action: str, **payload: Any) -> Any:
+    def _request_in_process(
+        self,
+        action: str,
+        *,
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
+        task_id: str = "",
+        **payload: Any,
+    ) -> Any:
         """Run one model request without spawning a second macOS process."""
         if action == "probe":
             return self._probe_metadata(payload["model_root"])
+
+        def load_assistant(purpose: str) -> object:
+            def report_session(phase: str, error_code: Optional[str]) -> None:
+                _emit_model_trace(trace_callback, "session_create", purpose, task_id, phase, error_code)
+
+            return _load_assistant(self._direct_assistants, payload["model_root"], purpose, report_session)
+
         with self._lock:
             if action == "ping":
                 return "ready"
             if action == "warmup":
                 purpose = _normal_purpose(payload["purpose"])
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], purpose)
+                assistant = load_assistant(purpose)
                 return {
                     "model": Path(getattr(assistant, "model_path", "")).name,
                     "purpose": purpose,
@@ -522,7 +703,7 @@ class ModelProcessService:
                     "model_version": file_version(getattr(assistant, "model_path", None)),
                 }
             if action == "compose":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "pose")
+                assistant = load_assistant("pose")
                 result = dict(
                     assistant.compose_for_sizes(
                         Path(payload["source"]),
@@ -538,17 +719,17 @@ class ModelProcessService:
                 result.setdefault("fallback", False)
                 return result
             if action == "segment":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "segmentation")
+                assistant = load_assistant("segmentation")
                 result = dict(assistant.segment(Path(payload["source"])))
                 result.setdefault("model_status", STATUS_READY)
                 result.setdefault("state", STATE_READY)
                 result.setdefault("fallback", False)
                 return result
             if action == "detect_shoes":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
+                assistant = load_assistant("detection")
                 return assistant.shoe_boxes(Path(payload["source"]))
             if action == "detect_boxes":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
+                assistant = load_assistant("detection")
                 return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
             raise ModelProcessError("未知模型任务：{}".format(action))
 
@@ -598,26 +779,47 @@ class ModelProcessService:
     def probe(self, model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
         return self.probe_models(model_root)
 
-    def warmup(self, model_root: Union[str, Path], purpose: str, strict: bool = False) -> Dict[str, Any]:
+    def warmup(
+        self,
+        model_root: Union[str, Path],
+        purpose: str,
+        strict: bool = False,
+        *,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
+    ) -> Dict[str, Any]:
         normalized = _normal_purpose(purpose)
         root = str(model_root)
         if not configured_model_candidates(root, normalized):
             reason = "{}/ 中没有 ONNX 模型".format(normalized)
             self._set_state(root, normalized, STATE_UNCONFIGURED, reason)
             if strict:
-                raise ModelProcessError(reason)
+                raise ModelProcessError(reason, "model_not_found")
             return {
                 "status": STATUS_UNCONFIGURED,
                 "state": STATE_UNCONFIGURED,
                 "fallback": True,
                 "fallback_reason": reason,
+                "error_code": "model_not_found",
+                "failed_stage": "session_create",
             }
         self._set_state(root, normalized, STATE_LOADING)
         try:
-            result = self._request("warmup", model_root=root, purpose=normalized)
+            result = self._request(
+                "warmup",
+                cancel_event=cancel_event,
+                request_id=request_id,
+                trace_callback=trace_callback,
+                model_root=root,
+                purpose=normalized,
+            )
+        except ModelProcessCancelled:
+            raise
         except Exception as error:
-            reason = str(error)
-            self._set_state(root, normalized, STATE_UNAVAILABLE, reason)
+            error_code = error.code if isinstance(error, ModelProcessError) else "model_session_create_failed"
+            reason = "{} 模型初始化失败，已使用规则回退".format(normalized)
+            self._set_state(root, normalized, STATE_FALLBACK, error_code)
             if strict:
                 raise
             return {
@@ -625,6 +827,8 @@ class ModelProcessService:
                 "state": STATE_FALLBACK,
                 "fallback": True,
                 "fallback_reason": reason,
+                "error_code": error_code,
+                "failed_stage": "session_create",
             }
         self._set_state(root, normalized, STATE_READY)
         return dict(result or {})
@@ -636,6 +840,9 @@ class ModelProcessService:
         sizes: Optional[Dict[str, Any]] = None,
         product_category: Optional[str] = None,
         strict: bool = False,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
         **kwargs: Any
     ) -> Dict[str, object]:
         root = str(model_root)
@@ -650,6 +857,9 @@ class ModelProcessService:
         try:
             result = self._request(
                 "compose",
+                cancel_event=cancel_event,
+                request_id=request_id,
+                trace_callback=trace_callback,
                 model_root=root,
                 source=str(source),
                 sizes=sizes,
@@ -658,12 +868,18 @@ class ModelProcessService:
                 shoe_boxes=kwargs.get("shoe_boxes"),
                 detector_boxes=kwargs.get("detector_boxes"),
             )
+        except ModelProcessCancelled:
+            raise
         except Exception as error:
-            reason = str(error)
-            self._set_state(root, "pose", STATE_UNAVAILABLE, reason)
+            error_code = error.code if isinstance(error, ModelProcessError) else "model_inference_failed"
+            reason = "Pose 模型失败，已使用规则回退"
+            self._set_state(root, "pose", STATE_FALLBACK, error_code)
             if strict:
                 raise
-            return _fallback_composition(sizes, reason)
+            result = _fallback_composition(sizes, reason)
+            result["error_code"] = error_code
+            result["failed_stage"] = "inference"
+            return result
         self._set_state(root, "pose", STATE_READY)
         return dict(result or {})
 
@@ -677,32 +893,79 @@ class ModelProcessService:
         segmentation: Optional[Dict[str, object]] = None,
         shoe_boxes: Optional[List[List[float]]] = None,
         detector_boxes: Optional[List[List[float]]] = None,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
     ) -> Dict[str, object]:
         return self.compose(
             model_root, source, sizes, product_category, strict=strict,
+            cancel_event=cancel_event, request_id=request_id, trace_callback=trace_callback,
             segmentation=segmentation, shoe_boxes=shoe_boxes, detector_boxes=detector_boxes,
         )
 
-    def detect_shoes(self, model_root: Union[str, Path], source: Path) -> List[List[float]]:
+    def detect_shoes(
+        self,
+        model_root: Union[str, Path],
+        source: Path,
+        *,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
+    ) -> List[List[float]]:
         """Shoe boxes (source px) from the optional detector; empty when it is off or fails."""
         root = str(model_root)
         candidates = _assistant_model_candidates(root, "detection")
         if not candidates:
+            if configured_model_candidates(root, "detection"):
+                self._set_state(root, "detection", STATE_FALLBACK, "model_configuration_invalid")
+            else:
+                self._set_state(root, "detection", STATE_UNCONFIGURED)
             return []
         try:
-            return list(self._request("detect_shoes", model_root=root, source=str(source)) or [])
-        except Exception:  # noqa: BLE001 - the detector is optional
+            result = list(self._request(
+                "detect_shoes", cancel_event=cancel_event, request_id=request_id,
+                trace_callback=trace_callback, model_root=root, source=str(source),
+            ) or [])
+            self._set_state(root, "detection", STATE_READY)
+            return result
+        except ModelProcessCancelled:
+            raise
+        except Exception as error:  # noqa: BLE001 - the detector is optional
+            code = error.code if isinstance(error, ModelProcessError) else "model_inference_failed"
+            self._set_state(root, "detection", STATE_FALLBACK, code)
             return []
 
-    def detect_boxes(self, model_root: Union[str, Path], source: Path, category: str) -> List[List[float]]:
+    def detect_boxes(
+        self,
+        model_root: Union[str, Path],
+        source: Path,
+        category: str,
+        *,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
+    ) -> List[List[float]]:
         """Category-mapped detector boxes; failures return an empty list."""
         root = str(model_root)
         candidates = _assistant_model_candidates(root, "detection")
         if not candidates:
+            if configured_model_candidates(root, "detection"):
+                self._set_state(root, "detection", STATE_FALLBACK, "model_configuration_invalid")
+            else:
+                self._set_state(root, "detection", STATE_UNCONFIGURED)
             return []
         try:
-            return list(self._request("detect_boxes", model_root=root, source=str(source), category=category) or [])
-        except Exception:  # noqa: BLE001 - detector is optional
+            result = list(self._request(
+                "detect_boxes", cancel_event=cancel_event, request_id=request_id,
+                trace_callback=trace_callback, model_root=root, source=str(source), category=category,
+            ) or [])
+            self._set_state(root, "detection", STATE_READY)
+            return result
+        except ModelProcessCancelled:
+            raise
+        except Exception as error:  # noqa: BLE001 - detector is optional
+            code = error.code if isinstance(error, ModelProcessError) else "model_inference_failed"
+            self._set_state(root, "detection", STATE_FALLBACK, code)
             return []
 
     def segment(
@@ -710,6 +973,9 @@ class ModelProcessService:
         model_root: Union[str, Path],
         source: Path,
         strict: bool = False,
+        cancel_event: Any = None,
+        request_id: str = "",
+        trace_callback: Optional[Callable[[str, str, str, str, Optional[str]], None]] = None,
     ) -> Dict[str, object]:
         root = str(model_root)
         if not configured_model_candidates(root, "segmentation"):
@@ -722,39 +988,37 @@ class ModelProcessService:
         try:
             result = self._request(
                 "segment",
+                cancel_event=cancel_event,
+                request_id=request_id,
+                trace_callback=trace_callback,
                 model_root=root,
                 source=str(source),
             )
+        except ModelProcessCancelled:
+            raise
         except Exception as error:
-            reason = str(error)
-            self._set_state(root, "segmentation", STATE_UNAVAILABLE, reason)
+            error_code = error.code if isinstance(error, ModelProcessError) else "model_inference_failed"
+            reason = "Seg 模型失败，已使用保守回退"
+            self._set_state(root, "segmentation", STATE_FALLBACK, error_code)
             if strict:
                 raise
-            return _fallback_segmentation(reason)
+            result = _fallback_segmentation(reason)
+            result["error_code"] = error_code
+            result["failed_stage"] = "inference"
+            return result
         self._set_state(root, "segmentation", STATE_READY)
         return dict(result or {})
 
     def close(self) -> None:
         with self._lock:
             if self._direct:
-                self._direct_assistants.clear()
-                self._states.clear()
-                self._statuses.clear()
-                self._reasons.clear()
+                self._stop_process()
                 return
             process = self._process
-            if process is None:
-                return
-            if process.is_alive() and self._request_queue is not None:
+            if process is not None and process.is_alive() and self._request_queue is not None:
                 self._request_queue.put({"task_id": "", "action": "shutdown"})
                 process.join(timeout=2)
-            if process.is_alive():
-                process.terminate()
-                process.join(timeout=2)
-            self._process = None
-            self._states.clear()
-            self._statuses.clear()
-            self._reasons.clear()
+            self._stop_process()
 
 
 ModelService = ModelProcessService

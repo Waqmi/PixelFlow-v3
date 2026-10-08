@@ -48,10 +48,27 @@ class ClassificationAdapterTests(unittest.TestCase):
         metadata = decisions[source].metadata or {}
         self.assertTrue(metadata["fallback"])
         self.assertIn("ONNX", str(metadata["fallback_reason"]))
-        self.assertEqual(metadata["pose_evidence"]["status"], "not_run")
+        self.assertEqual(metadata["fallback_purpose"], "pose")
+        self.assertEqual(metadata["pose_evidence"]["status"], "fallback")
+        self.assertEqual(metadata["pose_evidence"]["reason"], metadata["fallback_reason"])
         plan = metadata["composition_plans"]["1440x1440"]
         self.assertTrue(plan["fallback"])
         self.assertTrue(plan["fallback_reason"])
+
+    def test_segmentation_fallback_purpose_is_canonical_and_evidence_is_fallback(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("细节图/detail.jpg")
+        decisions = {source: SourceTypeDecision("detail", 0.5, "rules", "detail")}
+        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[]):
+            adapter._apply_optional_models(decisions, "/tmp/empty-models", "shoes", None)
+
+        metadata = decisions[source].metadata or {}
+        self.assertEqual(metadata["fallback_purpose"], "segmentation")
+        self.assertEqual(metadata["segmentation_evidence"]["status"], "fallback")
+        self.assertEqual(metadata["segmentation_evidence"]["reason"], metadata["fallback_reason"])
 
     def test_typed_composition_plan_keeps_source_for_replay(self) -> None:
         source = "/tmp/shoe.jpg"
@@ -227,11 +244,178 @@ class ClassificationAdapterTests(unittest.TestCase):
                 lambda stage, completed, total, path: stages.append((stage, completed, total, path)),
             )
 
-        self.assertEqual([stage[0] for stage in stages], ["Pose", "Pose", "Pose", "Seg"])
+        self.assertEqual([stage[0] for stage in stages], ["Pose", "Seg"])
         self.assertEqual(
             [(stage[1], stage[2]) for stage in stages],
-            [(0, 1), (0, 1), (1, 1), (1, 1)],
+            [(1, 1), (1, 1)],
         )
+
+    def test_pose_warmup_failure_reports_fallback_and_skips_inference(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/model.jpg")
+        compose_calls: list[Path] = []
+        model_progress: list[tuple[str, int, int, str, str | None, str | None]] = []
+
+        class FakeService:
+            def warmup(self, _root, _purpose):
+                return {
+                    "status": "fallback",
+                    "fallback": True,
+                    "error_code": "model_session_create_failed",
+                }
+
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                compose_calls.append(source)
+                return {}
+
+        decisions = {source: SourceTypeDecision("model", 0.9, "rules", "model")}
+
+        def candidates(_root, purpose):
+            return [Path("model.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ):
+            adapter._apply_optional_models(
+                decisions,
+                "/tmp/models",
+                "shirt",
+                None,
+                model_progress=lambda *event: model_progress.append(event),
+            )
+
+        self.assertEqual(compose_calls, [])
+        self.assertEqual(
+            model_progress,
+            [
+                ("model_loading", 0, 1, "pose", None, None),
+                ("model_fallback", 0, 1, "pose", "model_session_create_failed", "session_create"),
+            ],
+        )
+        metadata = decisions[source].metadata or {}
+        self.assertTrue(metadata["fallback"])
+        self.assertEqual(metadata["model_status"], "fallback")
+        self.assertEqual(metadata["fallback_purpose"], "pose")
+        self.assertEqual(metadata["fallback_code"], "model_session_create_failed")
+        self.assertEqual(metadata["failed_stage"], "session_create")
+        self.assertEqual(metadata["pose_evidence"]["status"], "fallback")
+        self.assertEqual(metadata["pose_evidence"]["reason"], metadata["fallback_reason"])
+        self.assertEqual(metadata["pose_evidence"]["error_code"], "model_session_create_failed")
+        self.assertEqual(metadata["pose_evidence"]["failed_stage"], "session_create")
+        self.assertNotIn("model_error", metadata)
+
+    def test_pose_semantic_fallback_does_not_disable_later_images(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        sources = [Path("模特图/first.jpg"), Path("模特图/second.jpg")]
+        calls: list[Path] = []
+
+        class FakeService:
+            def warmup(self, _root, _purpose):
+                return {"status": "ready", "fallback": False}
+
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                calls.append(source)
+                if source == sources[0]:
+                    return {"fallback": True, "available": False, "person_count": 0, "by_size": {}}
+                return {"available": True, "person_count": 1, "by_size": {}}
+
+        decisions = {
+            source: SourceTypeDecision("model", 0.5, "rules", "model")
+            for source in sources
+        }
+
+        def candidates(_root, purpose):
+            return [Path("model.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shirt", None)
+
+        self.assertEqual(calls, sources)
+        self.assertTrue((decisions[sources[0]].metadata or {}).get("fallback"))
+
+    def test_pose_timeout_skips_remaining_images_but_semantic_results_do_not(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+        from pixelflow_core.model_service import ModelProcessError
+
+        sources = [Path("模特图/first.jpg"), Path("模特图/second.jpg")]
+        calls: list[Path] = []
+        progress: list[tuple[str, int, int, str, str | None, str | None]] = []
+
+        class FakeService:
+            def warmup(self, _root, _purpose):
+                return {"status": "ready", "fallback": False}
+
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                calls.append(source)
+                raise ModelProcessError("timeout", "model_request_timeout")
+
+        decisions = {
+            source: SourceTypeDecision("model", 0.5, "rules", "model")
+            for source in sources
+        }
+
+        def candidates(_root, purpose):
+            return [Path("model.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ):
+            adapter._apply_optional_models(
+                decisions,
+                "/tmp/models",
+                "shirt",
+                None,
+                model_progress=lambda *event: progress.append(event),
+            )
+
+        self.assertEqual(calls, [sources[0]])
+        self.assertTrue(all((decisions[source].metadata or {}).get("fallback") for source in sources))
+        self.assertIn(
+            ("model_fallback", 0, 2, "pose", "model_request_timeout", "inference"),
+            progress,
+        )
+
+    def test_cached_error_fallback_is_retried_instead_of_reused(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/model.jpg")
+        calls: list[Path] = []
+
+        class FakeService:
+            def warmup(self, _root, _purpose):
+                return {"status": "ready", "fallback": False}
+
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None):
+                calls.append(source)
+                return {"available": True, "person_count": 1, "by_size": {}}
+
+        decisions = {source: SourceTypeDecision("model", 0.5, "rules", "model")}
+
+        def candidates(_root, purpose):
+            return [Path("model.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ), patch(
+            "pixelflow_core.model_cache.load_model_result",
+            return_value={"fallback": True, "error_code": "model_request_timeout", "failed_stage": "inference"},
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shirt", None)
+
+        self.assertEqual(calls, [source])
+        self.assertNotEqual((decisions[source].metadata or {}).get("fallback_code"), "model_request_timeout")
 
     def _sampled_detail_folder(self, model_indexes: set[int]) -> tuple[list[Path], dict, list[Path]]:
         adapter = V26ClassifierAdapter()
@@ -364,6 +548,89 @@ class ClassificationRuntimeTests(unittest.TestCase):
         self.assertEqual([event[0] for event in events], ["progress", "done"])
         self.assertEqual(events[-1][1]["result"]["decisions"][0].source_type, "main_product")
         self.assertEqual(events[-1][1]["result"]["summary"]["count"], 1)
+
+    def test_runtime_emits_safe_model_progress_and_request_correlated_trace(self) -> None:
+        events: list[tuple[str, dict]] = []
+        logs: list[dict] = []
+
+        class FakeClassifier:
+            def classify(self, request, progress):
+                request.model_trace("model_process", "pose", "model-1", "start", None)
+                request.model_trace("session_create", "pose", "model-1", "success", None)
+                request.model_progress("model_loading", 0, 2, "pose", None, None)
+                request.model_progress("warmup_ready", 0, 2, "pose", None, None)
+                decision = ClassificationDecision(
+                    source="private/source.jpg",
+                    source_type="main_product",
+                    confidence=0.9,
+                    classifier="rules",
+                    reason="test",
+                )
+                progress(1, 2, Path("/private/source.jpg"), decision)
+                return [decision]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+            from pixelflow_core import worker as worker_module
+
+            Image.new("RGB", (8, 8), "white").save(Path(temp_dir) / "source.jpg")
+            runtime = WorkerRuntime(
+                classifier=FakeClassifier(),
+                emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
+            )
+            with patch.object(worker_module, "_append_worker_log", side_effect=logs.append):
+                runtime.start_classification("trace-classify", {"product_root": temp_dir})
+                deadline = time.monotonic() + 2
+                while runtime.busy and time.monotonic() < deadline:
+                    time.sleep(0.01)
+
+        ready = next(payload for event, payload in events if event == "progress" and payload.get("phase") == "warmup_ready")
+        loading = next(payload for event, payload in events if event == "progress" and payload.get("phase") == "model_loading")
+        self.assertEqual(loading["status"], "loading")
+        self.assertEqual(loading["purpose"], "pose")
+        self.assertEqual(ready["request_id"], "trace-classify")
+        self.assertEqual(ready["purpose"], "pose")
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual((ready["completed"], ready["total"]), (0, 2))
+        self.assertNotIn("source", ready)
+        self.assertTrue(any(entry.get("stage") == "model_process" and entry.get("request_id") == "trace-classify" for entry in logs))
+        self.assertTrue(any(entry.get("stage") == "session_create" and entry.get("request_id") == "trace-classify" for entry in logs))
+        for entry in logs:
+            if entry.get("stage") in {"model_process", "session_create", "classify_progress"}:
+                self.assertNotIn("source", entry)
+                self.assertNotIn("model_root", entry)
+                self.assertNotIn("image", entry)
+
+    def test_runtime_emits_safe_model_fallback_progress(self) -> None:
+        events: list[tuple[str, dict]] = []
+
+        class FakeClassifier:
+            def classify(self, request, progress):
+                request.model_progress(
+                    "model_fallback", 0, 1, "pose", "model_session_create_failed", "session_create"
+                )
+                return []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            Image.new("RGB", (8, 8), "white").save(Path(temp_dir) / "source.jpg")
+            runtime = WorkerRuntime(
+                classifier=FakeClassifier(),
+                emit=lambda _request_id, event_type, payload: events.append((event_type, payload)),
+            )
+            runtime.start_classification("fallback-classify", {"product_root": temp_dir})
+            deadline = time.monotonic() + 2
+            while runtime.busy and time.monotonic() < deadline:
+                time.sleep(0.01)
+
+        fallback = next(payload for event, payload in events if event == "progress" and payload.get("phase") == "model_fallback")
+        self.assertEqual(fallback["request_id"], "fallback-classify")
+        self.assertEqual(fallback["purpose"], "pose")
+        self.assertEqual(fallback["status"], "fallback")
+        self.assertEqual(fallback["error_code"], "model_session_create_failed")
+        self.assertEqual(fallback["failed_stage"], "session_create")
+        self.assertNotIn("source", fallback)
 
     def test_runtime_reports_classification_errors(self) -> None:
         events: list[tuple[str, dict]] = []

@@ -322,14 +322,45 @@ const modelFallbackWarning = computed(() => {
   return requiredModelKeys.some((key) => modelDiagnostics.value[key]?.state !== '已就绪')
 })
 const modelDiagnosticRows = computed(() => (['pose', 'segmentation', 'detection'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
-const modelConfirmFallbackWarning = computed(() => localModelEnabled.value && materials.value.some((material) => material.metadata?.fallback === true || material.metadata?.model_status === 'fallback'))
-const classificationModelStatus = computed(() => {
-  if (!localModelEnabled.value || !localModelPath.value.trim()) return 'Pose：未启用；Seg：未启用'
+function modelFallbackWarnings(materials: MaterialDecision[], localModelEnabled: boolean): string[] {
+  if (!localModelEnabled) return []
+  const labels: Record<string, string> = { pose: 'Pose', segmentation: 'Seg', detection: 'Detection' }
+  const warnings = new Map<string, string>()
+  materials.forEach((material) => {
+    const metadata = material.metadata
+    if (metadata?.fallback !== true && metadata?.model_status !== 'fallback') return
+    let hasEvidence = false
+    ;(['pose_evidence', 'segmentation_evidence', 'detection_evidence'] as const).forEach((key) => {
+      const evidence = metadata[key]
+      if (!evidence || typeof evidence !== 'object' || !('status' in evidence) || evidence.status !== 'fallback') return
+      hasEvidence = true
+      const purpose = key.slice(0, key.indexOf('_evidence'))
+      const evidenceReason = 'reason' in evidence ? evidence.reason : undefined
+      const reason = typeof evidenceReason === 'string' && evidenceReason.trim()
+        ? evidenceReason.trim()
+        : '已使用规则回退'
+      warnings.set(purpose + '\0' + reason, (labels[purpose] || '模型') + ' 模型回退：' + reason)
+    })
+    if (!hasEvidence) {
+      const purpose = typeof metadata.fallback_purpose === 'string' ? metadata.fallback_purpose : ''
+      const reason = typeof metadata.fallback_reason === 'string' && metadata.fallback_reason.trim()
+        ? metadata.fallback_reason.trim()
+        : '已使用规则回退'
+      warnings.set(purpose + '\0' + reason, (labels[purpose] || '模型') + ' 模型回退：' + reason)
+    }
+  })
+  return Array.from(warnings.values())
+}
+function classificationModelStatusText(
+  materials: MaterialDecision[],
+  localModelEnabled: boolean,
+  localModelPath: string,
+): string {
+  if (!localModelEnabled || !localModelPath.trim()) return 'Pose：未启用；Seg：未启用'
   const statusCount = (key: 'pose_evidence' | 'segmentation_evidence') => {
     const counts = { ready: 0, fallback: 0, not_run: 0 }
-    materials.value.forEach((material) => {
-      const metadata = material.metadata as Record<string, unknown> | undefined
-      const evidence = metadata?.[key]
+    materials.forEach((material) => {
+      const evidence = material.metadata?.[key]
       const status = String(evidence && typeof evidence === 'object' && 'status' in evidence
         ? (evidence as { status?: unknown }).status || 'not_run'
         : 'not_run')
@@ -341,9 +372,11 @@ const classificationModelStatus = computed(() => {
   }
   const pose = statusCount('pose_evidence')
   const seg = statusCount('segmentation_evidence')
-  const label = (value: typeof pose) => value.fallback ? `回退 ${value.fallback}` : value.ready ? `完成 ${value.ready}` : '未运行'
-  return `Pose：${label(pose)}；Seg：${label(seg)}`
-})
+  const label = (value: typeof pose) => value.fallback ? '回退 ' + value.fallback : value.ready ? '完成 ' + value.ready : '未运行'
+  return 'Pose：' + label(pose) + '；Seg：' + label(seg)
+}
+const modelConfirmFallbackWarnings = computed(() => modelFallbackWarnings(materials.value, localModelEnabled.value))
+const classificationModelStatus = computed(() => classificationModelStatusText(materials.value, localModelEnabled.value, localModelPath.value))
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
@@ -1612,7 +1645,21 @@ function handleWorkerMessage(message: WorkerMessage) {
     const source = String(payload.source || '').split(/[\\/]/).pop() || '当前素材'
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
-    if (phase === 'Pose') {
+    if (phase === 'model_loading') {
+      const purpose = String(payload.purpose || 'pose')
+      const label = purpose === 'segmentation' ? 'Seg' : purpose === 'detection' ? 'Detection' : 'Pose'
+      setClassificationProgress(Math.max(classificationProgress.value, 350))
+      taskDetail.value = `${label} 模型初始化中……`
+    } else if (phase === 'warmup_ready') {
+      const purpose = String(payload.purpose || 'pose')
+      const label = purpose === 'segmentation' ? 'Seg' : purpose === 'detection' ? 'Detection' : 'Pose'
+      setClassificationProgress(Math.max(classificationProgress.value, 400))
+      taskDetail.value = `${label} 模型已初始化`
+    } else if (phase === 'model_fallback') {
+      const purpose = String(payload.purpose || 'pose')
+      const label = purpose === 'segmentation' ? 'Seg' : purpose === 'detection' ? 'Detection' : 'Pose'
+      taskDetail.value = `${label} 不可用，继续使用规则回退`
+    } else if (phase === 'Pose') {
       setClassificationProgress(total ? 400 + Math.round((completed / total) * 450) : 400)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
@@ -2356,7 +2403,7 @@ function startGeneration() {
     <div v-if="confirmOpen" class="settings-backdrop confirmation-backdrop" @click.self="dismissMaterialConfirmation">
       <section class="page-dialog panel confirmation-dialog" role="dialog" aria-modal="true" aria-label="素材确认" tabindex="-1" @keydown="trapDialogFocus">
         <div class="settings-header"><div><p class="eyebrow">CONFIRMATION</p><h2>确认素材分类 · {{ materials.length }} 张</h2><p>核对 v2.6 的自动识别结果，必要时调整分类、跳过模特素材或修改商品主体比例。</p></div><button class="modal-close" aria-label="关闭确认页" @click="dismissMaterialConfirmation">×</button></div>
-        <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
+        <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-for="warning in modelConfirmFallbackWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div class="confirm-grid-shell" :data-scroll-bottom="isConfirmGridScrolledToBottom" :data-has-overflow="confirmGridHasOverflow"><div ref="confirmGridElement" class="confirm-grid" @scroll="onConfirmGridScroll"><article v-for="(material, index) in materials" :key="material.source" :style="{ '--card-index': Math.min(index, 19) }" :data-visible="material.isVisible === true" :ref="(element) => { setPreviewElement(material, element); observeCard(element, material) }" class="confirm-card">
           <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>

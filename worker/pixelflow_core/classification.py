@@ -14,6 +14,8 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 GENERATED_OUTPUT_MARKERS = {"唯品专享1440", "卖点图", "1440x1440", "1440x1920", "1125x1500"}
 ClassificationProgress = Callable[[int, int, Path, "ClassificationDecision"], None]
 ClassificationStageProgress = Callable[[str, int, int, Path], None]
+ClassificationModelProgress = Callable[[str, int, int, str, str | None, str | None], None]
+ClassificationModelTrace = Callable[[str, str, str, str, str | None], None]
 SIZES = {
     "1440x1440": ((1440, 1440), (255, 255, 255)),
     "1440x1920": ((1440, 1920), (255, 255, 255)),
@@ -62,6 +64,9 @@ class ClassificationRequest:
     # classification do not walk the input tree twice.
     sources: tuple[Path, ...] | None = field(default=None, repr=False, compare=False)
     stage_progress: ClassificationStageProgress | None = field(default=None, repr=False, compare=False)
+    model_progress: ClassificationModelProgress | None = field(default=None, repr=False, compare=False)
+    model_trace: ClassificationModelTrace | None = field(default=None, repr=False, compare=False)
+    trace_request_id: str = field(default="", repr=False, compare=False)
 
     def validate(self) -> None:
         if not self.product_root.is_dir():
@@ -423,6 +428,9 @@ class V26ClassifierAdapter:
                 category,
                 request.cancel_event,
                 request.stage_progress,
+                request.model_progress,
+                request.model_trace,
+                request.trace_request_id,
             )
         return [_typed_decision(source, decision) for source, decision in decisions.items()]
 
@@ -433,12 +441,15 @@ class V26ClassifierAdapter:
         category: str | None,
         cancel_event: Event | None,
         stage_progress: ClassificationStageProgress | None = None,
+        model_progress: ClassificationModelProgress | None = None,
+        model_trace: ClassificationModelTrace | None = None,
+        trace_request_id: str = "",
     ):
         """Match v2.6 confirmation behavior without importing Qt."""
         root_text = str(model_root).strip()
         if not root_text:
             return decisions
-        from .model_service import configured_model_candidates, get_model_process_service
+        from .model_service import ModelProcessError, ModelProcessService, configured_model_candidates, get_model_process_service
         from .model_cache import file_version
         from .legacy_engine.local_model_assistant import (
             resolve_model_source_type,
@@ -503,10 +514,92 @@ class V26ClassifierAdapter:
             pose_sources.extend(samples)
         pose_sources = list(dict.fromkeys(pose_sources))
         pose_available = bool(configured_model_candidates(root_text, "pose"))
+        failed_models: set[str] = set()
+        failure_codes: dict[str, str] = {}
+        failure_stages: dict[str, str] = {}
+        failed_images: dict[str, set[Path]] = {
+            "pose": set(),
+            "segmentation": set(),
+            "detection": set(),
+        }
+        safe_model_errors = {
+            "model_not_found",
+            "model_configuration_invalid",
+            "model_session_create_failed",
+            "model_process_start_failed",
+            "model_process_exited",
+            "model_request_timeout",
+            "model_request_cancelled",
+            "model_inference_failed",
+        }
 
-        def mark_model_fallback(sources_to_mark: list[Path], purpose: str, reason: str) -> None:
+        def failure_code(error: Exception, purpose: str) -> str:
+            code = getattr(error, "code", None)
+            return code if isinstance(code, str) and code in safe_model_errors else "model_inference_failed"
+
+        def disables_model(code: str) -> bool:
+            return code in {
+                "model_not_found",
+                "model_configuration_invalid",
+                "model_session_create_failed",
+                "model_process_start_failed",
+                "model_process_exited",
+                "model_request_timeout",
+            }
+
+        def failure_reason(purpose: str, failed_stage: str) -> str:
+            if purpose == "pose" and failed_stage == "session_create":
+                return "Pose 模型初始化失败，已使用规则回退"
+            if purpose == "pose":
+                return "Pose 模型处理失败，已使用规则回退"
+            if purpose == "segmentation" or purpose == "seg":
+                return "Seg 模型处理失败，已使用保守回退"
+            return "检测模型处理失败，已跳过检测"
+
+        def report_model_progress(
+            phase: str,
+            total: int,
+            purpose: str,
+            error_code: str | None = None,
+            failed_stage: str | None = None,
+        ) -> None:
+            if model_progress is None:
+                return
+            bounded_total = max(0, min(int(total), 1_000_000))
+            model_progress(
+                phase,
+                0,
+                bounded_total,
+                purpose,
+                error_code,
+                failed_stage,
+            )
+
+        def model_call(service, method_name: str, *args, **kwargs):
+            method = getattr(service, method_name)
+            if isinstance(service, ModelProcessService):
+                kwargs.update(
+                    cancel_event=cancel_event,
+                    request_id=trace_request_id,
+                    trace_callback=model_trace,
+                )
+            return method(*args, **kwargs)
+
+        def mark_model_fallback(
+            sources_to_mark: list[Path],
+            purpose: str,
+            reason: str,
+            error_code: str | None = None,
+            failed_stage: str | None = None,
+        ) -> None:
             from .model_service import _fallback_composition, _fallback_segmentation
 
+            fallback_purpose = {
+                "pose": "pose",
+                "seg": "segmentation",
+                "segmentation": "segmentation",
+                "detection": "detection",
+            }.get(purpose, purpose)
             fallback = (
                 _fallback_composition(SIZES, reason)
                 if purpose == "pose"
@@ -526,10 +619,20 @@ class V26ClassifierAdapter:
                 metadata["fallback"] = True
                 metadata["fallback_reason"] = reason
                 metadata["model_status"] = "fallback"
-                metadata[f"{purpose}_evidence"] = {
-                    "status": "not_run",
+                metadata["fallback_purpose"] = fallback_purpose
+                evidence = {
+                    "status": "fallback",
                     "reason": reason,
                 }
+                metadata.pop("fallback_code", None)
+                if isinstance(error_code, str) and error_code in safe_model_errors:
+                    metadata["fallback_code"] = error_code
+                    evidence["error_code"] = error_code
+                metadata.pop("failed_stage", None)
+                if failed_stage in {"session_create", "inference"}:
+                    metadata["failed_stage"] = failed_stage
+                    evidence["failed_stage"] = failed_stage
+                metadata[f"{fallback_purpose}_evidence"] = evidence
                 decisions[source] = type(decision)(
                     decision.source_type,
                     decision.confidence,
@@ -550,20 +653,52 @@ class V26ClassifierAdapter:
                 if category in DETECTION_CATEGORY_MAP else []
             )
             detection_model_path = Path(detection_models[0]) if detection_models else None
+            pose_ready = True
             if pose_sources:
-                # Surface model startup before the first inference so the UI
-                # does not look frozen while the spawned process loads ONNX.
-                if stage_progress is not None:
-                    stage_progress("Pose", 0, len(pose_sources), Path("Pose 模型加载中…"))
                 warmup = getattr(service, "warmup", None)
                 if warmup is not None:
+                    report_model_progress("model_loading", len(pose_sources), "pose")
                     try:
-                        warmup(root_text, "pose")
-                    except Exception:
-                        # The normal inference path keeps its existing rule fallback.
-                        pass
-                if stage_progress is not None:
-                    stage_progress("Pose", 0, len(pose_sources), Path("Pose 模型已就绪"))
+                        warmup_result = model_call(service, "warmup", root_text, "pose")
+                        pose_ready = (
+                            isinstance(warmup_result, dict)
+                            and warmup_result.get("status") == "ready"
+                            and not warmup_result.get("fallback")
+                        )
+                        if pose_ready:
+                            report_model_progress("warmup_ready", len(pose_sources), "pose")
+                        else:
+                            error_code = (
+                                str(warmup_result.get("error_code"))
+                                if isinstance(warmup_result, dict)
+                                and warmup_result.get("error_code") in safe_model_errors
+                                else "model_session_create_failed"
+                            )
+                            failed_models.add("pose")
+                            failure_codes["pose"] = error_code
+                            failure_stages["pose"] = "session_create"
+                            report_model_progress(
+                                "model_fallback", len(pose_sources), "pose", error_code, "session_create"
+                            )
+                    except Exception as error:
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise ClassificationCancelled() from error
+                        pose_ready = False
+                        error_code = failure_code(error, "pose")
+                        failed_models.add("pose")
+                        failure_codes["pose"] = error_code
+                        failure_stages["pose"] = "session_create"
+                        report_model_progress(
+                            "model_fallback", len(pose_sources), "pose", error_code, "session_create"
+                        )
+                    if not pose_ready:
+                        mark_model_fallback(
+                            pose_sources,
+                            "pose",
+                            failure_reason("pose", "session_create"),
+                            failure_codes.get("pose"),
+                            "session_create",
+                        )
             seg_models = configured_model_candidates(root_text, "segmentation")
             anchor_seg_path = Path(seg_models[0]) if seg_models else None
 
@@ -572,6 +707,8 @@ class V26ClassifierAdapter:
                 from .model_assistant import ANCHOR_CATEGORIES
 
                 if (
+                    "segmentation" in failed_models
+                    or
                     anchor_seg_path is None
                     or category not in ANCHOR_CATEGORIES
                     or composition.get("model_view") in {None, "detail"}
@@ -582,13 +719,41 @@ class V26ClassifierAdapter:
                         source, anchor_seg_path, "segmentation", category,
                         output_size="segmentation", source_version=cache_source_version(source),
                     )
+                    if isinstance(evidence, dict) and (
+                        evidence.get("error_code") or evidence.get("failed_stage")
+                    ):
+                        evidence = None
                     if evidence is None:
-                        evidence = service.segment(root_text, source)
-                        store_model_result(
-                            source, anchor_seg_path, "segmentation", category,
-                            evidence, output_size="segmentation", source_version=cache_source_version(source),
+                        evidence = model_call(service, "segment", root_text, source)
+                        if not evidence.get("error_code") and not evidence.get("failed_stage"):
+                            store_model_result(
+                                source, anchor_seg_path, "segmentation", category,
+                                evidence, output_size="segmentation", source_version=cache_source_version(source),
+                            )
+                    if evidence.get("fallback"):
+                        error_code = evidence.get("error_code")
+                        if error_code in safe_model_errors:
+                            failed_images["segmentation"].add(source)
+                            if disables_model(error_code):
+                                failed_models.add("segmentation")
+                                failure_codes["segmentation"] = error_code
+                                failure_stages["segmentation"] = "inference"
+                                report_model_progress(
+                                    "model_fallback", len(pose_sources), "segmentation", error_code, "inference"
+                                )
+                        return None
+                except Exception as error:  # noqa: BLE001 - anchors fall back to Pose only
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ClassificationCancelled() from error
+                    error_code = failure_code(error, "segmentation")
+                    failed_images["segmentation"].add(source)
+                    if disables_model(error_code):
+                        failed_models.add("segmentation")
+                        failure_codes["segmentation"] = error_code
+                        failure_stages["segmentation"] = "inference"
+                        report_model_progress(
+                            "model_fallback", len(pose_sources), "segmentation", error_code, "inference"
                         )
-                except Exception:  # noqa: BLE001 - anchors fall back to Pose only
                     return None
                 return None if evidence.get("fallback") else evidence
 
@@ -597,22 +762,64 @@ class V26ClassifierAdapter:
 
             def detector_boxes(source: Path) -> list[list[float]]:
                 """Optional category-mapped detector boxes (source px)."""
+                if "detection" in failed_models or source in failed_images["detection"]:
+                    return []
                 detector_category = DETECTION_CATEGORY_MAP.get(category)
                 if detector_category is None:
                     return []
                 try:
                     if detect_boxes is not None:
-                        return detect_boxes(root_text, source, detector_category)
-                    if detector_category == "shoes" and detect_shoes is not None:
-                        return detect_shoes(root_text, source)
-                except Exception:  # noqa: BLE001 - anchors fall back to Pose only
-                    pass
+                        boxes = model_call(service, "detect_boxes", root_text, source, detector_category)
+                    elif detector_category == "shoes" and detect_shoes is not None:
+                        boxes = model_call(service, "detect_shoes", root_text, source)
+                    else:
+                        return []
+                    if isinstance(service, ModelProcessService):
+                        status = service.model_status(root_text, "detection")
+                        if status.get("status") == "fallback":
+                            error_code = status.get("fallback_reason", "model_inference_failed")
+                            error_code = error_code if error_code in safe_model_errors else "model_inference_failed"
+                            failed_images["detection"].add(source)
+                            if disables_model(error_code):
+                                failed_models.add("detection")
+                                failure_codes["detection"] = error_code
+                                failure_stages["detection"] = "inference"
+                    return list(boxes or [])
+                except Exception as error:  # noqa: BLE001 - anchors fall back to Pose only
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ClassificationCancelled() from error
+                    error_code = failure_code(error, "detection")
+                    failed_images["detection"].add(source)
+                    if disables_model(error_code):
+                        failed_models.add("detection")
+                        failure_codes["detection"] = error_code
+                        failure_stages["detection"] = "inference"
                 return []
 
             def run_pose(sources_to_check: list[Path]) -> None:
                 for index, source in enumerate(sources_to_check, start=1):
                     if cancel_event is not None and cancel_event.is_set():
                         raise ClassificationCancelled()
+                    if "pose" in failed_models:
+                        mark_model_fallback(
+                            sources_to_check[index - 1 :],
+                            "pose",
+                            failure_reason("pose", failure_stages.get("pose", "inference")),
+                            failure_codes.get("pose", "model_inference_failed"),
+                            failure_stages.get("pose", "inference"),
+                        )
+                        return
+                    if source in failed_images["pose"]:
+                        mark_model_fallback(
+                            [source],
+                            "pose",
+                            failure_reason("pose", "inference"),
+                            failure_codes.get("pose", "model_inference_failed"),
+                            "inference",
+                        )
+                        if stage_progress is not None:
+                            stage_progress("Pose", index, len(sources_to_check), source)
+                        continue
                     decision = decisions[source]
                     try:
                         composition = (
@@ -628,21 +835,39 @@ class V26ClassifierAdapter:
                             if pose_model_path is not None
                             else None
                         )
+                        if isinstance(composition, dict) and (
+                            composition.get("error_code") or composition.get("failed_stage")
+                        ):
+                            composition = None
                         if composition is None:
-                            composition = service.compose_for_sizes(
+                            composition = model_call(service, "compose_for_sizes",
                                 root_text, source, SIZES, product_category=category
                             )
+                            error_code = composition.get("error_code")
+                            if error_code in safe_model_errors:
+                                error_code = str(error_code)
+                                failed_images["pose"].add(source)
+                                if disables_model(error_code):
+                                    failure_stages["pose"] = "inference"
+                                raise ModelProcessError("Pose 模型失败", error_code)
                             segmentation = anchor_segmentation(source, composition)
                             boxes = detector_boxes(source)
                             if segmentation is not None or boxes:
                                 # Pose detections are cached in-process, so the
                                 # second pass only recomputes the crop window.
                                 extra = {"detector_boxes": boxes} if boxes else {}
-                                composition = service.compose_for_sizes(
+                                composition = model_call(service, "compose_for_sizes",
                                     root_text, source, SIZES, product_category=category,
                                     segmentation=segmentation, **extra,
                                 )
-                            if pose_model_path is not None:
+                                error_code = composition.get("error_code")
+                                if error_code in safe_model_errors:
+                                    error_code = str(error_code)
+                                    failed_images["pose"].add(source)
+                                    if disables_model(error_code):
+                                        failure_stages["pose"] = "inference"
+                                    raise ModelProcessError("Pose 模型失败", error_code)
+                            if pose_model_path is not None and not composition.get("error_code") and not composition.get("failed_stage"):
                                 store_model_result(
                                     source,
                                     pose_model_path,
@@ -666,25 +891,42 @@ class V26ClassifierAdapter:
                             updated.reason, metadata=metadata,
                         )
                     except Exception as error:
-                        from .model_service import _fallback_composition
-
-                        fallback = _fallback_composition(SIZES, f"Pose：{error}")
-                        metadata = _merge_composition_metadata(
-                            dict(decision.metadata or {}),
-                            fallback,
-                            category,
-                            source=str(source),
-                            purpose="pose",
-                        )
-                        metadata["model_error"] = f"Pose：{error}"
-                        decisions[source] = type(decision)(
-                            decision.source_type, decision.confidence, decision.source,
-                            decision.reason, metadata=metadata,
-                        )
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise ClassificationCancelled() from error
+                        error_code = failure_code(error, "pose")
+                        failed_images["pose"].add(source)
+                        if disables_model(error_code):
+                            failed_models.add("pose")
+                            failure_codes["pose"] = error_code
+                            failure_stages["pose"] = "inference"
+                            mark_model_fallback(
+                                sources_to_check[index - 1 :],
+                                "pose",
+                                failure_reason("pose", "inference"),
+                                error_code,
+                                "inference",
+                            )
+                            report_model_progress(
+                                "model_fallback", len(sources_to_check), "pose", error_code, "inference"
+                            )
+                        else:
+                            mark_model_fallback(
+                                [source],
+                                "pose",
+                                failure_reason("pose", "inference"),
+                                error_code,
+                                "inference",
+                            )
+                        if stage_progress is not None:
+                            stage_progress("Pose", index, len(sources_to_check), source)
+                        if disables_model(error_code):
+                            return
+                        continue
                     if stage_progress is not None:
                         stage_progress("Pose", index, len(sources_to_check), source)
 
-            run_pose(pose_sources)
+            if pose_ready:
+                run_pose(pose_sources)
             expanded_sources: list[Path] = []
             for ordered, samples in sampled_groups.values():
                 sample_types = [decisions[source].source_type for source in samples]
@@ -717,6 +959,26 @@ class V26ClassifierAdapter:
             for index, source in enumerate(candidates, start=1):
                 if cancel_event is not None and cancel_event.is_set():
                     raise ClassificationCancelled()
+                if "segmentation" in failed_models:
+                    mark_model_fallback(
+                        candidates[index - 1 :],
+                        "seg",
+                        failure_reason("segmentation", failure_stages.get("segmentation", "inference")),
+                        failure_codes.get("segmentation", "model_inference_failed"),
+                        failure_stages.get("segmentation", "inference"),
+                    )
+                    break
+                if source in failed_images["segmentation"]:
+                    mark_model_fallback(
+                        [source],
+                        "seg",
+                        failure_reason("segmentation", "inference"),
+                        "model_inference_failed",
+                        "inference",
+                    )
+                    if stage_progress is not None:
+                        stage_progress("Seg", index, len(candidates), source)
+                    continue
                 decision = decisions[source]
                 try:
                     evidence = (
@@ -731,9 +993,26 @@ class V26ClassifierAdapter:
                         if seg_model_path is not None
                         else None
                     )
+                    if isinstance(evidence, dict) and (
+                        evidence.get("error_code") or evidence.get("failed_stage")
+                    ):
+                        evidence = None
                     if evidence is None:
-                        evidence = service.segment(root_text, source)
-                        if seg_model_path is not None:
+                        evidence = model_call(service, "segment", root_text, source)
+                        error_code = evidence.get("error_code")
+                        if error_code in safe_model_errors:
+                            error_code = str(error_code)
+                            failed_images["segmentation"].add(source)
+                            if disables_model(error_code):
+                                failure_stages["segmentation"] = "inference"
+                                raise ModelProcessError("Seg 模型失败", error_code)
+                            mark_model_fallback(
+                                [source], "seg", failure_reason("segmentation", "inference"), error_code, "inference"
+                            )
+                            if stage_progress is not None:
+                                stage_progress("Seg", index, len(candidates), source)
+                            continue
+                        if seg_model_path is not None and not evidence.get("error_code") and not evidence.get("failed_stage"):
                             store_model_result(
                                 source,
                                 seg_model_path,
@@ -757,24 +1036,33 @@ class V26ClassifierAdapter:
                         updated.reason, metadata=metadata,
                     )
                 except Exception as error:
-                    from .model_service import _fallback_segmentation
-
-                    reason = f"Seg：{error}"
-                    fallback = _fallback_segmentation(reason)
-                    metadata = _merge_composition_metadata(
-                        dict(decision.metadata or {}),
-                        fallback,
-                        category,
-                        source=str(source),
-                        purpose="seg",
-                        segmentation_evidence=fallback,
-                        analyzed=False,
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ClassificationCancelled() from error
+                    error_code = failure_code(error, "segmentation")
+                    failed_images["segmentation"].add(source)
+                    if disables_model(error_code):
+                        failed_models.add("segmentation")
+                        failure_codes["segmentation"] = error_code
+                        failure_stages["segmentation"] = "inference"
+                        mark_model_fallback(
+                            candidates[index - 1 :],
+                            "seg",
+                            failure_reason("segmentation", "inference"),
+                            error_code,
+                            "inference",
+                        )
+                        report_model_progress(
+                            "model_fallback", len(candidates), "segmentation", error_code, "inference"
+                        )
+                        if stage_progress is not None:
+                            stage_progress("Seg", index, len(candidates), source)
+                        break
+                    mark_model_fallback(
+                        [source], "seg", failure_reason("segmentation", "inference"), error_code, "inference"
                     )
-                    metadata["model_error"] = f"Seg：{error}"
-                    decisions[source] = type(decision)(
-                        decision.source_type, decision.confidence, decision.source,
-                        decision.reason, metadata=metadata,
-                    )
+                    if stage_progress is not None:
+                        stage_progress("Seg", index, len(candidates), source)
+                    continue
                 if stage_progress is not None:
                     stage_progress("Seg", index, len(candidates), source)
         else:

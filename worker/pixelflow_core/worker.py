@@ -51,7 +51,25 @@ BUILD_HASH = _worker_build_hash()
 
 
 _TRACE_REQUEST_TYPES = {"probe_models", "classify_materials", "start_generation", "retry_failed"}
-_TRACE_STAGES = {"start", "path_scan", "model_probe", "image_read", "lock", "emit"}
+_TRACE_STAGES = {
+    "start", "path_scan", "model_probe", "image_read", "lock", "emit",
+    "classify_progress", "model_process", "session_create",
+}
+_MODEL_TRACE_PURPOSES = {"pose", "segmentation", "detection"}
+_MODEL_TRACE_PHASES = {"start", "success", "failure"}
+_MODEL_TRACE_ERRORS = {
+    "model_not_found",
+    "model_configuration_invalid",
+    "model_session_create_failed",
+    "model_process_start_failed",
+    "model_process_exited",
+    "model_request_timeout",
+    "model_request_cancelled",
+    "model_inference_failed",
+    "pose_model_failed",
+    "segmentation_model_failed",
+    "detection_model_failed",
+}
 _worker_log_lock = threading.Lock()
 
 
@@ -127,6 +145,27 @@ class _RequestTrace:
                 **({"code": code} if code else {}),
             }
         )
+
+    def model_event(
+        self,
+        event: str,
+        purpose: str,
+        model_task_id: str,
+        phase: str,
+        error_code: str | None = None,
+    ) -> None:
+        if event not in {"model_process", "session_create"}:
+            return
+        if purpose not in _MODEL_TRACE_PURPOSES or phase not in _MODEL_TRACE_PHASES:
+            return
+        fields: dict[str, Any] = {
+            "purpose": purpose,
+            "model_task_id": model_task_id[:48],
+            "phase": phase,
+        }
+        if error_code in _MODEL_TRACE_ERRORS:
+            fields["error_code"] = error_code
+        self.mark(event, **fields)
 
     def payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         elapsed_ms = round((time.monotonic() - self.started) * 1000, 3)
@@ -603,6 +642,35 @@ class WorkerRuntime:
         cancel_event: threading.Event,
         trace: _RequestTrace,
     ) -> None:
+        def mark_classification_progress(
+            phase: str,
+            completed: int,
+            total: int,
+            *,
+            purpose: str | None = None,
+            status: str | None = None,
+            error_code: str | None = None,
+            failed_stage: str | None = None,
+        ) -> None:
+            if phase not in {"规则分类", "Pose", "Seg", "model_loading", "warmup_ready", "model_fallback"}:
+                return
+            bounded_total = max(0, min(int(total), 1_000_000))
+            bounded_completed = max(0, min(int(completed), bounded_total))
+            fields: dict[str, Any] = {
+                "phase": phase,
+                "completed": bounded_completed,
+                "total": bounded_total,
+            }
+            if purpose in _MODEL_TRACE_PURPOSES:
+                fields["purpose"] = purpose
+            if status in {"loading", "ready", "fallback"}:
+                fields["status"] = status
+            if error_code in _MODEL_TRACE_ERRORS:
+                fields["error_code"] = error_code
+            if failed_stage in {"session_create", "inference"}:
+                fields["failed_stage"] = failed_stage
+            trace.mark("classify_progress", **fields)
+
         def report(
             completed: int,
             total: int,
@@ -611,6 +679,7 @@ class WorkerRuntime:
         ) -> None:
             if cancel_event.is_set():
                 raise ClassificationCancelled()
+            mark_classification_progress("规则分类", completed, total)
             self._emit_traced(
                 trace,
                 "progress",
@@ -626,6 +695,7 @@ class WorkerRuntime:
         def report_stage(stage: str, completed: int, total: int, source: Path) -> None:
             if cancel_event.is_set():
                 raise ClassificationCancelled()
+            mark_classification_progress(stage, completed, total)
             self._emit_traced(
                 trace,
                 "progress",
@@ -634,6 +704,45 @@ class WorkerRuntime:
                     "total": total,
                     "phase": stage,
                     "source": source,
+                },
+            )
+
+        def report_model_stage(
+            phase: str,
+            completed: int,
+            total: int,
+            purpose: str,
+            error_code: str | None,
+            failed_stage: str | None,
+        ) -> None:
+            if cancel_event.is_set():
+                raise ClassificationCancelled()
+            status = (
+                "loading" if phase == "model_loading"
+                else "ready" if phase == "warmup_ready"
+                else "fallback" if phase == "model_fallback"
+                else None
+            )
+            mark_classification_progress(
+                phase,
+                completed,
+                total,
+                purpose=purpose,
+                status=status,
+                error_code=error_code,
+                failed_stage=failed_stage,
+            )
+            self._emit_traced(
+                trace,
+                "progress",
+                {
+                    "completed": max(0, min(int(completed), 1_000_000)),
+                    "total": max(0, min(int(total), 1_000_000)),
+                    "phase": phase,
+                    "purpose": purpose,
+                    **({"status": status} if status else {}),
+                    **({"error_code": error_code} if error_code in _MODEL_TRACE_ERRORS else {}),
+                    **({"failed_stage": failed_stage} if failed_stage in {"session_create", "inference"} else {}),
                 },
             )
 
@@ -657,6 +766,9 @@ class WorkerRuntime:
                 category=category_decision.category if category_decision is not None else request.category,
                 cancel_event=cancel_event,
                 stage_progress=report_stage,
+                model_progress=report_model_stage,
+                model_trace=trace.model_event,
+                trace_request_id=request_id,
             )
             trace.mark("model_probe")
             decisions = self.classifier.classify(

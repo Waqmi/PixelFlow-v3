@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
+import queue
 import tempfile
 import threading
 import time
@@ -25,6 +26,8 @@ from pixelflow_core.model_service import (
     STATE_UNCONFIGURED,
     STATUS_FALLBACK,
     STATUS_UNCONFIGURED,
+    ModelProcessCancelled,
+    ModelProcessError,
     ModelProcessService,
     _worker_main,
 )
@@ -395,6 +398,268 @@ class ModelServiceTests(unittest.TestCase):
                 self.assertNotEqual(first, second)
             finally:
                 service.close()
+
+    def test_default_model_request_timeout_is_below_classification_watchdog(self) -> None:
+        service = ModelProcessService()
+        try:
+            self.assertEqual(service.timeout, 60.0)
+        finally:
+            service.close()
+
+    def test_cancel_terminates_blocked_child_and_next_request_restarts_lazily(self) -> None:
+        class FakeProcess:
+            def __init__(self):
+                self.alive = True
+                self.terminated = False
+
+            def is_alive(self):
+                return self.alive
+
+            def terminate(self):
+                self.terminated = True
+                self.alive = False
+
+            def join(self, timeout=None):
+                return None
+
+        class RequestQueue:
+            def __init__(self):
+                self.items = []
+
+            def put(self, item):
+                self.items.append(item)
+
+            def cancel_join_thread(self):
+                return None
+
+            def close(self):
+                return None
+
+        class WaitingResponseQueue:
+            def __init__(self, cancel_event):
+                self.cancel_event = cancel_event
+
+            def get(self, timeout):
+                self.cancel_event.wait(timeout)
+                raise queue.Empty
+
+            def cancel_join_thread(self):
+                return None
+
+            def close(self):
+                return None
+
+        class SuccessResponseQueue:
+            def __init__(self, request_queue):
+                self.request_queue = request_queue
+
+            def get(self, timeout):
+                task_id = self.request_queue.items[-1]["task_id"]
+                return {"task_id": task_id, "result": "ready", "error": ""}
+
+            def cancel_join_thread(self):
+                return None
+
+            def close(self):
+                return None
+
+        cancel_event = threading.Event()
+        process = FakeProcess()
+        events = []
+        starts = 0
+        with patch("pixelflow_core.model_service.sys.platform", "win32"):
+            service = ModelProcessService(timeout=1)
+        service._process = process
+        service._request_queue = RequestQueue()
+        service._response_queue = WaitingResponseQueue(cancel_event)
+
+        def start_next_request():
+            nonlocal starts
+            starts += 1
+            next_process = FakeProcess()
+            requests = RequestQueue()
+            service._process = next_process
+            service._request_queue = requests
+            service._response_queue = SuccessResponseQueue(requests)
+
+        service._start = start_next_request
+        timer = threading.Timer(0.03, cancel_event.set)
+        timer.start()
+        try:
+            with self.assertRaises(ModelProcessCancelled) as raised:
+                service._request(
+                    "warmup",
+                    cancel_event=cancel_event,
+                    request_id="classify-cancel",
+                    trace_callback=lambda *event: events.append(event),
+                    model_root="/tmp/models",
+                    purpose="pose",
+                )
+            timer.join()
+            self.assertEqual(raised.exception.code, "model_request_cancelled")
+            self.assertTrue(process.terminated)
+            self.assertIsNone(service._process)
+            self.assertEqual(starts, 0)
+            self.assertIn(("model_process", "pose", "model-1", "failure", "model_request_cancelled"), events)
+
+            self.assertEqual(service._request("ping"), "ready")
+            self.assertEqual(starts, 1)
+        finally:
+            timer.cancel()
+            service.close()
+
+    def test_blocked_request_timeout_stops_child_without_eager_restart(self) -> None:
+        class FakeProcess:
+            def __init__(self):
+                self.alive = True
+                self.terminated = False
+
+            def is_alive(self):
+                return self.alive
+
+            def terminate(self):
+                self.terminated = True
+                self.alive = False
+
+            def join(self, timeout=None):
+                return None
+
+        class FakeQueue:
+            def put(self, _item):
+                return None
+
+            def get(self, timeout):
+                time.sleep(timeout)
+                raise queue.Empty
+
+            def cancel_join_thread(self):
+                return None
+
+            def close(self):
+                return None
+
+        with patch("pixelflow_core.model_service.sys.platform", "win32"):
+            service = ModelProcessService(timeout=0.05)
+        process = FakeProcess()
+        service._process = process
+        service._request_queue = FakeQueue()
+        service._response_queue = FakeQueue()
+        service._start = lambda: self.fail("timed out child must not restart in the same request")
+        events = []
+        try:
+            with self.assertRaises(ModelProcessError) as raised:
+                service._request(
+                    "warmup",
+                    request_id="classify-timeout",
+                    trace_callback=lambda *event: events.append(event),
+                    model_root="/tmp/models",
+                    purpose="pose",
+                )
+            self.assertEqual(raised.exception.code, "model_request_timeout")
+            self.assertTrue(process.terminated)
+            self.assertIsNone(service._process)
+            self.assertIn(("model_process", "pose", "model-1", "failure", "model_request_timeout"), events)
+        finally:
+            service.close()
+
+    def test_child_exit_is_traced_and_not_restarted_in_the_failed_request(self) -> None:
+        class FakeProcess:
+            def is_alive(self):
+                return False
+
+            def terminate(self):
+                raise AssertionError("dead process should not be terminated")
+
+            def join(self, timeout=None):
+                return None
+
+        class FakeQueue:
+            def put(self, _item):
+                return None
+
+            def get(self, timeout):
+                raise queue.Empty
+
+            def cancel_join_thread(self):
+                return None
+
+            def close(self):
+                return None
+
+        with patch("pixelflow_core.model_service.sys.platform", "win32"):
+            service = ModelProcessService(timeout=1)
+        starts = 0
+
+        def start_dead_process():
+            nonlocal starts
+            starts += 1
+            service._process = FakeProcess()
+            service._request_queue = FakeQueue()
+            service._response_queue = FakeQueue()
+
+        service._start = start_dead_process
+        events = []
+        try:
+            with self.assertRaises(ModelProcessError) as raised:
+                service._request(
+                    "warmup",
+                    request_id="classify-exit",
+                    trace_callback=lambda *event: events.append(event),
+                    model_root="/tmp/models",
+                    purpose="pose",
+                )
+            self.assertEqual(raised.exception.code, "model_process_exited")
+            self.assertEqual(starts, 1)
+            self.assertIsNone(service._process)
+            self.assertIn(("model_process", "pose", "model-1", "failure", "model_process_exited"), events)
+        finally:
+            service.close()
+
+    def test_worker_traces_session_create_start_success_and_safe_failure(self) -> None:
+        class Queue:
+            def __init__(self, items=()):
+                self.items = list(items)
+
+            def get(self):
+                return self.items.pop(0)
+
+            def put(self, item):
+                self.items.append(item)
+
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+                self.session = object()
+
+        class FailedAssistant:
+            def __init__(self, model_path):
+                raise RuntimeError("sensitive path: {}".format(model_path))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for purpose in ("pose", "segmentation"):
+                model_dir = root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(b"model")
+            requests = Queue([
+                {"task_id": "model-1", "action": "warmup", "model_root": str(root), "purpose": "pose", "trace_enabled": True},
+                {"task_id": "model-2", "action": "warmup", "model_root": str(root), "purpose": "segmentation", "trace_enabled": True},
+                {"action": "shutdown"},
+            ])
+            responses = Queue()
+            with patch(
+                "pixelflow_core.model_service._assistant_types",
+                return_value=(Assistant, FailedAssistant, FailedAssistant),
+            ):
+                _worker_main(requests, responses)
+
+        trace_events = [item for item in responses.items if "trace_event" in item]
+        self.assertEqual(
+            [(item["trace_event"]["purpose"], item["trace_event"]["phase"]) for item in trace_events],
+            [("pose", "start"), ("pose", "success"), ("segmentation", "start"), ("segmentation", "failure")],
+        )
+        self.assertTrue(all(set(item["trace_event"]) == {"event", "purpose", "phase", "error_code"} for item in trace_events))
+        self.assertEqual(responses.items[-1]["error_code"], "model_session_create_failed")
 
 
 if __name__ == "__main__":

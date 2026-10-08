@@ -12,8 +12,9 @@ assert.ok(script, 'App.vue script setup was not found')
 
 const names = [
   'rememberRequestDiagnostics', 'requestDiagnosticDetail', 'updateResumePhase',
-  'clearClassificationWatchdog', 'clearCancelWatchdog', 'settleCancellation',
+  'clearClassificationWatchdog', 'armClassificationWatchdog', 'clearCancelWatchdog', 'settleCancellation',
   'clearModelProbeTimeout', 'failModelProbe', 'workerErrorDetail', 'handleWorkerMessage',
+  'modelFallbackWarnings', 'classificationModelStatusText',
 ]
 const appFile = ts.createSourceFile('App.vue.ts', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
 const declarations = new Map(
@@ -31,6 +32,8 @@ const refNames = [
   'workerConnected', 'workerReadyState', 'workerInterrupted', 'status', 'taskPhase', 'taskDetail', 'resumeSnapshot',
   'classificationRunning', 'classificationRequestId', 'generationRequestId', 'isRunning', 'isCancelling',
   'cancelRequestId', 'cancelTargetRequestId', 'modelTesting', 'modelProbeRequestId', 'modelStatus', 'inputRoot', 'outputRoot',
+  'materials', 'localModelEnabled', 'localModelPath', 'categorySuggestion', 'preflightWarnings', 'excludedModelSources',
+  'materialConfirmed', 'classifiedInputRoot', 'classifiedOptionsKey',
 ]
 const fixtureSource = `
 function createFixture(initial) {
@@ -40,11 +43,18 @@ function createFixture(initial) {
   let modelProbeTimeout = initial.modelProbeTimeout
   let modelProbeRoot = initial.modelProbeRoot || ''
   let modelProbeReadyHandled = Boolean(initial.modelProbeReadyHandled)
+  let pendingClassificationKey = initial.pendingClassificationKey || ''
+  const previewQueue = []
+  const confirmWindowTitles = []
   const clearedTimers = []
-  const classificationProgress = []
+  const classificationProgress = { value: initial.classificationProgressValue || 0 }
+  const classificationProgressEvents = []
   const releasedModelProbeRoots = []
   const requestDiagnostics = new Map(Object.entries(initial.requestDiagnostics || {}))
-  const window = { clearTimeout: (timer) => clearedTimers.push(timer) }
+  const window = {
+    clearTimeout: (timer) => clearedTimers.push(timer),
+    setTimeout: () => 303,
+  }
   const worker = {
     cancelled: [],
     pending: new Set(initial.pendingRequestIds || []),
@@ -57,10 +67,19 @@ function createFixture(initial) {
     workerConnected, workerReadyState, workerInterrupted, status, taskPhase, taskDetail, resumeSnapshot,
     classificationRunning, classificationRequestId, generationRequestId, isRunning, isCancelling,
     cancelRequestId, cancelTargetRequestId, modelTesting, modelProbeRequestId, modelStatus, inputRoot, outputRoot,
+    materials, localModelEnabled, localModelPath, categorySuggestion, preflightWarnings, excludedModelSources,
+    materialConfirmed, classifiedInputRoot, classifiedOptionsKey,
   } = refs
-  function setClassificationProgress(...args) { classificationProgress.push(args) }
+  function setClassificationProgress(...args) {
+    classificationProgressEvents.push(args)
+    classificationProgress.value = args[0]
+  }
   function releaseModelProbe(root) { releasedModelProbeRoots.push(root) }
   function saveResumeTask(snapshot) { resumeSnapshot.value = snapshot }
+  function markProgressComplete() {}
+  function clearResumeTask() {}
+  function openConfirmWindow() {}
+  function safeSetWindowTitle(title) { confirmWindowTitles.push(title) }
 
   ${actualFunctions}
 
@@ -68,9 +87,13 @@ function createFixture(initial) {
     refs,
     worker,
     clearedTimers,
-    classificationProgress,
+    classificationProgress: classificationProgressEvents,
+    classificationProgressValue: classificationProgress,
     releasedModelProbeRoots,
+    confirmWindowTitles,
     handleWorkerMessage,
+    modelFallbackWarnings,
+    classificationModelStatusText,
     settleCancellation,
     get classificationWatchdog() { return classificationWatchdog },
     get cancelWatchdog() { return cancelWatchdog },
@@ -350,4 +373,116 @@ test('cancel acknowledgement errors restore the active phase and keep task reque
     assert.equal(fixture.worker.pending.has(requestId), true)
     assert.equal(fixture.worker.pending.has(ackId), false)
   }
+})
+
+test('a successful optional-model warmup shows its purpose only after readiness', () => {
+  const fixture = createFixture({
+    status: '正在分析素材',
+    taskPhase: '识别分类',
+    classificationRunning: true,
+    classificationRequestId: 'classify-model-ready',
+  })
+
+  fixture.handleWorkerMessage({
+    protocol: 1,
+    request_id: 'classify-model-ready',
+    type: 'progress',
+    payload: { completed: 0, total: 2, phase: 'warmup_ready', purpose: 'segmentation', status: 'ready' },
+  })
+
+  assert.equal(fixture.refs.taskDetail.value, 'Seg 模型已初始化')
+  assert.equal(fixture.refs.status.value, 'Seg 模型已初始化')
+  assert.equal(fixture.classificationProgressValue.value, 400)
+  assert.equal(fixture.classificationWatchdog, 303)
+})
+
+test('an optional-model warmup fallback keeps classification moving with a clear status', () => {
+  const fixture = createFixture({
+    status: '正在分析素材',
+    taskPhase: '识别分类',
+    classificationRunning: true,
+    classificationRequestId: 'classify-model-fallback',
+  })
+
+  fixture.handleWorkerMessage({
+    protocol: 1,
+    request_id: 'classify-model-fallback',
+    type: 'progress',
+    payload: {
+      completed: 0,
+      total: 1,
+      phase: 'model_fallback',
+      purpose: 'pose',
+      status: 'fallback',
+      error_code: 'model_session_create_failed',
+      failed_stage: 'session_create',
+    },
+  })
+
+  assert.equal(fixture.refs.taskDetail.value, 'Pose 不可用，继续使用规则回退')
+  assert.equal(fixture.refs.status.value, 'Pose 不可用，继续使用规则回退')
+  assert.equal(fixture.refs.classificationRunning.value, true)
+  assert.equal(fixture.refs.classificationRequestId.value, 'classify-model-fallback')
+})
+
+test('fallback purpose and reason remain visible after progress and classification completion', () => {
+  const fixture = createFixture({
+    status: '正在分析素材',
+    taskPhase: '识别分类',
+    classificationRunning: true,
+    classificationRequestId: 'classify-fallback-persistent',
+    localModelEnabled: true,
+    localModelPath: '/models',
+    inputRoot: '/input',
+    pendingClassificationKey: 'options-1',
+  })
+
+  fixture.handleWorkerMessage({
+    protocol: 1,
+    request_id: 'classify-fallback-persistent',
+    type: 'progress',
+    payload: { completed: 0, total: 1, phase: 'model_fallback', purpose: 'pose', status: 'fallback' },
+  })
+  fixture.handleWorkerMessage({
+    protocol: 1,
+    request_id: 'classify-fallback-persistent',
+    type: 'progress',
+    payload: { completed: 1, total: 1, phase: 'Pose', source: '/input/model.jpg' },
+  })
+  assert.match(fixture.refs.taskDetail.value, /Pose 分析/)
+
+  fixture.handleWorkerMessage({
+    protocol: 1,
+    request_id: 'classify-fallback-persistent',
+    type: 'done',
+    payload: {
+      result: {
+        decisions: [{
+          source: '/input/model.jpg',
+          source_type: 'model',
+          confidence: 0.5,
+          reason: 'rules',
+          metadata: {
+            fallback: true,
+            model_status: 'fallback',
+            fallback_purpose: 'pose',
+            fallback_reason: 'Pose 模型初始化失败，已使用规则回退',
+            fallback_code: 'model_session_create_failed',
+            failed_stage: 'session_create',
+            pose_evidence: { status: 'fallback', reason: 'Pose 模型初始化失败，已使用规则回退' },
+          },
+        }],
+      },
+    },
+  })
+
+  const materials = fixture.refs.materials.value
+  assert.equal(fixture.refs.classificationRunning.value, false)
+  assert.deepEqual(plain(fixture.modelFallbackWarnings(materials, fixture.refs.localModelEnabled.value)), [
+    'Pose 模型回退：Pose 模型初始化失败，已使用规则回退',
+  ])
+  assert.equal(
+    fixture.classificationModelStatusText(materials, fixture.refs.localModelEnabled.value, fixture.refs.localModelPath.value),
+    'Pose：回退 1；Seg：未运行',
+  )
 })

@@ -109,6 +109,13 @@ jobs:
         working-directory: apps/desktop
         run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
+      - name: Smoke-test frozen Windows Worker pose session
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        run: |
+          "$PIXELFLOW_PYTHON" ../../tools/smoke_frozen_worker.py \
+            --worker "src-tauri/target/${{ matrix.target }}/release/pixelflow-worker/pixelflow-worker.exe"
+
       - name: List Windows raw build outputs
         if: runner.os == 'Windows'
         working-directory: apps/desktop
