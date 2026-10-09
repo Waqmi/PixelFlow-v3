@@ -406,6 +406,14 @@ class ModelServiceTests(unittest.TestCase):
         finally:
             service.close()
 
+    def test_frozen_worker_keeps_model_session_in_process(self) -> None:
+        with patch("pixelflow_core.model_service.sys.frozen", True, create=True):
+            service = ModelProcessService()
+        try:
+            self.assertTrue(service._direct)
+        finally:
+            service.close()
+
     def test_cancel_terminates_blocked_child_and_next_request_restarts_lazily(self) -> None:
         class FakeProcess:
             def __init__(self):

@@ -365,7 +365,12 @@ class ModelProcessService:
         # macOS TCC treats a multiprocessing-spawned frozen worker as a new
         # file-access identity.  Keep model reads in the already-authorized
         # Worker process there; other platforms retain the isolated process.
-        self._direct = sys.platform == "darwin"
+        # PyInstaller's frozen Windows executable is already an isolated
+        # Worker process.  Spawning the same frozen entry point again can
+        # re-enter the JSONL stdin loop instead of reaching _worker_main.
+        # Keep model sessions in-process for frozen builds; development
+        # Windows retains the existing child-process boundary.
+        self._direct = sys.platform == "darwin" or bool(getattr(sys, "frozen", False))
         self._context = multiprocessing.get_context("spawn")
         self._request_queue: Any = None
         self._response_queue: Any = None
