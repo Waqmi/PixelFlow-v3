@@ -24,20 +24,22 @@ from PIL import Image
 # Constant + Expand float pose output [1,56,57], and an input echo to retain the input.
 # It contains 57 duplicate, confident COCO-like pose rows; no accuracy is tested.
 POSE_FIXTURE = base64.b64decode(
-    "CAgSG1BpeGVsRmxvdyBGcm96ZW4gUG9zZSBTbW9rZTrYBArMAhINcG9zZV9jaGFubmVscyIIQ29u"
-    "c3RhbnQqsAIKBXZhbHVlKqMCCgEBCgE4CgEBEAElAAAAPyUAAAA/JQAA8D4lAABcPyWkcH0/JQAA"
+    "CAgSG1BpeGVsRmxvdyBGcm96ZW4gUG9zZSBTbW9rZTrLBBINcG9zZV9jaGFubmVscyIIQ29u"
+    "c3RhbnQqrQIKBXZhbHVlKqACCAEIOAgBEAElAAAAPyUAAAA/JQAA8D4lAABcPyWkcH0/JQAA"
     "oEMlAADwQiWkcH0/JQAAmkMlAADcQiWkcH0/JQAApkMlAADcQiWkcH0/JQAAlEMlAADmQiWkcH0/"
     "JQAArEMlAADmQiWkcH0/JQAAjEMlAAA0QyWkcH0/JQAAtEMlAAA0QyWkcH0/JQAAdUMlAAB6QyWk"
     "cH0/JQCAxUMlAAB6QyWkcH0/JQAAXEMlAACgQyWkcH0/JQAA0kMlAACgQyWkcH0/JQCAk0MlAACl"
     "QyWkcH0/JQCArEMlAAClQyWkcH0/JQAAkUMlAADcQyWkcH0/JQAAr0MlAADcQyWkcH0/JQCAjkMl"
-    "AAAMRCWkcH0/JQCAsUMlAAAMRCWkcH0/oAEECjESDHRhcmdldF9zaGFwZSIIQ29uc3RhbnQqFwoF"
-    "dmFsdWUqCwoBAxAHOAE4ODg5oAEECi0KDXBvc2VfY2hhbm5lbHMKDHRhcmdldF9zaGFwZRIGb3V0"
-    "cHV0IgZFeHBhbmQKHgoGaW1hZ2VzEgppbWFnZV9lY2hvIghJZGVudGl0eRIbUGl4ZWxGbG93IEZy"
-    "b3plbiBQb3NlIFNtb2tlWiIKBmltYWdlcxIYChYIARISCgIIAQoCCAMKAwiABQoDCIAFYhwKBm91"
-    "dHB1dBISChAIARIMCgIIAQoCCDgKAgg5YiYKCmltYWdlX2VjaG8SGAoWCAESEgoCCAEKAggDCgMI"
-    "gAUKAwiABUICEA0=",
+    "AAAMRCWkcH0/JQCAsUMlAAAMRCWkcH0/oAEEEgx0YXJnZXRfc2hhcGUiCENvbnN0YW50KhYKBXZh"
+    "bHVlKgoIAxAHOAE4ODg5oAEECg1wb3NlX2NoYW5uZWxzCgx0YXJnZXRfc2hhcGUSBm91dHB1dCIG"
+    "RXhwYW5kCgZpbWFnZXMSCmltYWdlX2VjaG8iCElkZW50aXR5EhtQaXhlbEZsb3cgRnJvemVuIFBv"
+    "c2UgU21va2VaIgoGaW1hZ2VzEhgKFggBEhIKAggBCgIIAwoDCIAFCgMIgAViHAoGb3V0cHV0EhIK"
+    "EAgBEgwKAggBCgIIOAoCCDliJgoKaW1hZ2VfZWNobxIYChYIARISCgIIAQoCCAMKAwiABQoDCIAF"
+    "QgIQDQ==",
     validate=True,
 )
+if len(POSE_FIXTURE) != 625:  # keep accidental fixture edits visible in CI
+    raise RuntimeError(f"unexpected frozen pose fixture length: {len(POSE_FIXTURE)}")
 TIMEOUT_SECONDS = 90
 CLEANUP_SECONDS = 5
 REQUEST_ID = "frozen-pose-smoke"

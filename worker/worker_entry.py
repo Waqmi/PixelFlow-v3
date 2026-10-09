@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import multiprocessing
+
+
+# PyInstaller's spawned child is re-entered through this module with
+# ``--multiprocessing-fork``.  Handle that marker before importing/configuring
+# the application, otherwise the child falls through to the worker stdin loop.
+multiprocessing.freeze_support()
+
 import os
 import sys
-import multiprocessing
 from pathlib import Path
 
 
@@ -23,7 +30,6 @@ from pixelflow_core.worker import main  # noqa: E402
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     code = main()
     # Skip native teardown: onnxruntime's telemetry thread can abort the
     # process while static objects are destroyed.
