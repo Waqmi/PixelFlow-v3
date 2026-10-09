@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 
 worker_root = Path(SPECPATH)
@@ -20,7 +20,13 @@ hiddenimports = [
     *collect_submodules("pixelflow_core"),
 ]
 
-datas = []
+# ONNX Runtime loads its provider package and native state module lazily.  A
+# frozen Worker must carry the complete package tree, not only the provider
+# DLLs, otherwise InferenceSession can fail immediately after the import.
+onnx_datas, onnx_binaries, onnx_hiddenimports = collect_all("onnxruntime")
+hiddenimports.extend(onnx_hiddenimports)
+
+datas = list(onnx_datas)
 if v3_resource_root.is_dir():
     datas.append((str(v3_resource_root), "resources"))
 if legacy_root.is_dir() and (legacy_root / "resources").is_dir():
@@ -30,7 +36,7 @@ pathex = [str(worker_root), str(legacy_root)]
 a = Analysis(
     [str(worker_root / "worker_entry.py")],
     pathex=pathex,
-    binaries=collect_dynamic_libs("onnxruntime"),
+    binaries=onnx_binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
