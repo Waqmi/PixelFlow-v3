@@ -226,6 +226,16 @@ def _load_assistant(
         except Exception as error:  # noqa: BLE001 - try the next model
             if trace_event is not None:
                 trace_event("failure", "model_session_create_failed")
+            # Keep the native ONNX Runtime diagnostic visible in frozen builds.
+            # The protocol deliberately exposes only a stable error code, while
+            # the Windows smoke test needs the provider/model detail to tell a
+            # malformed fixture from a packaged DLL failure.
+            if getattr(sys, "frozen", False):
+                print(
+                    "model session create failed: {}: {}".format(candidate.name, error),
+                    file=sys.stderr,
+                    flush=True,
+                )
             errors.append("{}: {}".format(candidate.name, error))
     detail = "；".join(errors) if errors else "{} 模型加载失败".format(normalized)
     raise ModelProcessError(detail, "model_session_create_failed")
