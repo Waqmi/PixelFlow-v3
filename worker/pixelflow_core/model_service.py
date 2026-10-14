@@ -49,16 +49,43 @@ def _normal_purpose(purpose: str) -> str:
     return value
 
 
+def _model_root_candidates(model_root: Union[str, Path]) -> Tuple[Path, ...]:
+    """Return the selected directory and a conventional nested ``models`` folder."""
+    if not str(model_root).strip():
+        return ()
+    root = Path(model_root).expanduser()
+    nested = root / "models"
+    return (root,) if nested == root else (root, nested)
+
+
 def configured_model_candidates(model_root: Union[str, Path], purpose: str) -> Tuple[Path, ...]:
-    """List configured ONNX files without importing the inference runtime."""
+    """List configured ONNX files without importing the inference runtime.
+
+    The settings picker returns the directory selected by the user.  Accept
+    both the model root itself and a selected parent containing ``models/`` so
+    Windows users can choose the app/data directory without losing detection.
+    """
     try:
         normalized = _normal_purpose(purpose)
     except ValueError:
         return ()
-    if not str(model_root).strip():
-        return ()
-    model_dir = Path(model_root).expanduser() / normalized
-    return tuple(sorted(model_dir.glob("*.onnx"))) if model_dir.is_dir() else ()
+    for root in _model_root_candidates(model_root):
+        model_dir = root / normalized
+        if not model_dir.is_dir():
+            continue
+        candidates = tuple(
+            sorted(
+                (
+                    path
+                    for path in model_dir.iterdir()
+                    if path.is_file() and path.suffix.lower() == ".onnx"
+                ),
+                key=lambda path: path.name.casefold(),
+            )
+        )
+        if candidates:
+            return candidates
+    return ()
 
 
 def model_candidates(model_root: Union[str, Path], purpose: str) -> Tuple[Path, ...]:

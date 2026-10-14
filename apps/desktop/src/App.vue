@@ -810,7 +810,15 @@ async function pickDirectory(target: 'input' | 'output' | 'model') {
       inputRoot.value = path
       outputRoot.value = suggestedOutputRoot(path)
     } else if (target === 'output') outputRoot.value = path
-    else localModelPath.value = path
+    else {
+      localModelPath.value = path
+      localModelEnabled.value = true
+      modelProbeReadyHandled = false
+      modelDiagnostics.value = {}
+      modelStatus.value = '状态：已选择外部模型目录，正在检测…'
+      publishSettingsImmediately()
+      if (worker) probeModels()
+    }
   } catch (error) {
     status.value = String(error)
   }

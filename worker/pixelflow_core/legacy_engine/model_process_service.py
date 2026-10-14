@@ -20,8 +20,24 @@ def configured_model_candidates(model_root: str | Path, purpose: str) -> tuple[P
     """List configured files without importing ONNX Runtime or loading a model."""
     if purpose not in {"pose", "segmentation"} or not str(model_root).strip():
         return ()
-    model_dir = Path(model_root).expanduser() / purpose
-    return tuple(sorted(model_dir.glob("*.onnx"))) if model_dir.is_dir() else ()
+    root = Path(model_root).expanduser()
+    for model_root_candidate in (root, root / "models"):
+        model_dir = model_root_candidate / purpose
+        if not model_dir.is_dir():
+            continue
+        candidates = tuple(
+            sorted(
+                (
+                    path
+                    for path in model_dir.iterdir()
+                    if path.is_file() and path.suffix.lower() == ".onnx"
+                ),
+                key=lambda path: path.name.casefold(),
+            )
+        )
+        if candidates:
+            return candidates
+    return ()
 
 
 def _load_assistant(cache: dict[tuple[str, str], object], model_root: str, purpose: str):

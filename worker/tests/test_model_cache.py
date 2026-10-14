@@ -174,6 +174,35 @@ class ModelServiceTests(unittest.TestCase):
                 self.assertEqual(result[purpose]["state"], "已就绪")
                 self.assertEqual(result[purpose]["model_version"]["sha256"], hashlib.sha256(content).hexdigest())
 
+    def test_probe_accepts_selected_parent_containing_models_directory(self) -> None:
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            selected_parent = Path(temp_dir) / "PixelFlow-data"
+            root = selected_parent / "models"
+            for purpose in ("pose", "segmentation", "detection"):
+                model_dir = root / purpose
+                model_dir.mkdir(parents=True)
+                (model_dir / f"custom-{purpose.upper()}.ONNX").write_bytes(purpose.encode())
+                if purpose == "detection":
+                    (model_dir / f"custom-{purpose.upper()}.classes.json").write_text(
+                        '{"classes": []}', encoding="utf-8"
+                    )
+
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(selected_parent)
+                finally:
+                    service.close()
+
+            self.assertEqual(
+                {purpose: result[purpose]["state"] for purpose in ("pose", "segmentation", "detection")},
+                {purpose: "已就绪" for purpose in ("pose", "segmentation", "detection")},
+            )
+
     def test_detection_probe_reports_unavailable_without_sidecar(self) -> None:
         class Assistant:
             def __init__(self, model_path):

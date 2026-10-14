@@ -1,0 +1,72 @@
+name: PixelFlow Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/windows-actions-build-20261014
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install worker dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r worker/requirements.lock
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Validate protocol
+        working-directory: apps/desktop
+        run: npm run protocol:check
+
+      - name: Use a Windows worker build hook
+        shell: pwsh
+        run: |
+          @'
+          {
+            "build": {
+              "beforeBuildCommand": "python ../../worker/build_worker.py && npm run build"
+            }
+          }
+          '@ | Set-Content -Encoding utf8 apps/desktop/tauri.windows.conf.json
+
+      - name: Build Windows NSIS and MSI bundles
+        working-directory: apps/desktop
+        run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi
+
+      - name: Upload Windows bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelflow-windows-x64-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi

@@ -3,7 +3,7 @@ use std::{
     ffi::OsString,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
@@ -186,20 +186,78 @@ fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Optio
     { Ok(None) }
 }
 
-fn discover_models_under(home: &PathBuf) -> Option<PathBuf> {
-    let candidate = home.join("Documents").join("models");
+fn contains_onnx_model(directory: &Path) -> bool {
+    std::fs::read_dir(directory)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .any(|entry| {
+            let path = entry.path();
+            path.is_file()
+                && path
+                    .extension()
+                    .map(|extension| extension.to_string_lossy().eq_ignore_ascii_case("onnx"))
+                    .unwrap_or(false)
+        })
+}
+
+fn recognized_model_directory(candidate: &Path) -> Option<PathBuf> {
     if !candidate.is_dir() {
         return None;
     }
-    let recognized = [
-        candidate.join("pose").join("yolo11n-pose.onnx"),
-        candidate.join("segmentation").join("yolo11n-seg.onnx"),
-        candidate.join("detection").join("yolov8m-worldv2-pixelflow.onnx"),
-    ];
-    if recognized.iter().any(|path| path.is_file()) {
-        return Some(candidate);
+    ["pose", "segmentation", "detection"]
+        .iter()
+        .any(|purpose| contains_onnx_model(&candidate.join(purpose)))
+        .then(|| candidate.to_path_buf())
+}
+
+fn discover_models_under(home: &Path) -> Option<PathBuf> {
+    ["Documents", "文档", "文稿", ""]
+        .iter()
+        .map(|directory| {
+            if directory.is_empty() {
+                home.join("models")
+            } else {
+                home.join(directory).join("models")
+            }
+        })
+        .find_map(|candidate| recognized_model_directory(&candidate))
+}
+
+fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.iter().any(|known| known == &path) {
+        paths.push(path);
     }
-    None
+}
+
+fn discover_model_directories() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for variable in ["HOME", "USERPROFILE"] {
+        if let Some(home) = std::env::var_os(variable).map(PathBuf::from) {
+            for directory in ["Documents", "文档", "文稿", "models"] {
+                let candidate = if directory == "models" {
+                    home.join(directory)
+                } else {
+                    home.join(directory).join("models")
+                };
+                push_unique_path(&mut candidates, candidate);
+            }
+        }
+    }
+    if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        push_unique_path(
+            &mut candidates,
+            local_app_data.join("PixelFlow").join("models"),
+        );
+    }
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(parent) = executable.parent() {
+            push_unique_path(&mut candidates, parent.join("models"));
+            push_unique_path(&mut candidates, parent.join("resources").join("models"));
+        }
+    }
+    candidates
 }
 
 /// Return the conventional external model directory when it contains at least
@@ -207,12 +265,9 @@ fn discover_models_under(home: &PathBuf) -> Option<PathBuf> {
 /// directory selection available; this command only supplies a safe default.
 #[tauri::command]
 fn discover_models_directory() -> Result<Option<String>, String> {
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from);
-    Ok(home
-        .as_ref()
-        .and_then(discover_models_under)
+    Ok(discover_model_directories()
+        .iter()
+        .find_map(|candidate| recognized_model_directory(candidate))
         .map(|path| path.to_string_lossy().into_owned()))
 }
 
@@ -815,6 +870,23 @@ mod tests {
         std::fs::write(models.join("pose").join("yolo11n-pose.onnx"), b"test").unwrap();
         assert_eq!(discover_models_under(&root).as_deref(), Some(models.as_path()));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn model_discovery_checks_windows_fallback_directories() {
+        for (index, relative) in ["models", "文档/models", "文稿/models"].into_iter().enumerate() {
+            let root = std::env::temp_dir().join(format!(
+                "pixelflow-model-discovery-{}-{}",
+                std::process::id(),
+                index
+            ));
+            let models = root.join(relative);
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(models.join("segmentation")).unwrap();
+            std::fs::write(models.join("segmentation").join("custom.onnx"), b"test").unwrap();
+            assert_eq!(discover_models_under(&root).as_deref(), Some(models.as_path()));
+            let _ = std::fs::remove_dir_all(root);
+        }
     }
 
     #[test]
