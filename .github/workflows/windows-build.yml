@@ -78,22 +78,44 @@ jobs:
           $wixOutput = 'src-tauri\target\x86_64-pc-windows-msvc\release\wix\x64\output.msi'
           $wixDirectory = Split-Path $wixOutput -Parent
           $msiOutput = 'src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\PixelFlow_3.0.0_x64_en-US.msi'
-          if (-not (Test-Path (Join-Path $wixDirectory '*.wixobj'))) {
-            throw 'Tauri did not leave WiX object files for the MSI retry.'
+          $wixSource = Join-Path $wixDirectory 'main.wxs'
+          $localeSource = Join-Path $wixDirectory 'locale.wxl'
+          if (-not (Test-Path $wixSource)) {
+            throw 'Tauri did not leave the generated WiX source for the MSI retry.'
           }
-          & (Join-Path $wix 'light.exe') `
-            -sval `
-            -ext (Join-Path $wix 'WixUIExtension.dll') `
-            -ext (Join-Path $wix 'WixUtilExtension.dll') `
-            -o $wixOutput `
-            -cultures:en-us `
-            -loc (Join-Path $wixDirectory 'locale.wxl') `
-            (Join-Path $wixDirectory '*.wixobj')
-          if ($LASTEXITCODE -ne 0) {
-            throw "WiX light.exe retry failed with exit code $LASTEXITCODE."
+
+          # The generated MSI defaults to code page 1252, which cannot encode
+          # the Chinese filenames in the bundled worker resources.
+          $wxs = Get-Content -Raw $wixSource
+          $wxs = $wxs.Replace('<Product ', '<Product Codepage="65001" ')
+          Set-Content -Encoding utf8 $wixSource $wxs
+          $locale = Get-Content -Raw $localeSource
+          $locale = $locale.Replace('<WixLocalization ', '<WixLocalization Codepage="65001" ')
+          Set-Content -Encoding utf8 $localeSource $locale
+
+          $sourceDir = (Resolve-Path 'src-tauri\target\x86_64-pc-windows-msvc\release\pixelflow-desktop.exe').Path
+          Push-Location $wixDirectory
+          try {
+            & (Join-Path $wix 'candle.exe') -arch x64 main.wxs "-dSourceDir=$sourceDir"
+            if ($LASTEXITCODE -ne 0) {
+              throw "WiX candle.exe retry failed with exit code $LASTEXITCODE."
+            }
+            & (Join-Path $wix 'light.exe') `
+              -sval `
+              -ext (Join-Path $wix 'WixUIExtension.dll') `
+              -ext (Join-Path $wix 'WixUtilExtension.dll') `
+              -o output.msi `
+              -cultures:en-us `
+              -loc locale.wxl `
+              '*.wixobj'
+            if ($LASTEXITCODE -ne 0) {
+              throw "WiX light.exe retry failed with exit code $LASTEXITCODE."
+            }
+          } finally {
+            Pop-Location
           }
           New-Item -ItemType Directory -Force (Split-Path $msiOutput -Parent) | Out-Null
-          Copy-Item $wixOutput $msiOutput -Force
+          Copy-Item (Join-Path $wixDirectory 'output.msi') $msiOutput -Force
 
       - name: Upload Windows bundles
         uses: actions/upload-artifact@v4
