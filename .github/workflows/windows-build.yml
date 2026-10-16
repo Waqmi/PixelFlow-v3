@@ -208,7 +208,9 @@ jobs:
             $newTempDirs = @(Get-ChildItem -Path $tempRoot -Directory -Force -ErrorAction SilentlyContinue |
               Where-Object { $beforeTemp -notcontains $_.FullName })
             foreach ($directory in $newTempDirs) {
-              if (Test-Path (Join-Path $directory.FullName 'pixelflow-desktop.exe')) {
+              $payloadExecutables = @(Get-ChildItem -Path $directory.FullName -File -Filter '*.exe' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notlike 'pixelflow-worker*' -and $_.Name -ne 'Uninstall.exe' })
+              if ($payloadExecutables.Count -gt 0) {
                 $extractDir = $directory.FullName
                 break
               }
@@ -216,10 +218,11 @@ jobs:
 
             if ($extractDir) {
               $escapedExtractDir = [Regex]::Escape($extractDir)
-              $appProcess = @(Get-CimInstance Win32_Process -Filter "Name = 'pixelflow-desktop.exe'" -ErrorAction SilentlyContinue |
+              $appProcess = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
                 Where-Object {
-                  ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase)) -or
-                  ($_.CommandLine -and $_.CommandLine -match $escapedExtractDir)
+                  $_.Name -notlike 'pixelflow-worker*' -and
+                  (([string]$_.ExecutablePath).StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase) -or
+                   ([string]$_.CommandLine -match $escapedExtractDir))
                 } |
                 Select-Object -First 1)
               $workerProcess = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
