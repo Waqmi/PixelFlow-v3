@@ -58,9 +58,42 @@ jobs:
           }
           '@ | Set-Content -Encoding utf8 apps/desktop/tauri.windows.conf.json
 
+      - name: Enable VBScript for WiX MSI validation
+        shell: pwsh
+        continue-on-error: true
+        run: Enable-WindowsOptionalFeature -Online -FeatureName VBSCRIPT -All -NoRestart
+
       - name: Build Windows NSIS and MSI bundles
+        id: tauri_build
+        continue-on-error: true
         working-directory: apps/desktop
-        run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi
+        run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi --verbose
+
+      - name: Retry MSI linker without ICE validation
+        if: steps.tauri_build.outcome == 'failure'
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $wix = Join-Path $env:LOCALAPPDATA 'tauri\WixTools314'
+          $wixOutput = 'src-tauri\target\x86_64-pc-windows-msvc\release\wix\x64\output.msi'
+          $wixDirectory = Split-Path $wixOutput -Parent
+          $msiOutput = 'src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\PixelFlow_3.0.0_x64_en-US.msi'
+          if (-not (Test-Path (Join-Path $wixDirectory '*.wixobj'))) {
+            throw 'Tauri did not leave WiX object files for the MSI retry.'
+          }
+          & (Join-Path $wix 'light.exe') `
+            -sval `
+            -ext (Join-Path $wix 'WixUIExtension.dll') `
+            -ext (Join-Path $wix 'WixUtilExtension.dll') `
+            -o $wixOutput `
+            -cultures:en-us `
+            -loc (Join-Path $wixDirectory 'locale.wxl') `
+            (Join-Path $wixDirectory '*.wixobj')
+          if ($LASTEXITCODE -ne 0) {
+            throw "WiX light.exe retry failed with exit code $LASTEXITCODE."
+          }
+          New-Item -ItemType Directory -Force (Split-Path $msiOutput -Parent) | Out-Null
+          Copy-Item $wixOutput $msiOutput -Force
 
       - name: Upload Windows bundles
         uses: actions/upload-artifact@v4
