@@ -66,26 +66,127 @@ jobs:
         working-directory: apps/desktop
         run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis
 
-      - name: Commit Windows installer to branch
+      - name: Build portable self-extracting EXE
+        shell: pwsh
+        run: |
+          $installer = 'apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/PixelFlow_3.0.0_x64-setup.exe'
+          if (-not (Test-Path $installer)) {
+            throw "NSIS installer was not found at $installer."
+          }
+
+          $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+          $sevenZipCandidates = @(
+            (Join-Path $env:ProgramFiles '7-Zip\7z.exe'),
+            (Join-Path $programFilesX86 '7-Zip\7z.exe')
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          $sevenZip = $sevenZipCandidates | Select-Object -First 1
+          if (-not $sevenZip) {
+            throw '7-Zip was not found on the Windows runner.'
+          }
+
+          $sevenZipDirectory = Split-Path $sevenZip -Parent
+          $sfxCandidates = @(
+            (Join-Path $sevenZipDirectory '7z.sfx'),
+            (Join-Path $sevenZipDirectory '7zS.sfx')
+          ) | Where-Object { Test-Path $_ }
+          $sfx = $sfxCandidates | Select-Object -First 1
+          if (-not $sfx) {
+            throw "7-Zip SFX module was not found beside $sevenZip."
+          }
+
+          $staging = Join-Path $env:RUNNER_TEMP 'pixelflow-nsis-extracted'
+          if (Test-Path $staging) {
+            Remove-Item -Recurse -Force $staging
+          }
+          New-Item -ItemType Directory -Force $staging | Out-Null
+          & $sevenZip x $installer "-o$staging" '-y'
+          if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip could not extract the NSIS payload (exit code $LASTEXITCODE)."
+          }
+
+          $mainExe = Get-ChildItem -Path $staging -File -Recurse |
+            Where-Object { $_.Name -in @('PixelFlow.exe', 'pixelflow-desktop.exe') } |
+            Select-Object -First 1
+          if (-not $mainExe) {
+            Get-ChildItem -Path $staging -Recurse | Select-Object -ExpandProperty FullName
+            throw 'The extracted NSIS payload does not contain the PixelFlow executable.'
+          }
+          $payloadRoot = $mainExe.Directory.FullName
+
+          $worker = Get-ChildItem -Path $payloadRoot -File -Recurse |
+            Where-Object { $_.Name -in @('pixelflow-worker', 'pixelflow-worker.exe') } |
+            Select-Object -First 1
+          if (-not $worker) {
+            Get-ChildItem -Path $payloadRoot -Recurse | Select-Object -ExpandProperty FullName
+            throw 'The portable payload does not contain the bundled worker sidecar.'
+          }
+          Get-ChildItem -Path $payloadRoot -File -Recurse |
+            Where-Object { $_.Name -eq 'Uninstall.exe' } |
+            Remove-Item -Force
+
+          $portableRoot = Join-Path $env:RUNNER_TEMP 'pixelflow-portable'
+          if (Test-Path $portableRoot) {
+            Remove-Item -Recurse -Force $portableRoot
+          }
+          New-Item -ItemType Directory -Force $portableRoot | Out-Null
+          $archive = Join-Path $portableRoot 'PixelFlow_3.0.0_x64-portable.7z'
+          $config = Join-Path $portableRoot 'portable-config.txt'
+          $portable = Join-Path $portableRoot 'PixelFlow_3.0.0_x64-portable.exe'
+
+          Push-Location $payloadRoot
+          try {
+            & $sevenZip a '-t7z' '-mx=9' $archive '*'
+            if ($LASTEXITCODE -ne 0) {
+              throw "7-Zip could not create the portable archive (exit code $LASTEXITCODE)."
+            }
+          } finally {
+            Pop-Location
+          }
+
+          @"
+          ;!@Install@!UTF-8!
+          TempMode="yes"
+          RunProgram="$($mainExe.Name)"
+          GUIMode="2"
+          ;!@InstallEnd@!
+          "@ | Set-Content -Encoding utf8 $config
+
+          $output = [System.IO.File]::Create($portable)
+          try {
+            foreach ($part in @($sfx, $config, $archive)) {
+              $bytes = [System.IO.File]::ReadAllBytes($part)
+              $output.Write($bytes, 0, $bytes.Length)
+            }
+          } finally {
+            $output.Dispose()
+          }
+
+          & $sevenZip t $portable
+          if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip could not validate the portable EXE (exit code $LASTEXITCODE)."
+          }
+          Copy-Item $portable 'downloads/PixelFlow_3.0.0_x64-portable.exe' -Force
+
+      - name: Commit portable EXE to branch
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $source = 'apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/PixelFlow_3.0.0_x64-setup.exe'
-          $destination = 'downloads/PixelFlow_3.0.0_x64-setup.exe'
-          if (-not (Test-Path $source)) {
-            throw "NSIS installer was not found at $source."
+          $destination = 'downloads/PixelFlow_3.0.0_x64-portable.exe'
+          if (-not (Test-Path $destination)) {
+            throw "Portable EXE was not found at $destination."
           }
 
-          New-Item -ItemType Directory -Force (Split-Path $destination -Parent) | Out-Null
-          Copy-Item $source $destination -Force
+          if (Test-Path 'downloads/PixelFlow_3.0.0_x64-setup.exe') {
+            Remove-Item 'downloads/PixelFlow_3.0.0_x64-setup.exe' -Force
+          }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add $destination
+          git add -A downloads
           git diff --cached --quiet
           if ($LASTEXITCODE -eq 0) {
             Write-Host 'The installer is unchanged; no commit is needed.'
             exit 0
           }
-          git commit -m 'ci: publish Windows NSIS installer'
+          git commit -m 'ci: publish Windows portable EXE'
           git push origin "HEAD:$env:GITHUB_REF_NAME"
