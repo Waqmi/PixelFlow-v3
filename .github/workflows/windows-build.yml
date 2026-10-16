@@ -199,6 +199,7 @@ jobs:
             Select-Object -ExpandProperty FullName)
           $launcher = Start-Process -FilePath $portable -WorkingDirectory (Get-Location).Path -PassThru
           $extractDir = $null
+          $mainExecutableName = $null
           $appProcess = $null
           $workerProcess = $null
           $readySeen = $false
@@ -212,15 +213,16 @@ jobs:
                 Where-Object { $_.Name -notlike 'pixelflow-worker*' -and $_.Name -ne 'Uninstall.exe' })
               if ($payloadExecutables.Count -gt 0) {
                 $extractDir = $directory.FullName
+                $mainExecutableName = [IO.Path]::GetFileNameWithoutExtension($payloadExecutables[0].Name)
                 break
               }
             }
 
             if ($extractDir) {
               $escapedExtractDir = [Regex]::Escape($extractDir)
-              $appProcess = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+              Write-Host "Portable main executable: $mainExecutableName.exe"
+              $appProcess = @(Get-CimInstance Win32_Process -Filter "Name = '$($mainExecutableName).exe'" -ErrorAction SilentlyContinue |
                 Where-Object {
-                  $_.Name -notlike 'pixelflow-worker*' -and
                   (([string]$_.ExecutablePath).StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase) -or
                    ([string]$_.CommandLine -match $escapedExtractDir))
                 } |
