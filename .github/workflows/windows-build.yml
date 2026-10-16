@@ -219,13 +219,8 @@ jobs:
             }
 
             if ($extractDir) {
-              $escapedExtractDir = [Regex]::Escape($extractDir)
               Write-Host "Portable main executable: $mainExecutableName.exe"
               $appProcess = @(Get-CimInstance Win32_Process -Filter "Name = '$($mainExecutableName).exe'" -ErrorAction SilentlyContinue |
-                Where-Object {
-                  (([string]$_.ExecutablePath).StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase) -or
-                   ([string]$_.CommandLine -match $escapedExtractDir))
-                } |
                 Select-Object -First 1)
               $workerProcess = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
                 Where-Object {
