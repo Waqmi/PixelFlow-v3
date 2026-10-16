@@ -84,28 +84,6 @@ jobs:
             throw '7-Zip was not found on the Windows runner.'
           }
 
-          $sevenZipDirectory = Split-Path $sevenZip -Parent
-          $sfx = Join-Path $sevenZipDirectory '7zSD.sfx'
-          if (-not (Test-Path $sfx)) {
-            $extraArchive = Join-Path $env:RUNNER_TEMP '7z2604-extra.7z'
-            $extraRoot = Join-Path $env:RUNNER_TEMP '7z2604-extra'
-            Invoke-WebRequest -Uri 'https://github.com/ip7z/7zip/releases/download/26.04/7z2604-extra.7z' -OutFile $extraArchive
-            if (Test-Path $extraRoot) {
-              Remove-Item -Recurse -Force $extraRoot
-            }
-            New-Item -ItemType Directory -Force $extraRoot | Out-Null
-            & $sevenZip x $extraArchive "-o$extraRoot" '-y'
-            if ($LASTEXITCODE -ne 0) {
-              throw "7-Zip Extra could not be extracted (exit code $LASTEXITCODE)."
-            }
-            $sfx = Get-ChildItem -Path $extraRoot -Filter '7zSD.sfx' -File -Recurse |
-              Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $sfx -or -not (Test-Path $sfx)) {
-            throw 'The 7zSD.sfx installer module was not found in the runner or 7-Zip Extra package.'
-          }
-          Write-Host "Using installer SFX module: $sfx"
-
           $staging = Join-Path $env:RUNNER_TEMP 'pixelflow-nsis-extracted'
           if (Test-Path $staging) {
             Remove-Item -Recurse -Force $staging
@@ -136,41 +114,66 @@ jobs:
             Where-Object { $_.Name -eq 'Uninstall.exe' } |
             Remove-Item -Force
 
+          $makensisCommand = Get-Command 'makensis.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty Source
+          if (-not $makensisCommand) {
+            $nsisCandidates = @(
+              (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
+              (Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'NSIS\makensis.exe')
+            ) | Where-Object { $_ -and (Test-Path $_) }
+            $makensisCommand = $nsisCandidates | Select-Object -First 1
+          }
+          if (-not $makensisCommand) {
+            throw 'NSIS makensis.exe was not found on the Windows runner.'
+          }
+          Write-Host "Using NSIS compiler: $makensisCommand"
+
           $portableRoot = Join-Path $env:RUNNER_TEMP 'pixelflow-portable'
           if (Test-Path $portableRoot) {
             Remove-Item -Recurse -Force $portableRoot
           }
           New-Item -ItemType Directory -Force $portableRoot | Out-Null
-          $archive = Join-Path $portableRoot 'PixelFlow_3.0.0_x64-portable.7z'
-          $config = Join-Path $portableRoot 'portable-config.txt'
+          $script = Join-Path $portableRoot 'portable.nsi'
           $portable = Join-Path $portableRoot 'PixelFlow_3.0.0_x64-portable.exe'
 
-          Push-Location $payloadRoot
-          try {
-            & $sevenZip a '-t7z' '-mx=9' $archive '*'
-            if ($LASTEXITCODE -ne 0) {
-              throw "7-Zip could not create the portable archive (exit code $LASTEXITCODE)."
-            }
-          } finally {
-            Pop-Location
+          $nsisTemplate = @'
+          Unicode true
+          !include "FileFunc.nsh"
+          Name "PixelFlow Portable"
+          OutFile "__OUTFILE__"
+          RequestExecutionLevel user
+          SilentInstall silent
+          AutoCloseWindow true
+          SetCompressor /SOLID lzma
+          Var PortableDir
+
+          Function .onInit
+            GetTempFileName "$TEMP" $R0
+            ${GetFileName} "$R0" $R1
+            Delete "$R0"
+            StrCpy $PortableDir "$TEMP\PixelFlow-$R1"
+            CreateDirectory "$PortableDir"
+          FunctionEnd
+
+          Section
+            SetOutPath "$PortableDir"
+            File /r "__PAYLOAD__\*"
+            ExecWait '"$PortableDir\__MAIN_EXE__"' $R0
+            RMDir /r "$PortableDir"
+            SetErrorLevel $R0
+          SectionEnd
+          '@
+          $nsisTemplate = $nsisTemplate.Replace('__OUTFILE__', $portable)
+          $nsisTemplate = $nsisTemplate.Replace('__PAYLOAD__', $payloadRoot)
+          $nsisTemplate = $nsisTemplate.Replace('__MAIN_EXE__', $mainExe.Name)
+          $nsisTemplate | Set-Content -Encoding utf8 $script
+
+          & $makensisCommand /V2 $script
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS could not build the portable EXE (exit code $LASTEXITCODE)."
           }
-
-          @"
-          ;!@Install@!UTF-8!
-          TempMode="yes"
-          RunProgram="$($mainExe.Name)"
-          GUIMode="2"
-          ;!@InstallEnd@!
-          "@ | Set-Content -Encoding utf8 $config
-
-          $output = [System.IO.File]::Create($portable)
-          try {
-            foreach ($part in @($sfx, $config, $archive)) {
-              $bytes = [System.IO.File]::ReadAllBytes($part)
-              $output.Write($bytes, 0, $bytes.Length)
-            }
-          } finally {
-            $output.Dispose()
+          if (-not (Test-Path $portable)) {
+            throw 'NSIS did not produce the portable EXE.'
           }
 
           & $sevenZip t $portable
