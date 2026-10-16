@@ -562,6 +562,7 @@ def main() -> int:
             print(line, flush=True)
 
     runtime = WorkerRuntime(emit=emit)
+    print("PixelFlow worker protocol ready", file=sys.stderr, flush=True)
     emit("worker", "ready", _ready_payload())
     for line in sys.stdin:
         line = line.strip()
@@ -571,6 +572,8 @@ def main() -> int:
             message = Message.from_json(line)
             should_exit = False
             response: str | None = None
+            if message.type == "ping":
+                print("PixelFlow worker protocol ping", file=sys.stderr, flush=True)
             if message.type == "start_generation":
                 runtime.start(message.request_id, message.payload)
                 response = _event(message.request_id, "status", {"state": "started"})

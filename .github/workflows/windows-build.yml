@@ -167,6 +167,131 @@ jobs:
           }
           Copy-Item $portable 'downloads/PixelFlow_3.0.0_x64-portable.exe' -Force
 
+      - name: Smoke-test portable EXE on Windows
+        shell: pwsh
+        run: |
+          $portable = (Resolve-Path 'downloads/PixelFlow_3.0.0_x64-portable.exe').Path
+          $log = Join-Path $env:LOCALAPPDATA 'PixelFlow\logs\worker.log'
+          $logParent = Split-Path $log -Parent
+          if (Test-Path $log) {
+            Remove-Item $log -Force
+          }
+          New-Item -ItemType Directory -Force $logParent | Out-Null
+
+          $startedAt = Get-Date
+          $tempRoot = [IO.Path]::GetTempPath().TrimEnd('\')
+          $beforeTemp = @(Get-ChildItem -Path $tempRoot -Directory -Force -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName)
+          $launcher = Start-Process -FilePath $portable -WorkingDirectory (Get-Location).Path -PassThru
+          $extractDir = $null
+          $appProcess = $null
+          $workerProcess = $null
+          $readySeen = $false
+          $pingSeen = $false
+
+          for ($attempt = 0; $attempt -lt 90; $attempt++) {
+            $newTempDirs = @(Get-ChildItem -Path $tempRoot -Directory -Force -ErrorAction SilentlyContinue |
+              Where-Object { $beforeTemp -notcontains $_.FullName })
+            foreach ($directory in $newTempDirs) {
+              if (Test-Path (Join-Path $directory.FullName 'pixelflow-desktop.exe')) {
+                $extractDir = $directory.FullName
+                break
+              }
+            }
+
+            if ($extractDir) {
+              $escapedExtractDir = [Regex]::Escape($extractDir)
+              $appProcess = @(Get-CimInstance Win32_Process -Filter "Name = 'pixelflow-desktop.exe'" -ErrorAction SilentlyContinue |
+                Where-Object {
+                  ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase)) -or
+                  ($_.CommandLine -and $_.CommandLine -match $escapedExtractDir)
+                } |
+                Select-Object -First 1)
+              $workerProcess = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+                Where-Object {
+                  $_.Name -like 'pixelflow-worker*' -and
+                  (([string]$_.ExecutablePath).StartsWith($extractDir, [StringComparison]::OrdinalIgnoreCase) -or
+                   ([string]$_.CommandLine -match $escapedExtractDir))
+                } |
+                Select-Object -First 1)
+            }
+
+            if (Test-Path $log) {
+              $workerLog = Get-Content -Raw $log -ErrorAction SilentlyContinue
+              $readySeen = $workerLog -match 'PixelFlow worker protocol ready'
+              $pingSeen = $workerLog -match 'PixelFlow worker protocol ping'
+            }
+            if ($appProcess -and $workerProcess -and $readySeen -and $pingSeen) {
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+
+          $appPid = if ($appProcess) { [int]$appProcess.ProcessId } else { $null }
+          Write-Host "Portable launcher PID: $($launcher.Id)"
+          Write-Host "Portable launcher exited: $($launcher.HasExited)"
+          if ($launcher.HasExited) {
+            Write-Host "Portable launcher exit code: $($launcher.ExitCode)"
+          }
+          Write-Host "SFX extraction directory: $extractDir"
+          Write-Host "PixelFlow process PID: $appPid"
+          if ($appProcess) {
+            Write-Host "PixelFlow command line: $($appProcess.CommandLine)"
+          }
+          if ($workerProcess) {
+            Write-Host "Worker process PID: $($workerProcess.ProcessId)"
+            Write-Host "Worker command line: $($workerProcess.CommandLine)"
+          }
+          Write-Host "WebView2 registry entries:"
+          Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients' -ErrorAction SilentlyContinue |
+            ForEach-Object { Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue } |
+            Where-Object { $_.name -match 'WebView2|Microsoft Edge' -or $_.pv } |
+            Select-Object name, pv, PSPath | Format-List
+
+          if (-not $appProcess) {
+            Write-Host 'The portable EXE did not leave a PixelFlow process running.'
+            if (Test-Path $log) { Get-Content $log -Tail 200 }
+            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $startedAt } -ErrorAction SilentlyContinue |
+              Where-Object { $_.Message -match 'PixelFlow|pixelflow|WebView|Application Error' } |
+              Select-Object -First 20 TimeCreated, Id, ProviderName, Message |
+              Format-List
+            throw 'Portable EXE smoke test failed: main process was not found.'
+          }
+          if (-not $workerProcess -or -not $readySeen -or -not $pingSeen) {
+            if (Test-Path $log) { Get-Content $log -Tail 200 }
+            throw "Portable EXE smoke test failed: worker/protocol markers missing (worker=$([bool]$workerProcess), ready=$readySeen, ping=$pingSeen)."
+          }
+
+          $aliveSeconds = 30
+          $diedAt = $null
+          for ($second = 1; $second -le $aliveSeconds; $second++) {
+            Start-Sleep -Seconds 1
+            $stillRunning = Get-CimInstance Win32_Process -Filter "ProcessId = $appPid" -ErrorAction SilentlyContinue
+            if (-not $stillRunning) {
+              $diedAt = $second
+              break
+            }
+          }
+          if ($diedAt) {
+            if (Test-Path $log) { Get-Content $log -Tail 200 }
+            throw "Portable EXE smoke test failed: PixelFlow exited after $diedAt seconds."
+          }
+          Write-Host "PixelFlow remained alive for at least $aliveSeconds seconds."
+          Write-Host "Worker and protocol initialization markers were observed."
+          if (Test-Path $log) { Get-Content $log -Tail 200 }
+
+          Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue
+          for ($attempt = 0; $attempt -lt 20 -and -not $launcher.HasExited; $attempt++) {
+            Start-Sleep -Seconds 1
+            $launcher.Refresh()
+          }
+          if ($launcher.HasExited) {
+            Write-Host "Portable launcher exit code after smoke shutdown: $($launcher.ExitCode)"
+          } else {
+            Write-Host 'Portable launcher remained alive after the smoke shutdown.'
+            Stop-Process -Id $launcher.Id -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Commit portable EXE to branch
         shell: pwsh
         env:
