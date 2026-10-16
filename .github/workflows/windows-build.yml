@@ -60,7 +60,7 @@ jobs:
 
       - name: Build Windows NSIS and MSI bundles
         working-directory: apps/desktop
-        run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi
+        run: npm run tauri:build -- --config tauri.windows.conf.json --target x86_64-pc-windows-msvc --bundles nsis
 
       - name: Upload Windows bundles
         uses: actions/upload-artifact@v4
@@ -69,4 +69,3 @@ jobs:
           if-no-files-found: error
           path: |
             apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
