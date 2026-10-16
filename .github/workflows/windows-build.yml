@@ -110,6 +110,12 @@ jobs:
             Get-ChildItem -Path $payloadRoot -Recurse | Select-Object -ExpandProperty FullName
             throw 'The portable payload does not contain the bundled worker sidecar.'
           }
+          if ($worker.Extension -eq '.exe') {
+            $workerWithoutExtension = Join-Path $worker.Directory.FullName $worker.BaseName
+            if (-not (Test-Path $workerWithoutExtension)) {
+              Copy-Item $worker.FullName $workerWithoutExtension -Force
+            }
+          }
           Get-ChildItem -Path $payloadRoot -File -Recurse |
             Where-Object { $_.Name -eq 'Uninstall.exe' } |
             Remove-Item -Force
