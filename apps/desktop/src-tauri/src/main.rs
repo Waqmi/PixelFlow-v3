@@ -704,7 +704,19 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
                 Some(resource)
             } else {
                 let executable = resource.join("pixelflow-worker");
-                executable.is_file().then_some(executable)
+                if executable.is_file() {
+                    Some(executable)
+                } else {
+                    #[cfg(target_os = "windows")]
+                    {
+                        let windows_executable = resource.join("pixelflow-worker.exe");
+                        windows_executable.is_file().then_some(windows_executable)
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        None
+                    }
+                }
             }
         });
     let (program, args, working_dir) = match bundled_worker {
