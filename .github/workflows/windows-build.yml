@@ -148,7 +148,7 @@ jobs:
           Var PortableDir
 
           Function .onInit
-            GetTempFileName "$TEMP" $R0
+            GetTempFileName $R0 "$TEMP"
             ${GetFileName} "$R0" $R1
             Delete "$R0"
             StrCpy $PortableDir "$TEMP\PixelFlow-$R1"
