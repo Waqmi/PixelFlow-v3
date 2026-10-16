@@ -85,14 +85,26 @@ jobs:
           }
 
           $sevenZipDirectory = Split-Path $sevenZip -Parent
-          $sfxCandidates = @(
-            (Join-Path $sevenZipDirectory '7z.sfx'),
-            (Join-Path $sevenZipDirectory '7zS.sfx')
-          ) | Where-Object { Test-Path $_ }
-          $sfx = $sfxCandidates | Select-Object -First 1
-          if (-not $sfx) {
-            throw "7-Zip SFX module was not found beside $sevenZip."
+          $sfx = Join-Path $sevenZipDirectory '7zSD.sfx'
+          if (-not (Test-Path $sfx)) {
+            $extraArchive = Join-Path $env:RUNNER_TEMP '7z2604-extra.7z'
+            $extraRoot = Join-Path $env:RUNNER_TEMP '7z2604-extra'
+            Invoke-WebRequest -Uri 'https://github.com/ip7z/7zip/releases/download/26.04/7z2604-extra.7z' -OutFile $extraArchive
+            if (Test-Path $extraRoot) {
+              Remove-Item -Recurse -Force $extraRoot
+            }
+            New-Item -ItemType Directory -Force $extraRoot | Out-Null
+            & $sevenZip x $extraArchive "-o$extraRoot" '-y'
+            if ($LASTEXITCODE -ne 0) {
+              throw "7-Zip Extra could not be extracted (exit code $LASTEXITCODE)."
+            }
+            $sfx = Get-ChildItem -Path $extraRoot -Filter '7zSD.sfx' -File -Recurse |
+              Select-Object -First 1 -ExpandProperty FullName
           }
+          if (-not $sfx -or -not (Test-Path $sfx)) {
+            throw 'The 7zSD.sfx installer module was not found in the runner or 7-Zip Extra package.'
+          }
+          Write-Host "Using installer SFX module: $sfx"
 
           $staging = Join-Path $env:RUNNER_TEMP 'pixelflow-nsis-extracted'
           if (Test-Path $staging) {
