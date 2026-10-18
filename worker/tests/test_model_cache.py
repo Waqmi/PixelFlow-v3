@@ -167,7 +167,10 @@ class ModelServiceTests(unittest.TestCase):
                 {"action": "shutdown"},
             ])
             responses = Queue()
-            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)):
+            with patch("pixelflow_core.model_service._assistant_types", return_value=(Assistant, Assistant, Assistant)), patch(
+                "pixelflow_core.model_service._load_assistant",
+                side_effect=AssertionError("probe must not load an assistant"),
+            ):
                 _worker_main(requests, responses)
 
             result = responses.items[0]["result"]
@@ -284,6 +287,9 @@ class ModelServiceTests(unittest.TestCase):
             ), patch(
                 "pixelflow_core.model_service._assistant_types",
                 return_value=(Assistant, Assistant, Assistant),
+            ), patch(
+                "pixelflow_core.model_service._load_assistant",
+                side_effect=AssertionError("probe must not load an assistant"),
             ):
                 service = ModelProcessService(timeout=1)
                 try:
