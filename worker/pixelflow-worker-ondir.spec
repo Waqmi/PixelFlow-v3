@@ -47,7 +47,7 @@ exe = EXE(
     exclude_binaries=True,
     name="pixelflow-worker",
     debug=False,
-    console=True,
+    console=False,
     strip=False,
     upx=False,
 )

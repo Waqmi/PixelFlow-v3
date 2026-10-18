@@ -48,7 +48,7 @@ exe = EXE(
     [],
     name="pixelflow-worker",
     debug=False,
-    console=True,
+    console=False,
     strip=False,
     upx=False,
 )
