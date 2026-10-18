@@ -126,6 +126,10 @@ jobs:
           if (-not $makensisCommand) {
             throw 'NSIS makensis.exe was not found on the Windows runner.'
           }
+          $icon = (Resolve-Path 'apps/desktop/src-tauri/icons/icon.ico').Path
+          if (-not (Test-Path $icon)) {
+            throw "The Windows icon was not found at $icon."
+          }
           Write-Host "Using NSIS compiler: $makensisCommand"
 
           $portableRoot = Join-Path $env:RUNNER_TEMP 'pixelflow-portable'
@@ -141,6 +145,7 @@ jobs:
           !include "FileFunc.nsh"
           Name "PixelFlow Portable"
           OutFile "__OUTFILE__"
+          Icon "__ICON__"
           RequestExecutionLevel user
           SilentInstall silent
           AutoCloseWindow true
@@ -164,6 +169,7 @@ jobs:
           SectionEnd
           '@
           $nsisTemplate = $nsisTemplate.Replace('__OUTFILE__', $portable)
+          $nsisTemplate = $nsisTemplate.Replace('__ICON__', $icon)
           $nsisTemplate = $nsisTemplate.Replace('__PAYLOAD__', $payloadRoot)
           $nsisTemplate = $nsisTemplate.Replace('__MAIN_EXE__', $mainExe.Name)
           $nsisTemplate | Set-Content -Encoding utf8 $script
