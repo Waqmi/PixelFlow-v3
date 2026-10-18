@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -255,6 +256,34 @@ class ModelServiceTests(unittest.TestCase):
             with patch("pixelflow_core.model_service.sys.platform", "darwin"), patch(
                 "pixelflow_core.model_service._assistant_types",
                 return_value=(Assistant, Assistant),
+            ):
+                service = ModelProcessService(timeout=1)
+                try:
+                    result = service.probe_models(root)
+                    self.assertEqual(result["pose"]["state"], STATE_READY)
+                    self.assertEqual(result["segmentation"]["state"], STATE_READY)
+                    self.assertIsNone(service._process)
+                    self.assertFalse(service.is_running)
+                finally:
+                    service.close()
+
+    def test_frozen_model_requests_stay_in_worker_process(self) -> None:
+        class Assistant:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for purpose in ("pose", "segmentation"):
+                model_dir = root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(purpose.encode())
+
+            with patch.object(sys, "frozen", True, create=True), patch(
+                "pixelflow_core.model_service.sys.platform", "win32"
+            ), patch(
+                "pixelflow_core.model_service._assistant_types",
+                return_value=(Assistant, Assistant, Assistant),
             ):
                 service = ModelProcessService(timeout=1)
                 try:

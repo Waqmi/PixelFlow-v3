@@ -290,9 +290,10 @@ class ModelProcessService:
     def __init__(self, timeout: float = 180.0) -> None:
         self.timeout = timeout
         # macOS TCC treats a multiprocessing-spawned frozen worker as a new
-        # file-access identity.  Keep model reads in the already-authorized
-        # Worker process there; other platforms retain the isolated process.
-        self._direct = sys.platform == "darwin"
+        # file-access identity.  A PyInstaller worker on Windows also cannot
+        # reliably spawn this second service process, so keep model reads in
+        # the already-running Worker process for all frozen builds.
+        self._direct = sys.platform == "darwin" or bool(getattr(sys, "frozen", False))
         self._context = multiprocessing.get_context("spawn")
         self._request_queue: Any = None
         self._response_queue: Any = None
