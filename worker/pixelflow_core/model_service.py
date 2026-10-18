@@ -500,7 +500,13 @@ class ModelProcessService:
         for purpose in MODEL_PURPOSES:
             self._set_state(root, purpose, STATE_LOADING)
         try:
-            result = self._request("probe", model_root=root)
+            # Probing only inspects the filesystem.  Keep it independent from
+            # the shared model-service lock so a concurrent warmup/inference
+            # cannot leave the settings page waiting indefinitely.
+            result = {
+                purpose: _probe_model_files(root, purpose)
+                for purpose in MODEL_PURPOSES
+            }
         except Exception as error:
             reason = str(error)
             for purpose in MODEL_PURPOSES:

@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -243,6 +244,29 @@ class ModelServiceTests(unittest.TestCase):
             self.assertEqual(service.model_state("/path/that/does/not/exist", "pose"), STATE_UNCONFIGURED)
         finally:
             service.close()
+
+    def test_probe_does_not_wait_for_model_service_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for purpose in ("pose", "segmentation"):
+                model_dir = root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(purpose.encode())
+
+            service = ModelProcessService(timeout=1)
+            result = {}
+            try:
+                service._lock.acquire()
+                thread = threading.Thread(target=lambda: result.update(service.probe_models(root)))
+                thread.start()
+                thread.join(timeout=1)
+                self.assertFalse(thread.is_alive(), "file-only probe must not wait for inference lock")
+                self.assertEqual(result["pose"]["state"], STATE_READY)
+                self.assertEqual(result["segmentation"]["state"], STATE_READY)
+            finally:
+                if service._lock.locked():
+                    service._lock.release()
+                service.close()
 
     def test_macos_model_requests_stay_in_worker_process(self) -> None:
         class Assistant:
