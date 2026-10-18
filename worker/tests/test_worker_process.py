@@ -1,11 +1,92 @@
 from __future__ import annotations
 
 import json
+import os
+import queue
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+
+
+class WorkerProbeEncodingTests(unittest.TestCase):
+    def test_probe_models_uses_utf8_for_chinese_paths(self) -> None:
+        worker_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix="模型目录-") as model_root_text:
+            model_root = Path(model_root_text)
+            for purpose in ("pose", "segmentation"):
+                model_dir = model_root / purpose
+                model_dir.mkdir()
+                (model_dir / "model.onnx").write_bytes(b"")
+
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "cp936"
+            process = subprocess.Popen(
+                [sys.executable, str(worker_root / "worker_entry.py")],
+                cwd=worker_root,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            assert process.stdin is not None
+            assert process.stdout is not None
+
+            lines: queue.Queue[bytes] = queue.Queue()
+
+            def read_stdout() -> None:
+                while True:
+                    line = process.stdout.readline()
+                    if not line:
+                        break
+                    lines.put(line)
+
+            reader = threading.Thread(target=read_stdout, daemon=True)
+            reader.start()
+            try:
+                request = {
+                    "protocol": 1,
+                    "request_id": "probe-encoding",
+                    "type": "probe_models",
+                    "payload": {"model_root": str(model_root)},
+                }
+                process.stdin.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
+                process.stdin.flush()
+
+                done_event = None
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    try:
+                        raw_line = lines.get(timeout=max(0.0, deadline - time.monotonic()))
+                    except queue.Empty:
+                        break
+                    event = json.loads(raw_line.decode("utf-8"))
+                    if event.get("request_id") == "probe-encoding" and event.get("type") == "done":
+                        done_event = event
+                        break
+
+                self.assertIsNotNone(done_event, "worker did not emit the probe done event")
+                models = done_event["payload"]["models"]
+                self.assertEqual(models["pose"]["state"], "已就绪")
+                self.assertEqual(models["segmentation"]["state"], "已就绪")
+            finally:
+                if process.poll() is None:
+                    try:
+                        process.stdin.close()
+                    except OSError:
+                        pass
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                reader.join(timeout=1)
+                process.stdout.close()
+                assert process.stderr is not None
+                process.stderr.close()
 
 
 class WorkerProcessTests(unittest.TestCase):

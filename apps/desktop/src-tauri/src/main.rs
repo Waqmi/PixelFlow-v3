@@ -318,8 +318,13 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn windows_dialog(script: &str) -> Result<Option<String>, String> {
+    let script = windows_utf8_script(script);
     let mut command = Command::new("powershell");
-    command.args(["-NoProfile", "-STA", "-Command", script]);
+    command
+        .arg("-NoProfile")
+        .arg("-STA")
+        .arg("-Command")
+        .arg(&script);
     hide_console(&mut command);
     let output = command
         .output()
@@ -327,8 +332,22 @@ fn windows_dialog(script: &str) -> Result<Option<String>, String> {
     if !output.status.success() {
         return Err(format!("file dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
     }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let path = decode_windows_stdout(&output.stdout)?;
     Ok((!path.is_empty()).then_some(path))
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_utf8_script(script: &str) -> String {
+    format!(
+        "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); {script}"
+    )
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn decode_windows_stdout(output: &[u8]) -> Result<String, String> {
+    std::str::from_utf8(output)
+        .map(|path| path.trim().to_string())
+        .map_err(|error| format!("file dialog returned invalid UTF-8: {error}"))
 }
 
 #[tauri::command]
@@ -366,9 +385,13 @@ fn choose_save_path(
     #[cfg(target_os = "windows")]
     {
         let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
+        let script = windows_utf8_script(script);
         let mut command = Command::new("powershell");
         command
-            .args(["-NoProfile", "-STA", "-Command", script])
+            .arg("-NoProfile")
+            .arg("-STA")
+            .arg("-Command")
+            .arg(&script)
             .env("PIXELFLOW_FILE_NAME", default_name)
             .env("PIXELFLOW_FILE_FILTER", windows_filter)
             .env("PIXELFLOW_DIALOG_TITLE", prompt);
@@ -379,7 +402,7 @@ fn choose_save_path(
         if !output.status.success() {
             return Err(format!("save dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
         }
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let path = decode_windows_stdout(&output.stdout)?;
         return Ok((!path.is_empty()).then_some(PathBuf::from(path)));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
@@ -725,7 +748,7 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
         Some(path) => (path.into_os_string(), Vec::<OsString>::new(), None),
         None => (
             std::env::var_os("PIXELFLOW_PYTHON").unwrap_or_else(|| "python3".into()),
-            vec![OsString::from("-m"), OsString::from("pixelflow_core.worker")],
+            vec![OsString::from("-m"), OsString::from("worker_entry")],
             Some(worker_dir()),
         ),
     };
@@ -745,20 +768,35 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
     let stdout = child.stdout.take().ok_or_else(|| "worker stdout unavailable".to_string())?;
     let app = app.clone();
     thread::spawn(move || {
-        for line in BufReader::new(stdout).lines().flatten() {
-            if let Ok(message) = serde_json::from_str::<Value>(&line) {
-                let request_id = message.get("request_id").and_then(Value::as_str);
-                let event_type = message.get("type").and_then(Value::as_str);
-                let state = app.state::<WorkerState>();
-                if let Ok(mut guard) = state.0.lock() {
-                    if matches!(event_type, Some("done" | "cancelled" | "error"))
-                        && guard.active_task_id.as_deref() == request_id
-                    {
-                        guard.active_task_id = None;
+        let mut reader = BufReader::new(stdout);
+        let mut read_error = None;
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    let line = line.trim_end_matches(&['\r', '\n'][..]).to_string();
+                    if let Ok(message) = serde_json::from_str::<Value>(&line) {
+                        let request_id = message.get("request_id").and_then(Value::as_str);
+                        let event_type = message.get("type").and_then(Value::as_str);
+                        let state = app.state::<WorkerState>();
+                        if let Ok(mut guard) = state.0.lock() {
+                            if matches!(event_type, Some("done" | "cancelled" | "error"))
+                                && guard.active_task_id.as_deref() == request_id
+                            {
+                                guard.active_task_id = None;
+                            }
+                        };
                     }
-                };
+                    let _ = app.emit("worker-line", line);
+                }
+                Err(error) => {
+                    let message = format!("Worker 输出读取失败：{error}");
+                    eprintln!("{message}");
+                    read_error = Some(message);
+                    break;
+                }
             }
-            let _ = app.emit("worker-line", line);
         }
         let state = app.state::<WorkerState>();
         let (task_id, should_restart) = if let Ok(mut guard) = state.0.lock() {
@@ -773,8 +811,13 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
             (None, false)
         };
         if should_restart {
-            emit_worker_exit(&app, "Worker 意外退出；已保留完成的输出，正在重启", task_id.clone(), true);
+            let message = read_error
+                .as_deref()
+                .unwrap_or("Worker 意外退出；已保留完成的输出，正在重启");
+            emit_worker_exit(&app, message, task_id.clone(), true);
             restart_worker(&app, task_id);
+        } else if let Some(message) = read_error.as_deref() {
+            emit_worker_exit(&app, message, task_id, false);
         }
     });
     let stdin = child.stdin.take().ok_or_else(|| "worker stdin unavailable".to_string())?;
@@ -871,6 +914,16 @@ mod tests {
         let payload = worker_exit_payload("boom", Some("job-7".to_string()), true);
         assert_eq!(payload["task_id"], "job-7");
         assert_eq!(payload["retryable"], true);
+    }
+
+    #[test]
+    fn windows_dialog_output_is_strict_utf8() {
+        assert_eq!(
+            decode_windows_stdout("D:\\模型\\models\r\n".as_bytes()).unwrap(),
+            "D:\\模型\\models"
+        );
+        assert!(decode_windows_stdout(&[0xd6, 0xd0]).is_err());
+        assert!(windows_utf8_script("$d.SelectedPath").contains("[Console]::OutputEncoding"));
     }
 
     #[test]

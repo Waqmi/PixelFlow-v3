@@ -6,6 +6,13 @@ import multiprocessing
 from pathlib import Path
 
 
+def configure_stdio_utf8() -> None:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="strict")
+
+
 def configure_frozen_paths() -> None:
     if not getattr(sys, "frozen", False):
         return
@@ -17,6 +24,7 @@ def configure_frozen_paths() -> None:
         os.environ.setdefault("PIXELFLOW_RESOURCE_ROOT", str(resource_root))
 
 
+configure_stdio_utf8()
 configure_frozen_paths()
 
 from pixelflow_core.worker import main  # noqa: E402

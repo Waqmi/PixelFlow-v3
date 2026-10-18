@@ -225,6 +225,7 @@ jobs:
             }
 
             if ($extractDir) {
+              $escapedExtractDir = [regex]::Escape($extractDir)
               Write-Host "Portable main executable: $mainExecutableName.exe"
               $appProcess = @(Get-CimInstance Win32_Process -Filter "Name = '$($mainExecutableName).exe'" -ErrorAction SilentlyContinue |
                 Select-Object -First 1)
