@@ -327,6 +327,11 @@ const previewConcurrencyLimit = computed(() => classificationConcurrency.value =
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
 const displayProgress = computed(() => classificationRunning.value ? classificationProgress.value : progress.value)
+let classificationProgressHighWater = 0
+function setClassificationProgressMonotonic(mapped: number, immediate = false) {
+  classificationProgressHighWater = Math.max(classificationProgressHighWater, mapped)
+  setClassificationProgress(classificationProgressHighWater, immediate)
+}
 const outputSummary = computed(() => {
   const validation = lastResult.value.validation as { passed?: unknown } | undefined
   const legacyCount = ['main_images', 'model_images', 'transparent_images', 'vip_images', 'selling_point_images']
@@ -730,7 +735,6 @@ function armClassificationWatchdog() {
     if (!requestId || !classificationRunning.value) return
     worker?.request('cancel_generation', { request_id: requestId })
     classificationRunning.value = false
-    setClassificationProgress(0, true)
     isCancelling.value = false
     classificationRequestId.value = undefined
     status.value = '素材分析超时，请重试'
@@ -752,7 +756,6 @@ function settleCancellation(message: string, detail: string, phase = '已安全�
   if (target && target === classificationRequestId.value) {
     updateResumePhase('cancelled')
     classificationRunning.value = false
-    setClassificationProgress(0, true)
     classificationRequestId.value = undefined
   }
   if (target && target === generationRequestId.value) {
@@ -963,6 +966,14 @@ function requestPreview(path: string, allowedRoots = [previewParent(path)]) {
     'read_preview',
     { path, max_width: 198, max_height: 138, allowed_roots: allowedRoots.filter(Boolean) },
   )
+}
+async function authorizeLogoPreviews() {
+  if (!window.__TAURI_INTERNALS__ || !Object.keys(logoOverrides.value).length) return
+  try {
+    await invoke('authorize_logo_previews', { logoOverrides: { ...logoOverrides.value } })
+  } catch {
+    // Startup authorization is best-effort; valid entries are handled by Tauri.
+  }
 }
 async function loadLogoPreview(key: string, path: string) {
   try {
@@ -1311,7 +1322,9 @@ onMounted(() => {
   if (bridge && !isReportWindow) {
     worker = new WorkerClient(bridge, isConfirmWindow ? undefined : handleWorkerMessage, isConfirmWindow ? 'confirm' : (isSettingsWindow ? 'settings' : 'main'))
     worker.request('ping', {})
-    Object.entries(logoOverrides.value).forEach(([key, path]) => { void loadLogoPreview(key, path) })
+    void authorizeLogoPreviews().then(() => {
+      Object.entries(logoOverrides.value).forEach(([key, path]) => { void loadLogoPreview(key, path) })
+    })
   }
   if (!hasSavedModelPath && !isReportWindow && !isConfirmWindow) void discoverDefaultModelPath()
   if (!isSettingsWindow && !isReportWindow && !isConfirmWindow && window.__TAURI_INTERNALS__) {
@@ -1549,16 +1562,16 @@ function handleWorkerMessage(message: WorkerMessage) {
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
     if (phase === 'Pose') {
-      setClassificationProgress(total ? 400 + Math.round((completed / total) * 450) : 400)
+      setClassificationProgressMonotonic(total ? 400 + Math.round((completed / total) * 450) : 400)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
-      setClassificationProgress(total ? 850 + Math.round((completed / total) * 150) : 850)
+      setClassificationProgressMonotonic(total ? 850 + Math.round((completed / total) * 150) : 850)
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
     } else if (phase === 'Pose/Seg') {
-      setClassificationProgress(total ? 400 + Math.round((completed / total) * 600) : 400)
+      setClassificationProgressMonotonic(total ? 400 + Math.round((completed / total) * 600) : 400)
       taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
-      setClassificationProgress(total ? Math.round((completed / total) * 400) : 0)
+      setClassificationProgressMonotonic(total ? Math.round((completed / total) * 400) : 0)
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
     }
     taskPhase.value = '识别分类'
@@ -1574,6 +1587,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       }))
       : []
     previewQueue.length = 0
+    setClassificationProgressMonotonic(1000, true)
     classificationRunning.value = false
     classifiedInputRoot.value = inputRoot.value
     classifiedOptionsKey.value = pendingClassificationKey
@@ -1584,7 +1598,6 @@ function handleWorkerMessage(message: WorkerMessage) {
     excludedModelSources.value = Array.isArray(result?.suggested_exclusions)
       ? result.suggested_exclusions.filter((source) => materials.value.some((material) => material.source === source))
       : []
-    setClassificationProgress(1000, true)
     markProgressComplete()
     clearResumeTask()
     materialConfirmed.value = false
@@ -1686,7 +1699,6 @@ function handleWorkerMessage(message: WorkerMessage) {
     clearClassificationWatchdog()
     isRunning.value = false
     isCancelling.value = false
-    if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
     classificationRunning.value = false
     status.value = String(payload.message || 'Worker 执行失败')
     taskPhase.value = '生成失败'
@@ -1721,6 +1733,7 @@ function classifyMaterials(fromResume = false) {
   scaleAdjustments.value = {}
   materialConfirmed.value = false
   clearProgressComplete()
+  classificationProgressHighWater = 0
   setClassificationProgress(0, true)
   classificationRunning.value = true
   isCancelling.value = false

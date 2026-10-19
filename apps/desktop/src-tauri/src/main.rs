@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::OsString,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
@@ -313,6 +313,27 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
     let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap());
     if (width, height) != expected { return Err(format!("Logo 画布尺寸必须为 {} × {}", expected.0, expected.1)); }
     if bytes[25] != 6 { return Err("Logo 必须包含 RGBA 透明通道".to_string()); }
+    Ok(())
+}
+
+fn authorize_logo_preview_roots(
+    guard: &mut WorkerSupervisor,
+    logo_overrides: &HashMap<String, String>,
+) {
+    for (key, path) in logo_overrides {
+        if validate_logo(path, key).is_ok() {
+            remember_preview_root(guard, path);
+        }
+    }
+}
+
+#[tauri::command]
+fn authorize_logo_previews(
+    logo_overrides: HashMap<String, String>,
+    state: State<'_, WorkerState>,
+) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
+    authorize_logo_preview_roots(&mut guard, &logo_overrides);
     Ok(())
 }
 
@@ -850,6 +871,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             worker_send,
+            authorize_logo_previews,
             pick_directory,
             discover_models_directory,
             pick_file,
@@ -914,6 +936,71 @@ mod tests {
         let payload = worker_exit_payload("boom", Some("job-7".to_string()), true);
         assert_eq!(payload["task_id"], "job-7");
         assert_eq!(payload["retryable"], true);
+    }
+
+    #[test]
+    fn saved_logo_authorization_allows_its_preview_scope_after_validation() {
+        let root = std::env::temp_dir().join(format!(
+            "pixelflow-logo-authorization-{}",
+            std::process::id()
+        ));
+        let bad_root = std::env::temp_dir().join(format!(
+            "pixelflow-logo-authorization-bad-{}",
+            std::process::id()
+        ));
+        let logo = root.join("logo.png");
+        let bad_logo = bad_root.join("bad.png");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&bad_root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&bad_root).unwrap();
+
+        let mut png = vec![0_u8; 26];
+        png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        png[12..16].copy_from_slice(b"IHDR");
+        png[16..20].copy_from_slice(&1440_u32.to_be_bytes());
+        png[20..24].copy_from_slice(&1440_u32.to_be_bytes());
+        png[25] = 6;
+        std::fs::write(&logo, png).unwrap();
+        std::fs::write(&bad_logo, b"not a png").unwrap();
+
+        let mut guard = WorkerSupervisor {
+            process: None,
+            restart_history: VecDeque::new(),
+            active_task_id: None,
+            preview_roots: Vec::new(),
+            shutting_down: false,
+        };
+        let message = serde_json::json!({
+            "payload": {
+                "path": logo.to_string_lossy(),
+                "allowed_roots": [root.to_string_lossy()],
+            }
+        });
+        assert!(validate_preview_request(&guard, &message).is_err());
+
+        let logo_overrides = HashMap::from([
+            (
+                "logo_square_dark".to_string(),
+                logo.to_string_lossy().into_owned(),
+            ),
+            (
+                "logo_tall_dark".to_string(),
+                bad_logo.to_string_lossy().into_owned(),
+            ),
+        ]);
+        authorize_logo_preview_roots(&mut guard, &logo_overrides);
+
+        assert!(validate_preview_request(&guard, &message).is_ok());
+        let bad_message = serde_json::json!({
+            "payload": {
+                "path": bad_logo.to_string_lossy(),
+                "allowed_roots": [bad_root.to_string_lossy()],
+            }
+        });
+        assert!(validate_preview_request(&guard, &bad_message).is_err());
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(bad_root);
     }
 
     #[test]

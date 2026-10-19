@@ -276,6 +276,68 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual(decisions[sources[7]].source_type, "model")
         self.assertEqual(decisions[sources[1]].source_type, "detail")
 
+    def test_detector_boxes_are_prefetched_once_across_sample_expansion(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        folder = Path("素材")
+        sources = [folder / f"image-{index:02d}.jpg" for index in range(12)]
+        decisions = {
+            source: SourceTypeDecision("detail", 0.86, "rules", "edge")
+            for source in sources
+        }
+        compose_calls: list[tuple[Path, tuple, object]] = []
+        detector_calls: list[Path] = []
+
+        class FakeService:
+            def detect_boxes(self, _root, source, _category):
+                detector_calls.append(source)
+                return [[100.0, 200.0, 300.0, 400.0]]
+
+            def compose_for_sizes(
+                self, _root, source, _sizes, product_category=None,
+                segmentation=None, detector_boxes=None, **_kwargs,
+            ):
+                compose_calls.append((source, tuple(detector_boxes or ()), segmentation))
+                return {
+                    "model_view": "full_body",
+                    "confidence": 0.9,
+                    "person_count": 1,
+                    "by_size": {},
+                    "_source": str(source),
+                }
+
+        def resolve(decision, composition, _category):
+            if Path(composition["_source"]).name == "image-06.jpg":
+                return type(decision)("model", 0.9, "mock_pose", "sample")
+            return decision
+
+        def candidates(_root, purpose):
+            return [] if purpose == "segmentation" else [Path(f"{purpose}.onnx")]
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ), patch("pixelflow_core.model_cache.load_model_result", return_value=None), patch(
+            "pixelflow_core.model_cache.store_model_result", return_value=True
+        ), patch(
+            "pixelflow_core.legacy_engine.local_model_assistant.resolve_model_source_type",
+            side_effect=resolve,
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "long_pants", None)
+
+        # Sample indexes are 0, 3, 6, 8 and 11; one model sample expands to all siblings.
+        self.assertEqual([source.name for source in detector_calls], [
+            "image-00.jpg", "image-03.jpg", "image-06.jpg", "image-08.jpg", "image-11.jpg",
+            "image-01.jpg", "image-02.jpg", "image-04.jpg", "image-05.jpg", "image-07.jpg",
+            "image-09.jpg", "image-10.jpg",
+        ])
+        self.assertEqual([source for source, _boxes, _seg in compose_calls], detector_calls)
+        self.assertTrue(all(boxes for _source, boxes, _seg in compose_calls))
+        self.assertTrue(all(segmentation is None for _source, _boxes, segmentation in compose_calls))
+        self.assertEqual(decisions[sources[6]].source_type, "model")
+        self.assertEqual(decisions[sources[7]].source_type, "detail")
+
     def test_shoe_risk_from_nested_size_plan_is_promoted_to_metadata(self) -> None:
         adapter = V26ClassifierAdapter()
         adapter._load_classifier()

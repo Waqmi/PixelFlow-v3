@@ -566,14 +566,14 @@ class V26ClassifierAdapter:
                     stage_progress("Pose", 0, len(pose_sources), Path("Pose 模型已就绪"))
             seg_models = configured_model_candidates(root_text, "segmentation")
             anchor_seg_path = Path(seg_models[0]) if seg_models else None
+            from .model_assistant import ANCHOR_CATEGORIES
+
+            anchor_seg_available = anchor_seg_path is not None and category in ANCHOR_CATEGORIES
 
             def anchor_segmentation(source: Path, composition: dict[str, object]) -> dict[str, object] | None:
                 """Seg outline for shoe/shirt model photos (head top and sole)."""
-                from .model_assistant import ANCHOR_CATEGORIES
-
                 if (
-                    anchor_seg_path is None
-                    or category not in ANCHOR_CATEGORIES
+                    not anchor_seg_available
                     or composition.get("model_view") in {None, "detail"}
                 ):
                     return None
@@ -629,18 +629,23 @@ class V26ClassifierAdapter:
                             else None
                         )
                         if composition is None:
-                            composition = service.compose_for_sizes(
-                                root_text, source, SIZES, product_category=category
-                            )
-                            segmentation = anchor_segmentation(source, composition)
-                            boxes = detector_boxes(source)
-                            if segmentation is not None or boxes:
-                                # Pose detections are cached in-process, so the
-                                # second pass only recomputes the crop window.
+                            if anchor_seg_available:
+                                composition = service.compose_for_sizes(
+                                    root_text, source, SIZES, product_category=category
+                                )
+                                segmentation = anchor_segmentation(source, composition)
+                                boxes = detector_boxes(source)
+                                extra = {"detector_boxes": boxes} if boxes else {}
+                                if segmentation is not None or boxes:
+                                    composition = service.compose_for_sizes(
+                                        root_text, source, SIZES, product_category=category,
+                                        segmentation=segmentation, **extra,
+                                    )
+                            else:
+                                boxes = detector_boxes(source)
                                 extra = {"detector_boxes": boxes} if boxes else {}
                                 composition = service.compose_for_sizes(
-                                    root_text, source, SIZES, product_category=category,
-                                    segmentation=segmentation, **extra,
+                                    root_text, source, SIZES, product_category=category, **extra
                                 )
                             if pose_model_path is not None:
                                 store_model_result(

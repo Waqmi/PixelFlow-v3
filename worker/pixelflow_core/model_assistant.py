@@ -26,6 +26,8 @@ BODY_KEYPOINT_CONFIDENCE = 0.28
 _GLOBAL_DETECTION_CACHE: dict[tuple[str, int, int, str], list[PersonDetection]] = {}
 _GLOBAL_SEGMENTATION_CACHE: dict[tuple[str, int, int, str], dict[str, object]] = {}
 _GLOBAL_OBJECT_CACHE: dict[tuple[str, int, int, str], list[tuple[str, float, tuple[float, float, float, float]]]] = {}
+_GLOBAL_SOURCE_ANALYSIS_CACHE: dict[tuple[str, int, int], tuple[tuple[int, int], float]] = {}
+_SOURCE_ANALYSIS_CACHE_LIMIT = 512
 
 
 def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
@@ -1857,6 +1859,25 @@ class LocalModelAssistant:
     def _static_dimension(value: Any, fallback: int) -> int:
         return int(value) if isinstance(value, int) and value > 0 else fallback
 
+    def _analyze_source(self, source: Path) -> tuple[tuple[int, int], float]:
+        """Return source dimensions and relief, reusing unchanged-file work."""
+        try:
+            stat = source.stat()
+            cache_key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            cache_key = None
+        if cache_key is not None:
+            cached = _GLOBAL_SOURCE_ANALYSIS_CACHE.get(cache_key)
+            if cached is not None:
+                return cached
+        with Image.open(source) as opened:
+            analysis = (opened.size, _image_relief_score(opened))
+        if cache_key is not None:
+            if len(_GLOBAL_SOURCE_ANALYSIS_CACHE) >= _SOURCE_ANALYSIS_CACHE_LIMIT:
+                _GLOBAL_SOURCE_ANALYSIS_CACHE.pop(next(iter(_GLOBAL_SOURCE_ANALYSIS_CACHE)))
+            _GLOBAL_SOURCE_ANALYSIS_CACHE[cache_key] = analysis
+        return analysis
+
     @staticmethod
     def inspect(
         model_dir: str | Path,
@@ -2691,9 +2712,7 @@ class LocalModelAssistant:
         shoe_boxes: list[tuple[float, float, float, float]] | None = None,
         detector_boxes: list[tuple[float, float, float, float]] | None = None,
     ) -> dict[str, object]:
-        with Image.open(source) as opened:
-            image_size = opened.size
-            relief_score = _image_relief_score(opened)
+        image_size, relief_score = self._analyze_source(source)
         detections = self.detect(source)
         visibility = body_visibility(detections, image_size)
         image_width, image_height = image_size

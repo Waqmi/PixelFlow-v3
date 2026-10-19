@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
 import unittest.mock
+from pathlib import Path
 
 from PIL import Image
 
@@ -787,6 +790,48 @@ class DetectionDecodeTests(unittest.TestCase):
 
 
 class AnchorPlumbingTests(unittest.TestCase):
+    def test_source_analysis_cache_invalidates_when_file_version_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "model.jpg"
+            Image.new("RGB", IMAGE, "white").save(source)
+            assistant = LocalModelAssistant.__new__(LocalModelAssistant)
+            with unittest.mock.patch(
+                "pixelflow_core.model_assistant._image_relief_score",
+                side_effect=[0.25, 0.75],
+            ) as relief:
+                first = assistant._analyze_source(source)
+                cached = assistant._analyze_source(source)
+                stat = source.stat()
+                os.utime(
+                    source,
+                    ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000),
+                )
+                refreshed = assistant._analyze_source(source)
+
+        self.assertEqual(first, cached)
+        self.assertEqual(refreshed[1], 0.75)
+        self.assertEqual(relief.call_count, 2)
+
+    def test_segmentation_recompose_reuses_source_relief_analysis(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "model.jpg"
+            Image.new("RGB", IMAGE, "white").save(source)
+            assistant = LocalModelAssistant.__new__(LocalModelAssistant)
+            assistant.model_path = Path("pose.onnx")
+            sizes = {"1440x1440": (SQUARE, (255, 255, 255))}
+            with unittest.mock.patch.object(
+                LocalModelAssistant, "detect", return_value=[person(STANDING)],
+            ), unittest.mock.patch(
+                "pixelflow_core.model_assistant._image_relief_score", return_value=0.5,
+            ) as relief:
+                without_seg = assistant.compose_for_sizes(source, sizes, "shoes")
+                with_seg = assistant.compose_for_sizes(
+                    source, sizes, "shoes", segmentation=rows(0.80, 0.95, 0.45, 0.55),
+                )
+
+        self.assertEqual(relief.call_count, 1)
+        self.assertNotEqual(without_seg["by_size"], with_seg["by_size"])
+
     def test_apply_anchor_crops_replaces_supported_plans(self) -> None:
         by_size = {"1440x1440": {"composition_mode": "zoom_focus", "confidence": 0.9}}
         LocalModelAssistant._apply_anchor_crops(
