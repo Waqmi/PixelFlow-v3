@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
-from pixelflow_core.classification import ClassificationRequest
+from pixelflow_core.classification import ClassificationDecision, ClassificationRequest
 from pixelflow_core.v3_classification import V3ClassifierAdapter
 
 
@@ -250,6 +250,75 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
 
         self.assertEqual(decision.source_type, "model")
         self.assertEqual(decision.composition_plans["1440x1440"].composition_mode, "anchor_crop")
+
+    def test_anchor_sample_expands_to_same_folder_when_still_detail(self) -> None:
+        calls: list[Path] = []
+
+        class FakeModelService:
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None, segmentation=None):
+                calls.append(source)
+                return {
+                    "model_view": "upper_body",
+                    "by_size": {
+                        "1440x1440": {
+                            "composition_mode": "anchor_crop",
+                            "crop_box": [0.1, 0.0, 0.9, 0.8],
+                        }
+                    },
+                }
+
+        def candidates(_root, kind):
+            return (Path("pose.onnx"),) if kind == "pose" else ()
+
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "素材"
+            product.mkdir()
+            sources = [product / f"image-{index:02d}.jpg" for index in range(12)]
+            for source in sources:
+                Image.new("RGB", (32, 32), "white").save(source)
+            request = ClassificationRequest(
+                product,
+                local_model_enabled=True,
+                local_model_path=str(Path(root) / "models"),
+                category="shirt",
+            )
+            def classify_detail(_self, source, _siblings, _manual_type=None):
+                return ClassificationDecision(
+                    source=str(source),
+                    source_type="detail",
+                    confidence=0.90,
+                    classifier="v3_rules",
+                    reason="test detail",
+                )
+
+            with patch(
+                "pixelflow_core.v3_classification.V3SourceTypeClassifier.classify",
+                new=classify_detail,
+            ), patch(
+                "pixelflow_core.model_service.configured_model_candidates",
+                side_effect=candidates,
+            ), patch(
+                "pixelflow_core.model_service.get_model_process_service",
+                return_value=FakeModelService(),
+            ), patch(
+                "pixelflow_core.model_cache.load_model_result",
+                return_value=None,
+            ), patch(
+                "pixelflow_core.model_cache.store_model_result",
+                return_value=True,
+            ), patch.object(
+                V3ClassifierAdapter,
+                "_resolve_model_decision",
+                new=lambda self, decision, _composition, _category: decision,
+            ):
+                decisions = V3ClassifierAdapter().classify(request)
+
+        self.assertEqual(sorted(calls), sorted(sources))
+        self.assertTrue(all(decision.source_type == "detail" for decision in decisions))
+        self.assertTrue(all(
+            decision.composition_plans["1440x1440"].composition_mode == "anchor_crop"
+            for decision in decisions
+        ))
 
 if __name__ == "__main__":
     unittest.main()

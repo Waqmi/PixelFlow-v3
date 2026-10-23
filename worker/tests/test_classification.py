@@ -173,12 +173,12 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual(len(decisions), 4)
         self.assertTrue(all(decision.source_type == "model" for decision in decisions))
 
-    def test_product_folder_evidence_skips_pose_and_seg(self) -> None:
+    def test_product_folder_evidence_only_samples_instead_of_expanding(self) -> None:
         adapter = V26ClassifierAdapter()
         adapter._load_classifier()
         from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
 
-        product = Path("SKU-1 男 暗夜黑/detail.jpg")
+        products = [Path(f"SKU-1 男 暗夜黑/detail-{index:02d}.jpg") for index in range(12)]
         model = Path("模特图/model.jpg")
         calls = []
 
@@ -187,18 +187,22 @@ class ClassificationAdapterTests(unittest.TestCase):
                 calls.append(source)
                 return {}
 
-            def segment(self, _root, source):
-                calls.append(source)
-                return {}
-
         decisions = {
-            product: SourceTypeDecision("detail", 0.86, "rules_product_folder", "product"),
+            **{
+                product: SourceTypeDecision("detail", 0.86, "rules_product_folder", "product")
+                for product in products
+            },
             model: SourceTypeDecision("model", 0.96, "rules", "model"),
         }
-        with patch("pixelflow_core.model_service.configured_model_candidates", return_value=[Path("model.onnx")]), patch("pixelflow_core.model_service.get_model_process_service", return_value=FakeService()):
+
+        def candidates(_root, purpose):
+            return [Path("pose.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch("pixelflow_core.model_service.get_model_process_service", return_value=FakeService()):
             adapter._apply_optional_models(decisions, "/tmp/models", "long_pants", None)
-        self.assertTrue(calls)
-        self.assertTrue(all(source == model for source in calls))
+        expected_products = {products[index] for index in (0, 3, 6, 8, 11)}
+        self.assertEqual(set(calls), {model} | expected_products)
+        self.assertNotIn(products[1], calls)
 
     def test_optional_model_stages_report_pose_before_seg(self) -> None:
         adapter = V26ClassifierAdapter()
@@ -233,7 +237,11 @@ class ClassificationAdapterTests(unittest.TestCase):
             [(0, 1), (0, 1), (1, 1), (1, 1)],
         )
 
-    def _sampled_detail_folder(self, model_indexes: set[int]) -> tuple[list[Path], dict, list[Path]]:
+    def _sampled_detail_folder(
+        self,
+        model_indexes: set[int],
+        decision_source: str = "rules",
+    ) -> tuple[list[Path], dict, list[Path]]:
         adapter = V26ClassifierAdapter()
         adapter._load_classifier()
         from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
@@ -241,7 +249,7 @@ class ClassificationAdapterTests(unittest.TestCase):
         folder = Path("素材")
         sources = [folder / f"image-{index:02d}.jpg" for index in range(12)]
         decisions = {
-            source: SourceTypeDecision("detail", 0.86, "rules", "edge")
+            source: SourceTypeDecision("detail", 0.86, decision_source, "edge")
             for source in sources
         }
         calls = []
@@ -269,12 +277,66 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual([source.name for source in calls], [f"image-{index:02d}.jpg" for index in (0, 3, 6, 8, 11)])
         self.assertTrue(all(decision.source_type == "detail" for decision in decisions.values()))
 
+    def test_rules_product_folder_samples_five_instead_of_all(self) -> None:
+        _sources, _decisions, calls = self._sampled_detail_folder(
+            set(),
+            decision_source="rules_product_folder",
+        )
+        self.assertEqual(
+            [source.name for source in calls],
+            [f"image-{index:02d}.jpg" for index in (0, 3, 6, 8, 11)],
+        )
+
     def test_model_sample_runs_pose_for_every_sibling(self) -> None:
         sources, decisions, calls = self._sampled_detail_folder({6, 7})
         # Every image is checked individually; no sibling inherits a plan-less label.
         self.assertEqual(sorted(calls), sorted(sources))
         self.assertEqual(decisions[sources[7]].source_type, "model")
         self.assertEqual(decisions[sources[1]].source_type, "detail")
+
+    def test_anchor_sample_runs_pose_for_every_sibling_while_detail(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        folder = Path("素材")
+        sources = [folder / f"image-{index:02d}.jpg" for index in range(12)]
+        decisions = {
+            source: SourceTypeDecision("detail", 0.86, "rules", "edge")
+            for source in sources
+        }
+        calls: list[Path] = []
+
+        class FakeService:
+            def compose_for_sizes(self, _root, source, _sizes, product_category=None, segmentation=None):
+                calls.append(source)
+                if source.name == "image-06.jpg":
+                    return {
+                        "model_view": "upper_body",
+                        "by_size": {
+                            "1440x1440": {
+                                "composition_mode": "anchor_crop",
+                                "crop_box": [0.1, 0.0, 0.9, 0.8],
+                            }
+                        },
+                    }
+                return {}
+
+        def candidates(_root, purpose):
+            return [Path("pose.onnx")] if purpose == "pose" else []
+
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ), patch("pixelflow_core.model_cache.load_model_result", return_value=None), patch(
+            "pixelflow_core.model_cache.store_model_result", return_value=True
+        ), patch(
+            "pixelflow_core.legacy_engine.local_model_assistant.resolve_model_source_type",
+            side_effect=lambda decision, _composition, _category: decision,
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shirt", None)
+
+        self.assertEqual(sorted(calls), sorted(sources))
+        self.assertTrue(all(decision.source_type == "detail" for decision in decisions.values()))
 
     def test_detector_boxes_are_prefetched_once_across_sample_expansion(self) -> None:
         adapter = V26ClassifierAdapter()

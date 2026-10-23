@@ -5,7 +5,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import Event
-from typing import Callable
+from typing import Callable, Mapping
 
 from .contracts import CompositionPlan, ProtectedRegion
 
@@ -83,6 +83,33 @@ class ClassificationDecision:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "composition_plans", dict(self.composition_plans))
+
+
+def _contains_anchor_plan(value: object) -> bool:
+    if isinstance(value, Mapping):
+        if value.get("composition_mode") == "anchor_crop":
+            return True
+        anchor_crop = value.get("anchor_crop")
+        if anchor_crop not in (None, False, "", (), [], {}):
+            return True
+        if isinstance(value.get("anchors"), Mapping) and (
+            "crop_box" in value or "crop_box_ratios" in value
+        ):
+            return True
+        return any(_contains_anchor_plan(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_anchor_plan(item) for item in value)
+    return False
+
+
+def _has_anchor_plan(decision: object) -> bool:
+    plans = getattr(decision, "composition_plans", {})
+    if isinstance(plans, Mapping) and any(
+        getattr(plan, "composition_mode", None) == "anchor_crop"
+        for plan in plans.values()
+    ):
+        return True
+    return _contains_anchor_plan(getattr(decision, "metadata", None))
 
 
 def _typed_plan_from_mapping(source: Path, size: str, value: object) -> CompositionPlan | None:
@@ -489,7 +516,7 @@ class V26ClassifierAdapter:
             ordered = sorted(sources_in_folder, key=str)
             if any(
                 decisions[source].confidence < 0.70
-                or decisions[source].source in {"rules_product_folder", "error", "fallback"}
+                or decisions[source].source in {"error", "fallback"}
                 for source in ordered
             ):
                 continue
@@ -622,6 +649,7 @@ class V26ClassifierAdapter:
                                 "pose",
                                 category,
                                 output_size="all",
+                                seg_model_path=anchor_seg_path,
                                 detection_model_path=detection_model_path,
                                 source_version=cache_source_version(source),
                             )
@@ -655,6 +683,7 @@ class V26ClassifierAdapter:
                                     category,
                                     composition,
                                     output_size="all",
+                                    seg_model_path=anchor_seg_path,
                                     detection_model_path=detection_model_path,
                                     source_version=cache_source_version(source),
                                 )
@@ -694,9 +723,10 @@ class V26ClassifierAdapter:
             for ordered, samples in sampled_groups.values():
                 sample_types = [decisions[source].source_type for source in samples]
                 model_types = {item for item in sample_types if item in {"model", "model_detail"}}
-                # Any model sample: run Pose on every sibling so each image
-                # gets its own crop plan (plans are never shared between files).
-                if model_types:
+                anchor_plans = any(_has_anchor_plan(decisions[source]) for source in samples)
+                # Any model or anchor sample: run Pose on every sibling so each
+                # image gets its own crop plan (plans are never shared).
+                if model_types or anchor_plans:
                     expanded_sources.extend(source for source in ordered if source not in samples)
             expanded_sources = list(dict.fromkeys(expanded_sources))
             if expanded_sources:

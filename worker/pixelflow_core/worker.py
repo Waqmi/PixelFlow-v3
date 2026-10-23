@@ -23,10 +23,11 @@ from .classification import (
     classification_summary,
 )
 from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
+from .model_cache import COMPOSITION_RULES_VERSION
 
 
 WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0")
-RULES_VERSION = "v3-composition-11"
+RULES_VERSION = COMPOSITION_RULES_VERSION
 
 
 def _worker_build_hash() -> str:

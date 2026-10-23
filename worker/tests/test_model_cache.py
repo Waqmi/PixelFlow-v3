@@ -77,6 +77,28 @@ class ModelCacheTests(unittest.TestCase):
             det.write_bytes(b"detection-2")
             self.assertNotEqual(added, cache_key(source, pose, "pose", "shoes", "all", detection_model_path=det))
 
+    def test_seg_model_changes_pose_identity_and_key(self) -> None:
+        from pixelflow_core.model_cache import cache_key
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "source.jpg"
+            pose = root / "pose.onnx"
+            seg = root / "seg.onnx"
+            source.write_bytes(b"source")
+            pose.write_bytes(b"pose")
+            seg.write_bytes(b"seg-1")
+            first = cache_key(source, pose, "pose", "shoes", "all", seg_model_path=seg)
+            identity = build_cache_identity(
+                source, pose, "pose", "shoes", "all", seg_model_path=seg
+            )
+            assert identity is not None
+            self.assertEqual(identity["seg_model"]["size"], 5)
+
+            seg.write_bytes(b"seg-model-2")
+            second = cache_key(source, pose, "pose", "shoes", "all", seg_model_path=seg)
+            self.assertNotEqual(first, second)
+
     def test_lookup_reports_missing_expired_and_corrupt_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -29,6 +29,7 @@ from .contracts import (
     build_vip_request,
     validate_run_mode,
 )
+from .model_cache import COMPOSITION_RULES_VERSION, file_version
 from .renderer import Renderer
 
 
@@ -44,6 +45,13 @@ def _v3_manifest_path(output_root: Path) -> Path:
         cache_root = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
     key = hashlib.sha256(str(output_root.expanduser().resolve(strict=False)).encode("utf-8")).hexdigest()
     return cache_root / "PixelFlow" / "manifests" / f"v3-{key}.json"
+
+
+def _v3_identity_manifest_path(output_root: Path) -> Path:
+    """Private per-output identities used to gate V3 output reuse."""
+    manifest_path = _v3_manifest_path(output_root)
+    suffix = manifest_path.suffix or ".json"
+    return manifest_path.with_name(f"{manifest_path.stem}.identities{suffix}")
 
 
 def _read_v3_manifest(output_root: Path) -> set[str]:
@@ -66,6 +74,52 @@ def _write_v3_manifest(output_root: Path, relative_paths: set[str]) -> None:
     except OSError:
         # The manifest only enables stale cleanup; never fail a finished batch.
         pass
+
+
+def _canonical_identity_value(value: object) -> object:
+    return json.loads(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    )
+
+
+def _read_v3_output_identities(output_root: Path) -> dict[str, dict[str, object]]:
+    try:
+        payload = json.loads(_v3_identity_manifest_path(output_root).read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError):
+        return {}
+    identities = payload.get("outputs", {}) if isinstance(payload, dict) else {}
+    if not isinstance(identities, dict):
+        return {}
+    return {
+        str(path): dict(identity)
+        for path, identity in identities.items()
+        if isinstance(path, str) and isinstance(identity, dict)
+    }
+
+
+def _write_v3_output_identities(
+    output_root: Path,
+    identities: dict[str, dict[str, object]],
+) -> None:
+    manifest_path = _v3_identity_manifest_path(output_root)
+    temporary = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
+    payload = {
+        "schema_version": 1,
+        "composition_rules_version": COMPOSITION_RULES_VERSION,
+        "outputs": identities,
+    }
+    try:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        temporary.replace(manifest_path)
+    except (OSError, TypeError, ValueError):
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
 
 
 def _v3_diagnostics_path(output_root: Path, request_id: str) -> Path:
@@ -255,7 +309,71 @@ class V3EngineAdapter:
         return "素材"
 
     @staticmethod
-    def _remove_stale_outputs(output_root: Path, expected_paths: set[Path], full_batch: bool) -> int:
+    def _output_identity(
+        request: GenerationRequest,
+        typed_request: RenderRequest,
+        plan: CompositionPlan | None,
+        kind: str,
+    ) -> dict[str, object] | None:
+        source_version = file_version(Path(typed_request.source))
+        if source_version is None:
+            return None
+        render_metadata_keys = {
+            "add_border",
+            "allow_mirror_extension",
+            "background",
+            "border_path",
+            "category",
+            "enable_category_template",
+            "filename",
+            "group",
+            "include_logo",
+            "logo_path",
+            "material_type",
+            "position_x",
+            "position_y",
+            "scale",
+            "source_scale_adjustment",
+            "source_type",
+            "white_logo_path",
+            "without_logo",
+        }
+        identity = {
+            "composition_rules_version": COMPOSITION_RULES_VERSION,
+            "source": source_version,
+            "source_type": typed_request.source_type,
+            "size": str(typed_request.size),
+            "kind": kind,
+            "composition_plan": plan.to_dict() if plan is not None else None,
+            "category": typed_request.layout.category,
+            "include_logo": bool(typed_request.include_logo),
+            "logo_overrides": dict(request.logo_overrides),
+            "render_options": {
+                "naming_mode": request.naming_mode,
+                "max_size_mb": typed_request.max_size_mb,
+                "background": typed_request.background,
+                "assets": {
+                    "logo": typed_request.assets.logo,
+                    "white_logo": typed_request.assets.white_logo,
+                    "border": typed_request.assets.border,
+                },
+                "layout": typed_request.layout.to_dict(),
+                "metadata": {
+                    key: typed_request.metadata[key]
+                    for key in render_metadata_keys
+                    if key in typed_request.metadata
+                },
+            },
+        }
+        return _canonical_identity_value(identity)  # type: ignore[return-value]
+
+    @staticmethod
+    def _remove_stale_outputs(
+        output_root: Path,
+        expected_paths: set[Path],
+        full_batch: bool,
+        output_identities: dict[str, dict[str, object]] | None = None,
+    ) -> int:
         """Delete only files a previous V3 run recorded and this run no longer needs.
 
         Files PixelFlow never recorded (user files, outputs from builds without
@@ -263,6 +381,7 @@ class V3EngineAdapter:
         their outputs into the existing record.
         """
         previous = _read_v3_manifest(output_root)
+        previous_identities = _read_v3_output_identities(output_root)
         current = {
             relative
             for path in expected_paths
@@ -270,6 +389,19 @@ class V3EngineAdapter:
         }
         if not full_batch:
             _write_v3_manifest(output_root, previous | current)
+            identities = {
+                relative: identity
+                for relative, identity in previous_identities.items()
+                if relative not in current
+            }
+            identities.update(output_identities or {})
+            identities = {
+                relative: identity
+                for relative, identity in identities.items()
+                if (candidate := output_root / relative).is_file()
+                and _generated_relative_path(output_root, candidate) == relative
+            }
+            _write_v3_output_identities(output_root, identities)
             return 0
         removed = 0
         kept_stale: set[str] = set()
@@ -284,6 +416,14 @@ class V3EngineAdapter:
                 continue
             removed += 1
         _write_v3_manifest(output_root, current | kept_stale)
+        identities = {
+            relative: identity
+            for relative, identity in (output_identities or {}).items()
+            if relative in current
+            and (candidate := output_root / relative).is_file()
+            and _generated_relative_path(output_root, candidate) == relative
+        }
+        _write_v3_output_identities(output_root, identities)
         return removed
 
     @staticmethod
@@ -395,6 +535,8 @@ class V3EngineAdapter:
         reused_outputs = 0
         expected_outputs = 0
         expected_output_paths: set[Path] = set()
+        previous_output_identities = _read_v3_output_identities(request.output_root)
+        current_output_identities: dict[str, dict[str, object]] = {}
         diagnostics_by_source: dict[str, dict[str, object]] = {}
         main_count = model_count = transparent_count = vip_count = 0
         source_jobs: list[tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]] = []
@@ -549,7 +691,20 @@ class V3EngineAdapter:
                     if typed_request.output_path:
                         expected_output_paths.add(Path(typed_request.output_path))
                     expected_outputs += 1
-                    if Path(typed_request.output_path).is_file() and not request.force_rerender:
+                    identity = self._output_identity(request, typed_request, plan, "main")
+                    relative = (
+                        _generated_relative_path(request.output_root, Path(typed_request.output_path))
+                        if typed_request.output_path and identity is not None
+                        else None
+                    )
+                    if (
+                        relative is not None
+                        and identity is not None
+                        and identity == previous_output_identities.get(relative)
+                        and Path(typed_request.output_path).is_file()
+                        and not request.force_rerender
+                    ):
+                        current_output_identities[relative] = identity
                         outputs.append(typed_request.output_path)
                         reused_outputs += 1
                         diagnostic["reused_output"] = True
@@ -611,7 +766,25 @@ class V3EngineAdapter:
                 if vip_request.output_path:
                     expected_output_paths.add(Path(vip_request.output_path))
                 expected_outputs += 1
-                if Path(vip_request.output_path).is_file() and not request.force_rerender:
+                identity = self._output_identity(
+                    request,
+                    vip_request,
+                    plans_by_size.get("1440x1440"),
+                    "vip",
+                )
+                relative = (
+                    _generated_relative_path(request.output_root, Path(vip_request.output_path))
+                    if vip_request.output_path and identity is not None
+                    else None
+                )
+                if (
+                    relative is not None
+                    and identity is not None
+                    and identity == previous_output_identities.get(relative)
+                    and Path(vip_request.output_path).is_file()
+                    and not request.force_rerender
+                ):
+                    current_output_identities[relative] = identity
                     outputs.append(vip_request.output_path)
                     vip_count += 1
                     reused_outputs += 1
@@ -663,7 +836,25 @@ class V3EngineAdapter:
                     if transparent_request.output_path:
                         expected_output_paths.add(Path(transparent_request.output_path))
                     expected_outputs += 1
-                    if transparent_path.is_file() and not request.force_rerender:
+                    identity = self._output_identity(
+                        request,
+                        transparent_request,
+                        plans_by_size.get(size),
+                        "transparent",
+                    )
+                    relative = (
+                        _generated_relative_path(request.output_root, transparent_path)
+                        if identity is not None
+                        else None
+                    )
+                    if (
+                        relative is not None
+                        and identity is not None
+                        and identity == previous_output_identities.get(relative)
+                        and transparent_path.is_file()
+                        and not request.force_rerender
+                    ):
+                        current_output_identities[relative] = identity
                         outputs.append(str(transparent_path))
                         transparent_count += 1
                         reused_outputs += 1
@@ -751,6 +942,20 @@ class V3EngineAdapter:
                             "reused": False,
                             "success": bool(result.success),
                         })
+                        candidate = Path(output_path)
+                        identity = self._output_identity(
+                            request,
+                            _typed_request,
+                            plan,
+                            kind,
+                        )
+                        relative = (
+                            _generated_relative_path(request.output_root, candidate)
+                            if identity is not None
+                            else None
+                        )
+                        if result.success and candidate.is_file() and relative is not None and identity is not None:
+                            current_output_identities[relative] = identity
                     size = str(result.metadata.get("size") or _typed_request.size)
                     result_metadata = dict(getattr(result, "metadata", {}) or {})
                     if result_metadata.get("requires_review"):
@@ -791,6 +996,7 @@ class V3EngineAdapter:
             request.output_root,
             expected_output_paths,
             full_batch=request.source_filter is None,
+            output_identities=current_output_identities,
         )
         timings.update(render_timings)
         timings["render_wall_seconds"] = render_wall_seconds

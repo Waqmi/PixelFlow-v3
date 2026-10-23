@@ -3,16 +3,20 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     ffi::OsString,
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 #[cfg(target_os = "macos")]
@@ -30,6 +34,7 @@ const RESTART_BACKOFF: [Duration; MAX_RESTARTS] = [
 const MAX_DIAGNOSTIC_ENTRY_BYTES: usize = 10 * 1024 * 1024;
 const MAX_DIAGNOSTIC_TOTAL_BYTES: usize = 32 * 1024 * 1024;
 const MAX_DIAGNOSTIC_LOG_BYTES: usize = 256 * 1024;
+static LOGO_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 struct WorkerProcess {
     child: Child,
@@ -275,37 +280,48 @@ fn discover_models_directory() -> Result<Option<String>, String> {
 
 #[tauri::command]
 fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
-    let remember = |path: Option<String>| {
-        if let Some(path) = &path {
-            if let Ok(mut guard) = state.0.lock() {
-                remember_preview_root(&mut guard, path);
-            }
-        }
-        path
-    };
     #[cfg(target_os = "macos")]
     {
         if let Some(path) = native_open_panel(&app, false)? {
-            validate_logo(&path, &key)?;
-            return Ok(remember(Some(path)));
+            return persist_picked_logo(&app, &state, &key, &path).map(Some);
         }
         return Ok(None);
     }
     #[cfg(target_os = "windows")]
     {
         let path = windows_dialog("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'PNG 图片 (*.png)|*.png'; if ($d.ShowDialog() -eq 'OK') { $d.FileName }")?;
-        if let Some(path) = &path { validate_logo(path, &key)?; }
-        return Ok(remember(path));
+        return path
+            .map(|path| persist_picked_logo(&app, &state, &key, &path))
+            .transpose();
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     { Ok(None) }
 }
 
-fn validate_logo(path: &str, key: &str) -> Result<(), String> {
-    let expected = if key.starts_with("logo_square_") { (1440, 1440) }
-        else if key.starts_with("logo_tall_") { (1440, 1920) }
-        else { return Err("unknown logo slot".to_string()); };
-    let bytes = std::fs::read(path).map_err(|error| format!("Logo read failed: {error}"))?;
+fn persist_picked_logo(
+    app: &AppHandle,
+    state: &State<'_, WorkerState>,
+    key: &str,
+    source: &str,
+) -> Result<String, String> {
+    let brand_assets = brand_assets_dir(app)?;
+    let path = persist_logo_file(Path::new(source), &brand_assets, key)?;
+    let path = path.to_string_lossy().into_owned();
+    let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
+    remember_preview_root(&mut guard, &path);
+    Ok(path)
+}
+
+fn logo_dimensions(key: &str) -> Option<(u32, u32)> {
+    match key {
+        "logo_square_dark" | "logo_square_light" => Some((1440, 1440)),
+        "logo_tall_dark" | "logo_tall_light" => Some((1440, 1920)),
+        _ => None,
+    }
+}
+
+fn validate_logo_bytes(bytes: &[u8], key: &str) -> Result<(), String> {
+    let expected = logo_dimensions(key).ok_or_else(|| "unknown logo slot".to_string())?;
     if bytes.len() < 26 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" || &bytes[12..16] != b"IHDR" {
         return Err("Logo 必须是可读取的 PNG".to_string());
     }
@@ -316,25 +332,117 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn read_logo_bytes(path: &Path, key: &str) -> Result<Vec<u8>, String> {
+    let bytes = fs::read(path).map_err(|error| format!("Logo read failed: {error}"))?;
+    validate_logo_bytes(&bytes, key)?;
+    Ok(bytes)
+}
+
+fn brand_assets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .local_data_dir()
+        .map(|path| path.join("PixelFlow").join("brand-assets"))
+        .map_err(|error| format!("local data directory is unavailable: {error}"))
+}
+
+fn logo_temp_path(brand_assets: &Path) -> PathBuf {
+    brand_assets.join(format!(
+        ".pixelflow-logo-{}-{}.tmp",
+        std::process::id(),
+        LOGO_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+fn store_logo_bytes(brand_assets: &Path, key: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    validate_logo_bytes(bytes, key)?;
+    fs::create_dir_all(brand_assets)
+        .map_err(|error| format!("Logo directory create failed: {error}"))?;
+    let digest = format!("{:x}", Sha256::digest(bytes));
+    let destination = brand_assets.join(format!("{digest}.png"));
+    if destination.is_file() && read_logo_bytes(&destination, key).is_ok() {
+        return Ok(destination);
+    }
+
+    let temporary = logo_temp_path(brand_assets);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(|error| format!("Logo temporary file create failed: {error}"))?;
+    if let Err(error) = file.write_all(bytes).and_then(|_| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("Logo write failed: {error}"));
+    }
+    drop(file);
+    match fs::rename(&temporary, &destination) {
+        Ok(()) => Ok(destination),
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            if destination.is_file() && read_logo_bytes(&destination, key).is_ok() {
+                Ok(destination)
+            } else {
+                Err(format!("Logo atomic rename failed: {error}"))
+            }
+        }
+    }
+}
+
+fn persist_logo_file(source: &Path, brand_assets: &Path, key: &str) -> Result<PathBuf, String> {
+    logo_dimensions(key).ok_or_else(|| "unknown logo slot".to_string())?;
+    let bytes = read_logo_bytes(source, key)?;
+    store_logo_bytes(brand_assets, key, &bytes)
+}
+
+fn is_brand_asset_path(path: &Path, brand_assets: &Path) -> bool {
+    let Ok(path) = path.canonicalize() else { return false };
+    let Ok(brand_assets) = brand_assets.canonicalize() else { return false };
+    path.parent() == Some(brand_assets.as_path())
+}
+
+fn migrate_logo_overrides(
+    logo_overrides: &HashMap<String, String>,
+    brand_assets: &Path,
+) -> HashMap<String, String> {
+    let mut authorized = HashMap::new();
+    for (key, path) in logo_overrides {
+        if logo_dimensions(key).is_none() {
+            continue;
+        }
+        let source = Path::new(path);
+        let Ok(bytes) = read_logo_bytes(source, key) else { continue };
+        if is_brand_asset_path(source, brand_assets) {
+            authorized.insert(key.clone(), path.clone());
+        } else if let Ok(path) = store_logo_bytes(brand_assets, key, &bytes) {
+            authorized.insert(key.clone(), path.to_string_lossy().into_owned());
+        } else {
+            // Keep the valid legacy path usable for preview; the next startup retries the copy.
+            authorized.insert(key.clone(), path.clone());
+        }
+    }
+    authorized
+}
+
 fn authorize_logo_preview_roots(
     guard: &mut WorkerSupervisor,
     logo_overrides: &HashMap<String, String>,
 ) {
-    for (key, path) in logo_overrides {
-        if validate_logo(path, key).is_ok() {
-            remember_preview_root(guard, path);
-        }
+    for path in logo_overrides.values() {
+        remember_preview_root(guard, path);
     }
 }
 
 #[tauri::command]
 fn authorize_logo_previews(
+    app: AppHandle,
     logo_overrides: HashMap<String, String>,
     state: State<'_, WorkerState>,
-) -> Result<(), String> {
+) -> Result<HashMap<String, String>, String> {
+    let brand_assets = brand_assets_dir(&app)?;
+    let authorized = migrate_logo_overrides(&logo_overrides, &brand_assets);
     let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
-    authorize_logo_preview_roots(&mut guard, &logo_overrides);
-    Ok(())
+    authorize_logo_preview_roots(&mut guard, &authorized);
+    Ok(authorized)
 }
 
 #[cfg(target_os = "windows")]
@@ -908,6 +1016,27 @@ fn main() {
 mod tests {
     use super::*;
 
+    fn temp_logo_dir(label: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "pixelflow-logo-{label}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn logo_png(width: u32, height: u32, marker: u8) -> Vec<u8> {
+        let mut png = vec![0_u8; 27];
+        png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        png[12..16].copy_from_slice(b"IHDR");
+        png[16..20].copy_from_slice(&width.to_be_bytes());
+        png[20..24].copy_from_slice(&height.to_be_bytes());
+        png[25] = 6;
+        png[26] = marker;
+        png
+    }
+
     #[test]
     fn restart_budget_stops_after_three_attempts() {
         let now = Instant::now();
@@ -939,30 +1068,123 @@ mod tests {
     }
 
     #[test]
-    fn saved_logo_authorization_allows_its_preview_scope_after_validation() {
-        let root = std::env::temp_dir().join(format!(
-            "pixelflow-logo-authorization-{}",
-            std::process::id()
-        ));
-        let bad_root = std::env::temp_dir().join(format!(
-            "pixelflow-logo-authorization-bad-{}",
-            std::process::id()
-        ));
-        let logo = root.join("logo.png");
-        let bad_logo = bad_root.join("bad.png");
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&bad_root);
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::create_dir_all(&bad_root).unwrap();
+    fn persisted_logo_survives_source_removal() {
+        let root = temp_logo_dir("survives-removal");
+        let source = root.join("desktop-logo.png");
+        let brand_assets = root.join("brand-assets");
+        let bytes = logo_png(1440, 1440, 1);
+        std::fs::write(&source, &bytes).unwrap();
 
-        let mut png = vec![0_u8; 26];
-        png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
-        png[12..16].copy_from_slice(b"IHDR");
-        png[16..20].copy_from_slice(&1440_u32.to_be_bytes());
-        png[20..24].copy_from_slice(&1440_u32.to_be_bytes());
-        png[25] = 6;
-        std::fs::write(&logo, png).unwrap();
-        std::fs::write(&bad_logo, b"not a png").unwrap();
+        let persisted =
+            persist_logo_file(&source, &brand_assets, "logo_square_dark").unwrap();
+        std::fs::remove_file(&source).unwrap();
+
+        assert_eq!(persisted.parent(), Some(brand_assets.as_path()));
+        assert_eq!(read_logo_bytes(&persisted, "logo_square_dark").unwrap(), bytes);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persisted_logo_names_are_content_addressed() {
+        let root = temp_logo_dir("content-addressed");
+        let brand_assets = root.join("brand-assets");
+        let first = root.join("first.png");
+        let second = root.join("second.png");
+        std::fs::write(&first, logo_png(1440, 1920, 1)).unwrap();
+        std::fs::write(&second, logo_png(1440, 1920, 2)).unwrap();
+
+        let first = persist_logo_file(&first, &brand_assets, "logo_tall_dark").unwrap();
+        let second = persist_logo_file(&second, &brand_assets, "logo_tall_dark").unwrap();
+
+        assert_ne!(first, second);
+        assert!(first.is_file());
+        assert!(second.is_file());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn invalid_logo_does_not_leave_a_persistent_copy() {
+        let root = temp_logo_dir("invalid-source");
+        let source = root.join("invalid.png");
+        let brand_assets = root.join("brand-assets");
+        std::fs::write(&source, b"not a png").unwrap();
+
+        assert!(persist_logo_file(&source, &brand_assets, "logo_square_light").is_err());
+        let persistent_count = std::fs::read_dir(&brand_assets)
+            .map(|entries| entries.count())
+            .unwrap_or(0);
+        assert_eq!(persistent_count, 0);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn logo_migration_keeps_valid_sources_and_drops_missing_paths() {
+        let root = temp_logo_dir("migration");
+        let brand_assets = root.join("brand-assets");
+        let source = root.join("legacy-logo.png");
+        let invalid = root.join("invalid.png");
+        let missing = root.join("missing.png");
+        let bytes = logo_png(1440, 1440, 3);
+        std::fs::write(&source, &bytes).unwrap();
+        std::fs::write(&invalid, b"not a png").unwrap();
+        let overrides = HashMap::from([
+            (
+                "logo_square_dark".to_string(),
+                source.to_string_lossy().into_owned(),
+            ),
+            (
+                "logo_square_light".to_string(),
+                invalid.to_string_lossy().into_owned(),
+            ),
+            (
+                "logo_tall_dark".to_string(),
+                missing.to_string_lossy().into_owned(),
+            ),
+        ]);
+
+        let migrated = migrate_logo_overrides(&overrides, &brand_assets);
+
+        assert_eq!(migrated.len(), 1);
+        let persisted = Path::new(&migrated["logo_square_dark"]);
+        assert_eq!(persisted.parent(), Some(brand_assets.as_path()));
+        assert_eq!(read_logo_bytes(persisted, "logo_square_dark").unwrap(), bytes);
+        assert!(persisted.is_file());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn logo_migration_keeps_valid_legacy_path_when_copy_fails() {
+        let root = temp_logo_dir("copy-failure");
+        let brand_assets = root.join("brand-assets");
+        let source = root.join("legacy-logo.png");
+        std::fs::write(&source, logo_png(1440, 1920, 4)).unwrap();
+        std::fs::write(&brand_assets, b"blocks directory creation").unwrap();
+        let overrides = HashMap::from([(
+            "logo_tall_light".to_string(),
+            source.to_string_lossy().into_owned(),
+        )]);
+
+        let migrated = migrate_logo_overrides(&overrides, &brand_assets);
+
+        assert_eq!(
+            migrated["logo_tall_light"],
+            source.to_string_lossy().into_owned()
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn logo_authorization_only_registers_persistent_preview_roots() {
+        let root = temp_logo_dir("preview-authorization");
+        let brand_assets = root.join("brand-assets");
+        let source = root.join("legacy-logo.png");
+        std::fs::write(&source, logo_png(1440, 1440, 5)).unwrap();
+        let overrides = HashMap::from([(
+            "logo_square_dark".to_string(),
+            source.to_string_lossy().into_owned(),
+        )]);
+        let migrated = migrate_logo_overrides(&overrides, &brand_assets);
+        let persisted = PathBuf::from(&migrated["logo_square_dark"]);
 
         let mut guard = WorkerSupervisor {
             process: None,
@@ -973,34 +1195,23 @@ mod tests {
         };
         let message = serde_json::json!({
             "payload": {
-                "path": logo.to_string_lossy(),
-                "allowed_roots": [root.to_string_lossy()],
+                "path": persisted.to_string_lossy(),
+                "allowed_roots": [brand_assets.to_string_lossy()],
             }
         });
         assert!(validate_preview_request(&guard, &message).is_err());
 
-        let logo_overrides = HashMap::from([
-            (
-                "logo_square_dark".to_string(),
-                logo.to_string_lossy().into_owned(),
-            ),
-            (
-                "logo_tall_dark".to_string(),
-                bad_logo.to_string_lossy().into_owned(),
-            ),
-        ]);
-        authorize_logo_preview_roots(&mut guard, &logo_overrides);
+        authorize_logo_preview_roots(&mut guard, &migrated);
 
         assert!(validate_preview_request(&guard, &message).is_ok());
-        let bad_message = serde_json::json!({
+        let legacy_message = serde_json::json!({
             "payload": {
-                "path": bad_logo.to_string_lossy(),
-                "allowed_roots": [bad_root.to_string_lossy()],
+                "path": source.to_string_lossy(),
+                "allowed_roots": [source.parent().unwrap().to_string_lossy()],
             }
         });
-        assert!(validate_preview_request(&guard, &bad_message).is_err());
+        assert!(validate_preview_request(&guard, &legacy_message).is_err());
         let _ = std::fs::remove_dir_all(root);
-        let _ = std::fs::remove_dir_all(bad_root);
     }
 
     #[test]

@@ -284,7 +284,7 @@ const confirmGridHasOverflow = ref(false)
 const darkMode = computed(() => theme.value === 'dark' || (theme.value === 'system' && systemDark.value))
 const appVersion = '3.0.0'
 const expectedWorkerVersion = appVersion
-const expectedRulesVersion = 'v3-composition-11'
+const expectedRulesVersion = 'v3-composition-12'
 const workerVersion = ref(expectedWorkerVersion)
 const workerBuildHash = ref('')
 const workerRulesVersion = ref(expectedRulesVersion)
@@ -968,11 +968,14 @@ function requestPreview(path: string, allowedRoots = [previewParent(path)]) {
   )
 }
 async function authorizeLogoPreviews() {
-  if (!window.__TAURI_INTERNALS__ || !Object.keys(logoOverrides.value).length) return
+  if (!window.__TAURI_INTERNALS__) return
   try {
-    await invoke('authorize_logo_previews', { logoOverrides: { ...logoOverrides.value } })
+    const authorized = await invoke<Record<string, string>>('authorize_logo_previews', {
+      logoOverrides: { ...logoOverrides.value },
+    })
+    if (authorized && typeof authorized === 'object') logoOverrides.value = { ...authorized }
   } catch {
-    // Startup authorization is best-effort; valid entries are handled by Tauri.
+    // Keep the saved mapping when migration is unavailable; preview failures stay isolated.
   }
 }
 async function loadLogoPreview(key: string, path: string) {

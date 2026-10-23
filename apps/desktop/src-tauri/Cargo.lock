@@ -2240,6 +2240,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
 ]

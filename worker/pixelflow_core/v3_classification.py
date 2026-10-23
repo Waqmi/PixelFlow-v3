@@ -18,10 +18,12 @@ from typing import Sequence
 from PIL import Image
 
 from .classification import (
+    DETECTION_CATEGORY_MAP,
     SIZES,
     ClassificationCancelled,
     ClassificationDecision,
     ClassificationRequest,
+    _has_anchor_plan,
     _material_sources,
     _merge_composition_metadata,
     _typed_plans_from_metadata,
@@ -302,135 +304,192 @@ class V3ClassifierAdapter:
         )
         from .model_cache import load_model_result, store_model_result
         by_source = {Path(item.source): item for item in decisions}
-        # Pose/Seg is also required for files that the filename/background
-        # rules initially call ``main_product``.  A model photo on a clean
-        # white background is otherwise rendered through the product path and
-        # never gets a chance to produce an anchor crop.  The model decision
-        # gate below still requires credible anatomy/wearing evidence before
-        # changing that initial classification.
         pose_models = configured_model_candidates(root, "pose")
         seg_models = configured_model_candidates(root, "segmentation")
-        candidates = list(decisions) if (pose_models or seg_models) else [
-            item for item in decisions if item.source_type != "main_product"
-        ]
+        detection_models = (
+            configured_model_candidates(root, "detection")
+            if category in DETECTION_CATEGORY_MAP else ()
+        )
+        sampled_groups: dict[Path, tuple[list[Path], list[Path]]] = {}
+        if not pose_models and not seg_models:
+            candidates = [item for item in decisions if item.source_type != "main_product"]
+        else:
+            folder_sources: dict[Path, list[Path]] = {}
+            for decision in decisions:
+                source = Path(decision.source)
+                folder_sources.setdefault(source.parent, []).append(source)
+            for folder, folder_items in folder_sources.items():
+                ordered = sorted(folder_items, key=str)
+                sample_count = min(len(ordered), 5)
+                samples = list(dict.fromkeys(
+                    ordered[round(index * (len(ordered) - 1) / max(1, sample_count - 1))]
+                    for index in range(sample_count)
+                ))
+                sampled_groups[folder] = (ordered, samples)
+            # Sample every folder so a clean-background model photo can leave
+            # the product path without sending an entire product folder through
+            # Pose. Explicit model/error decisions always start a sample.
+            candidates = [
+                item for item in decisions
+                if item.source_type in {"model", "model_detail"}
+                or item.confidence < 0.70
+                or item.classifier in {"v3_error", "v3_fallback"}
+            ]
+            for _ordered, samples in sampled_groups.values():
+                candidates.extend(by_source[source] for source in samples)
+            candidates = list({Path(item.source): item for item in candidates}.values())
         if not candidates:
             return decisions
         pose_model_path = Path(pose_models[0]) if pose_models else None
         seg_model_path = Path(seg_models[0]) if seg_models else None
+        detection_model_path = Path(detection_models[0]) if detection_models else None
         service = get_model_process_service()
 
-        for index, decision in enumerate(candidates, start=1):
-            source = Path(decision.source)
-            if request.cancel_event is not None and request.cancel_event.is_set():
-                raise ClassificationCancelled()
-            # Seg runs first so the anchor composition can use the person
-            # outline for the head top and sole; its merge stays after pose.
-            seg_evidence: dict[str, object] | None = None
-            seg_error: Exception | None = None
-            model_cache: dict[str, str] = {}
-            if seg_models:
-                try:
-                    seg_lookup = (
-                        load_model_result(
-                            source, seg_model_path, "segmentation", category,
-                            output_size="segmentation", return_status=True,
-                        )
-                        if seg_model_path is not None else None
-                    )
-                    model_cache["segmentation"] = seg_lookup.status if seg_lookup is not None else "not_configured"
-                    seg_evidence = seg_lookup.result if seg_lookup is not None and seg_lookup.hit else None
-                    if seg_evidence is None:
-                        seg_evidence = service.segment(root, source)
-                        if seg_model_path is not None:
-                            store_model_result(
+        pending = list(candidates)
+        processed: set[Path] = set()
+        expanded_folders: set[Path] = set()
+        while pending:
+            batch = pending
+            pending = []
+            for decision in batch:
+                source = Path(decision.source)
+                if request.cancel_event is not None and request.cancel_event.is_set():
+                    raise ClassificationCancelled()
+                # Seg runs first so the anchor composition can use the person
+                # outline for the head top and sole; its merge stays after pose.
+                seg_evidence: dict[str, object] | None = None
+                seg_error: Exception | None = None
+                model_cache: dict[str, str] = {}
+                if seg_models:
+                    try:
+                        seg_lookup = (
+                            load_model_result(
                                 source, seg_model_path, "segmentation", category,
-                                seg_evidence, output_size="segmentation",
+                                output_size="segmentation", return_status=True,
                             )
-                except Exception as error:  # noqa: BLE001 - optional model fallback
-                    seg_error = error
-            if pose_models:
-                try:
-                    pose_lookup = (
-                        load_model_result(
-                            source, pose_model_path, "pose", category,
-                            output_size="all", return_status=True,
+                            if seg_model_path is not None else None
                         )
-                        if pose_model_path is not None else None
-                    )
-                    model_cache["pose"] = pose_lookup.status if pose_lookup is not None else "not_configured"
-                    composition = pose_lookup.result if pose_lookup is not None and pose_lookup.hit else None
-                    if composition is None:
-                        composition = service.compose_for_sizes(
-                            root, source, SIZES, product_category=category,
-                            segmentation=seg_evidence if seg_evidence and not seg_evidence.get("fallback") else None,
-                        )
-                        if pose_model_path is not None:
-                            store_model_result(
+                        model_cache["segmentation"] = seg_lookup.status if seg_lookup is not None else "not_configured"
+                        seg_evidence = seg_lookup.result if seg_lookup is not None and seg_lookup.hit else None
+                        if seg_evidence is None:
+                            seg_evidence = service.segment(root, source)
+                            if seg_model_path is not None:
+                                store_model_result(
+                                    source, seg_model_path, "segmentation", category,
+                                    seg_evidence, output_size="segmentation",
+                                )
+                    except Exception as error:  # noqa: BLE001 - optional model fallback
+                        seg_error = error
+                if pose_models:
+                    try:
+                        pose_lookup = (
+                            load_model_result(
                                 source, pose_model_path, "pose", category,
-                                composition, output_size="all",
+                                output_size="all", return_status=True,
+                                seg_model_path=seg_model_path,
+                                detection_model_path=detection_model_path,
                             )
-                    updated = self._resolve_model_decision(decision, composition, category)
-                    metadata = _merge_composition_metadata(
-                        dict(updated.metadata or {}), composition, category,
-                        source=str(source), purpose="pose",
-                    )
-                    pose_evidence = dict(metadata.get("pose_evidence") or {})
-                    if pose_evidence.get("status") == "not_run":
-                        pose_evidence["status"] = "fallback" if composition.get("fallback") else "ready"
-                    metadata["pose_evidence"] = pose_evidence
-                    metadata["model_cache"] = model_cache
-                    decision = self._with_metadata(source, updated, metadata)
-                except Exception as error:  # noqa: BLE001 - optional model fallback
-                    reason = f"Pose：{error}"
+                            if pose_model_path is not None else None
+                        )
+                        model_cache["pose"] = pose_lookup.status if pose_lookup is not None else "not_configured"
+                        composition = pose_lookup.result if pose_lookup is not None and pose_lookup.hit else None
+                        if composition is None:
+                            composition = service.compose_for_sizes(
+                                root, source, SIZES, product_category=category,
+                                segmentation=seg_evidence if seg_evidence and not seg_evidence.get("fallback") else None,
+                            )
+                            if pose_model_path is not None:
+                                store_model_result(
+                                    source, pose_model_path, "pose", category,
+                                    composition, output_size="all",
+                                    seg_model_path=seg_model_path,
+                                    detection_model_path=detection_model_path,
+                                )
+                        updated = self._resolve_model_decision(decision, composition, category)
+                        metadata = _merge_composition_metadata(
+                            dict(updated.metadata or {}), composition, category,
+                            source=str(source), purpose="pose",
+                        )
+                        pose_evidence = dict(metadata.get("pose_evidence") or {})
+                        if pose_evidence.get("status") == "not_run":
+                            pose_evidence["status"] = "fallback" if composition.get("fallback") else "ready"
+                        metadata["pose_evidence"] = pose_evidence
+                        metadata["model_cache"] = model_cache
+                        decision = self._with_metadata(source, updated, metadata)
+                    except Exception as error:  # noqa: BLE001 - optional model fallback
+                        reason = f"Pose：{error}"
+                        fallback = _fallback_composition(SIZES, reason)
+                        metadata = _merge_composition_metadata(
+                            dict(decision.metadata or {}), fallback, category,
+                            source=str(source), purpose="pose", analyzed=False,
+                        )
+                        metadata.update({"fallback": True, "fallback_reason": reason, "model_status": "fallback"})
+                        metadata["pose_evidence"] = {"status": "fallback", "reason": reason}
+                        metadata["model_cache"] = model_cache
+                        decision = self._with_metadata(source, decision, metadata)
+                else:
+                    reason = "pose/ 中没有 ONNX 模型"
                     fallback = _fallback_composition(SIZES, reason)
                     metadata = _merge_composition_metadata(
                         dict(decision.metadata or {}), fallback, category,
                         source=str(source), purpose="pose", analyzed=False,
                     )
                     metadata.update({"fallback": True, "fallback_reason": reason, "model_status": "fallback"})
-                    metadata["pose_evidence"] = {"status": "fallback", "reason": reason}
+                    metadata["pose_evidence"] = {"status": "not_run", "reason": reason}
                     metadata["model_cache"] = model_cache
                     decision = self._with_metadata(source, decision, metadata)
-            else:
-                reason = "pose/ 中没有 ONNX 模型"
-                fallback = _fallback_composition(SIZES, reason)
-                metadata = _merge_composition_metadata(
-                    dict(decision.metadata or {}), fallback, category,
-                    source=str(source), purpose="pose", analyzed=False,
-                )
-                metadata.update({"fallback": True, "fallback_reason": reason, "model_status": "fallback"})
-                metadata["pose_evidence"] = {"status": "not_run", "reason": reason}
-                metadata["model_cache"] = model_cache
-                decision = self._with_metadata(source, decision, metadata)
 
-            if seg_models:
-                try:
-                    if seg_error is not None:
-                        raise seg_error
-                    evidence = seg_evidence or {}
-                    updated = self._resolve_segmentation_decision(decision, evidence)
-                    metadata = _merge_composition_metadata(
-                        dict(updated.metadata or {}), evidence, category,
-                        source=str(source), purpose="seg", segmentation_evidence=evidence,
+                if seg_models:
+                    try:
+                        if seg_error is not None:
+                            raise seg_error
+                        evidence = seg_evidence or {}
+                        updated = self._resolve_segmentation_decision(decision, evidence)
+                        metadata = _merge_composition_metadata(
+                            dict(updated.metadata or {}), evidence, category,
+                            source=str(source), purpose="seg", segmentation_evidence=evidence,
+                        )
+                        seg_evidence = dict(metadata.get("segmentation_evidence") or {})
+                        if seg_evidence.get("status") == "not_run":
+                            seg_evidence["status"] = "fallback" if evidence.get("fallback") else "ready"
+                        metadata["segmentation_evidence"] = seg_evidence
+                        decision = self._with_metadata(source, updated, metadata)
+                    except Exception as error:  # noqa: BLE001 - optional model fallback
+                        reason = f"Seg：{error}"
+                        fallback = _fallback_segmentation(reason)
+                        metadata = _merge_composition_metadata(
+                            dict(decision.metadata or {}), fallback, category,
+                            source=str(source), purpose="seg", segmentation_evidence=fallback,
+                            analyzed=False,
+                        )
+                        metadata["segmentation_evidence"] = {"status": "fallback", "reason": reason}
+                        decision = self._with_metadata(source, decision, metadata)
+                by_source[source] = decision
+                processed.add(source)
+                if request.stage_progress is not None:
+                    request.stage_progress(
+                        "Pose/Seg",
+                        len(processed),
+                        len(processed) + len(pending),
+                        source,
                     )
-                    seg_evidence = dict(metadata.get("segmentation_evidence") or {})
-                    if seg_evidence.get("status") == "not_run":
-                        seg_evidence["status"] = "fallback" if evidence.get("fallback") else "ready"
-                    metadata["segmentation_evidence"] = seg_evidence
-                    decision = self._with_metadata(source, updated, metadata)
-                except Exception as error:  # noqa: BLE001 - optional model fallback
-                    reason = f"Seg：{error}"
-                    fallback = _fallback_segmentation(reason)
-                    metadata = _merge_composition_metadata(
-                        dict(decision.metadata or {}), fallback, category,
-                        source=str(source), purpose="seg", segmentation_evidence=fallback,
-                        analyzed=False,
-                    )
-                    metadata["segmentation_evidence"] = {"status": "fallback", "reason": reason}
-                    decision = self._with_metadata(source, decision, metadata)
-            by_source[source] = decision
-            if request.stage_progress is not None:
-                request.stage_progress("Pose/Seg", index, len(candidates), source)
+            for folder, (ordered, _samples) in sampled_groups.items():
+                if folder in expanded_folders:
+                    continue
+                completed = [by_source[item] for item in ordered if item in processed]
+                if not any(
+                    item.source_type in {"model", "model_detail"} or _has_anchor_plan(item)
+                    for item in completed
+                ):
+                    continue
+                pending_sources = {Path(item.source) for item in pending}
+                additions = [
+                    by_source[item]
+                    for item in ordered
+                    if item not in processed and item not in pending_sources
+                ]
+                pending.extend(additions)
+                expanded_folders.add(folder)
         return [by_source.get(Path(item.source), item) for item in decisions]
 
     def classify(self, request: ClassificationRequest, progress=None) -> list[ClassificationDecision]:

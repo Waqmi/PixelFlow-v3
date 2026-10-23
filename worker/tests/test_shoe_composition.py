@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import unittest
 
+from pixelflow_core.model_cache import COMPOSITION_RULES_VERSION
 from pixelflow_core.shoe_composition import (
     PoseDetection,
     compose_shoe_composition,
@@ -99,7 +100,7 @@ class ShoeCompositionTests(unittest.TestCase):
         self.assertIsNone(result.review_hint)
         self.assertEqual(
             result.composition_plans["1440x1440"].evidence["composition_rules_version"],
-            "v3-composition-11",
+            COMPOSITION_RULES_VERSION,
         )
         protected = result.by_size["1440x1440"].protected_crop_bbox
         self.assertIsNotNone(protected)

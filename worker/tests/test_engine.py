@@ -14,8 +14,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from pixelflow_core.contracts import CompositionPlan, RenderResult
-from pixelflow_core.engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
+from pixelflow_core.contracts import CompositionPlan, RenderResult, build_model_request
+from pixelflow_core.engine import (
+    GenerationRequest,
+    ImageEngine,
+    V26EngineAdapter,
+    V3EngineAdapter,
+    _v3_identity_manifest_path,
+)
 from pixelflow_core.worker import WorkerRuntime, _generation_request
 
 _manifest_dir = tempfile.TemporaryDirectory()
@@ -488,6 +494,177 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(third["incremental_skipped"])
             self.assertEqual(third["failures"], [])
 
+    def test_v3_does_not_reuse_existing_output_without_identity(self) -> None:
+        render_calls: list[str] = []
+
+        class BatchRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    render_calls.append(str(output))
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3"))
+                return tuple(results), {}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            Image.new("RGB", (32, 32), "white").save(product_root / "sample.jpg")
+            output_root = Path(temp_dir) / "output"
+            old_output = (
+                output_root / "产品主图" / "素材" / "1440x1440" / "无Logo" / "素材_01.jpg"
+            )
+            old_output.parent.mkdir(parents=True)
+            old_output.write_bytes(b"old-output-without-identity")
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=output_root,
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                mode="v3",
+            )
+
+            result = V3EngineAdapter(renderer=BatchRenderer()).run(request)
+
+            self.assertEqual(result["incremental_reused"], 0)
+            self.assertEqual(render_calls, [str(old_output)])
+            self.assertEqual(old_output.read_bytes(), b"rendered")
+
+    def test_v3_output_identity_invalidates_plan_logo_and_rules_changes(self) -> None:
+        render_calls: list[str] = []
+
+        class BatchRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    render_calls.append(str(output))
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3"))
+                return tuple(results), {}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            source = product_root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            plan_a = CompositionPlan(
+                source=str(source),
+                size="1440x1440",
+                composition_mode="anchor_crop",
+                crop_box=(0.1, 0.0, 0.9, 0.8),
+            )
+            plan_b = replace(plan_a, crop_box=(0.2, 0.0, 0.8, 0.9))
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=True,
+                source_type_overrides={str(source): "model"},
+                composition_plans=(plan_a,),
+                mode="v3",
+            )
+            adapter = V3EngineAdapter(renderer=BatchRenderer())
+
+            first = adapter.run(request)
+            second = adapter.run(request)
+            self.assertEqual(first["incremental_reused"], 0)
+            self.assertEqual(second["incremental_reused"], 1)
+            self.assertEqual(len(render_calls), 1)
+            identities = json.loads(
+                _v3_identity_manifest_path(request.output_root).read_text(encoding="utf-8")
+            )["outputs"]
+            identity = next(iter(identities.values()))
+            self.assertTrue({
+                "composition_rules_version",
+                "source",
+                "source_type",
+                "size",
+                "kind",
+                "composition_plan",
+                "category",
+                "include_logo",
+                "logo_overrides",
+                "render_options",
+            }.issubset(identity))
+            self.assertEqual(identity["source"]["path"], str(source.resolve()))
+            self.assertIn("mtime_ns", identity["source"])
+            self.assertIn("size", identity["source"])
+
+            plan_changed = adapter.run(replace(request, composition_plans=(plan_b,)))
+            self.assertEqual(plan_changed["incremental_reused"], 0)
+            self.assertEqual(len(render_calls), 2)
+
+            logo_changed = adapter.run(replace(
+                request,
+                composition_plans=(plan_b,),
+                logo_overrides={"logo": "/tmp/logo-a.png"},
+            ))
+            self.assertEqual(logo_changed["incremental_reused"], 0)
+            self.assertEqual(len(render_calls), 3)
+
+            with patch("pixelflow_core.engine.COMPOSITION_RULES_VERSION", "v3-composition-test"):
+                rules_changed = adapter.run(replace(
+                    request,
+                    composition_plans=(plan_b,),
+                    logo_overrides={"logo": "/tmp/logo-a.png"},
+                ))
+            self.assertEqual(rules_changed["incremental_reused"], 0)
+            self.assertEqual(len(render_calls), 4)
+
+    def test_v3_output_identity_ignores_ephemeral_classification_cache_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "model.jpg"
+            Image.new("RGB", (32, 64), "white").save(source)
+            plan = CompositionPlan(
+                source=str(source),
+                size="1440x1440",
+                composition_mode="anchor_crop",
+                crop_box=(0.1, 0.0, 0.9, 0.8),
+            )
+            request = GenerationRequest(
+                product_root=root,
+                output_root=root / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=True,
+                source_type_overrides={str(source): "model"},
+                composition_plans=(plan,),
+                mode="v3",
+            )
+            typed = build_model_request(
+                str(source),
+                str(request.output_root),
+                "1440x1440",
+                output_path=str(root / "output" / "model.jpg"),
+                mode="v3",
+                plan=plan,
+                include_logo=False,
+                source_type="model",
+            )
+            first = V3EngineAdapter._output_identity(
+                request,
+                replace(typed, metadata={**typed.metadata, "model_cache": {"pose": "miss"}}),
+                plan,
+                "main",
+            )
+            second = V3EngineAdapter._output_identity(
+                request,
+                replace(typed, metadata={**typed.metadata, "model_cache": {"pose": "hit"}}),
+                plan,
+                "main",
+            )
+            self.assertEqual(first, second)
+
     def test_v3_diagnostics_records_anchor_plan_and_reused_output(self) -> None:
         class BatchRenderer:
             def render_source_batch(self, requests):
@@ -615,6 +792,14 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(Path(dropped[0]).exists())
             self.assertTrue(user_file.exists())
             self.assertEqual(len(list(output_root.rglob("*.jpg"))), 2)
+            identities = json.loads(
+                _v3_identity_manifest_path(output_root).read_text(encoding="utf-8")
+            )["outputs"]
+            self.assertEqual(len(identities), 1)
+            self.assertNotIn(
+                Path(dropped[0]).relative_to(output_root).as_posix(),
+                identities,
+            )
 
     def test_v3_retry_does_not_delete_and_keeps_manifest_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
