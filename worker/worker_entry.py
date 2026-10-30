@@ -5,6 +5,10 @@ import sys
 import multiprocessing
 from pathlib import Path
 
+# ONNX Runtime ships an optional Microsoft telemetry client. PixelFlow is a
+# local-only app, so disable it before any bundled runtime can initialize.
+os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
+
 
 def configure_frozen_paths() -> None:
     if not getattr(sys, "frozen", False):

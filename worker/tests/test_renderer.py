@@ -291,7 +291,7 @@ class RendererTests(unittest.TestCase):
             Image.new("RGB", (40, 40), "white").save(source)
             result = Renderer().render(RenderRequest(str(source), str(root / "out"), "1440x1440", output_kind="vip", include_vip=True, include_logo=False))
             self.assertTrue(result.success, result.errors)
-            self.assertIn("唯品专享1440", Path(result.outputs[0]).parts)
+            self.assertIn("唯品会专享", Path(result.outputs[0]).parts)
 
     def test_model_plan_scales_protected_region_with_pre_scale(self) -> None:
         captured = {}

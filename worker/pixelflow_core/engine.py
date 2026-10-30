@@ -33,7 +33,16 @@ from .renderer import Renderer
 
 
 ProgressCallback = Callable[[int, int, str], None]
-GENERATED_OUTPUT_ROOTS = frozenset({"产品主图", "模特图", "唯品专享1440", "透明产品图", "卖点图"})
+# Canonical V3 output roots. The legacy names remain recognized below so an
+# older output tree is not mistaken for user input during incremental runs.
+PRODUCT_MAIN_ROOT = "产品主图"
+MODEL_ROOT = "模特图"
+VIP_ROOT = "唯品会专享"
+TRANSPARENT_ROOT = "产品透明图"
+GENERATED_OUTPUT_ROOTS = frozenset({
+    PRODUCT_MAIN_ROOT, MODEL_ROOT, VIP_ROOT, TRANSPARENT_ROOT, "卖点图",
+    "唯品专享1440", "透明产品图",
+})
 
 
 def _v3_manifest_path(output_root: Path) -> Path:
@@ -75,27 +84,117 @@ def _v3_diagnostics_path(output_root: Path, request_id: str) -> Path:
     return _v3_manifest_path(output_root).parent.parent / "diagnostics" / f"v3-{key}-{token}.json"
 
 
-def _write_v3_diagnostics(output_root: Path, request_id: str, rows: list[dict[str, object]]) -> str | None:
+def _write_v3_diagnostics(
+    output_root: Path,
+    product_root: Path,
+    request_id: str,
+    rows: list[dict[str, object]],
+    model_root: str | None = None,
+) -> tuple[str | None, str | None]:
     """Persist compact per-source generation evidence without failing a run."""
     path = _v3_diagnostics_path(output_root, request_id)
+    def sanitize(value: object) -> object:
+        if isinstance(value, dict):
+            return {str(sanitize(str(key))): sanitize(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        if isinstance(value, str):
+            text = value.replace(str(product_root), "$INPUT").replace(str(output_root), "$OUTPUT")
+            if model_root:
+                text = text.replace(model_root, "$MODEL")
+            text = re.sub(
+                r"(?<!\S)/(?:[^\s/]+/)*[^\s/\"<>]+",
+                lambda match: Path(match.group(0)).name,
+                text,
+            )
+            return text
+        return value
+    for row in rows:
+        source_path = Path(str(row.get("source_path", "")))
+        try:
+            row["source_path"] = source_path.resolve(strict=False).relative_to(
+                product_root.resolve(strict=False)
+            ).as_posix()
+        except ValueError:
+            row["source_path"] = source_path.name
+        for output in row.get("outputs", []):
+            if not isinstance(output, dict):
+                continue
+            output_path = Path(str(output.get("path", "")))
+            try:
+                output["path"] = output_path.resolve(strict=False).relative_to(
+                    output_root.resolve(strict=False)
+                ).as_posix()
+            except ValueError:
+                output["path"] = output_path.name
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "path_privacy_mode": "relative_paths",
         "request_id": request_id,
         "generated_at": time.time(),
-        "sources": rows,
+        "sources": sanitize(rows),
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         temporary.replace(path)
-        return str(path)
+        return str(path), hashlib.sha256(path.read_bytes()).hexdigest()
     except (OSError, TypeError, ValueError):
         try:
             temporary.unlink()
         except (OSError, UnboundLocalError):
             pass
-        return None
+        return None, None
+
+
+def _output_inventory(output_root: Path, outputs: object, max_entries: int = 2000) -> dict[str, object]:
+    """Hash only reported generated outputs, bounded by count and total bytes."""
+    entries: list[dict[str, object]] = []
+    duplicate_paths: dict[str, list[str]] = {}
+    total_bytes = 0
+    omitted = 0
+    if not isinstance(outputs, (list, tuple, set)):
+        outputs = ()
+    ordered_outputs = sorted(
+        outputs,
+        key=lambda value: (0 if (VIP_ROOT in Path(str(value)).parts or "唯品专享1440" in Path(str(value)).parts) else 1, str(value)),
+    )
+    for value in ordered_outputs:
+        if len(entries) >= max_entries or total_bytes >= 128 * 1024 * 1024:
+            omitted += 1
+            continue
+        path = Path(str(value))
+        relative = _generated_relative_path(output_root, path)
+        if relative is None or not path.is_file():
+            continue
+        try:
+            byte_count = path.stat().st_size
+            if total_bytes + byte_count > 128 * 1024 * 1024:
+                omitted += 1
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            sha256 = digest.hexdigest()
+        except OSError:
+            continue
+        total_bytes += byte_count
+        entries.append({"path": relative, "size": V3EngineAdapter._output_size(path), "bytes": byte_count, "sha256": sha256})
+        duplicate_paths.setdefault(sha256, []).append(relative)
+    duplicates = [
+        {"sha256": digest, "paths": paths}
+        for digest, paths in duplicate_paths.items()
+        if len(paths) > 1
+    ]
+    return {
+        "schema_version": 1,
+        "entries": entries,
+        "duplicate_groups": duplicates,
+        "omitted_entries": omitted,
+        "hashed_bytes": total_bytes,
+    }
 
 
 def _generated_relative_path(output_root: Path, path: Path) -> str | None:
@@ -227,15 +326,27 @@ class V3EngineAdapter:
         return _typed_plan_from_mapping(source, size, value)
 
     @staticmethod
-    def _group_label(source: Path) -> str:
-        return V3EngineAdapter._group_label_from_name(source.parent.name)
+    def _group_label(source: Path, product_root: Path | None = None) -> str:
+        """Return the nearest source colour folder, never a bare gender token."""
+        root = product_root.resolve(strict=False) if product_root is not None else None
+        current = source.parent.resolve(strict=False)
+        nearest_source_folder = current.name
+        while True:
+            label = V3EngineAdapter._group_label_from_name(current.name)
+            if label != "素材":
+                return label
+            if root is None or current == root or root not in current.parents:
+                break
+            current = current.parent
+        return nearest_source_folder or source.parent.name
 
     @classmethod
-    def _short_names(cls, sources: list[Path]) -> dict[Path, str]:
+    def _short_names(cls, sources: list[Path], product_root: Path | None = None) -> dict[Path, str]:
+        root = product_root.resolve(strict=False) if product_root is not None else None
         group_labels: dict[Path, str] = {}
         used_labels: dict[str, int] = {}
         for parent in sorted({source.parent for source in sources}, key=str):
-            base = cls._group_label_from_name(parent.name)
+            base = "素材" if root is not None and parent.resolve(strict=False) == root else cls._group_label_from_name(parent.name)
             used_labels[base] = used_labels.get(base, 0) + 1
             group_labels[parent] = base if used_labels[base] == 1 else f"{base}_{used_labels[base]}"
         counters: dict[Path, int] = {}
@@ -247,11 +358,26 @@ class V3EngineAdapter:
 
     @staticmethod
     def _group_label_from_name(name: str) -> str:
-        match = re.search(r"男女|男|女", name.strip())
+        normalized = name.strip()
+        generic = {"产品图", "产品主图", "商品图", "商品主图", "白底图", "细节图", "模特图", "素材", "图片"}
+        if re.fullmatch(r"模特图\d*", normalized):
+            return "素材"
+        match = re.search(r"男女|男|女", normalized)
         if match:
-            color = name[match.end():].strip(" _-—·()（）[]【】")
+            color = normalized[match.end():].strip(" _-—·()（）[]【】")
             if color:
-                return f"{match.group(0)}_{color[:12]}"
+                color = re.sub(r"[_\-\s]+\d+$", "", color).strip(" _-")
+                if color and color not in generic:
+                    return f"{match.group(0)}_{color[:32]}"
+            return "素材"
+        # Product folders commonly begin with a SKU, for example
+        # ``XRPM023-2 深棕色``. Keep only the human colour description.
+        normalized = re.sub(r"^[A-Za-z]{2,}\d+(?:[-_]\d+)?[ _-]+", "", normalized)
+        normalized = re.sub(r"^[A-Za-z0-9]+(?:[-_]\d+)?[ _-]+", "", normalized)
+        if normalized and normalized not in generic:
+            cleaned = re.sub(r"[_\-\s]+\d+$", "", normalized).strip(" _-")
+            if cleaned and not re.fullmatch(r"[A-Za-z0-9_.\-]+", cleaned):
+                return cleaned[:32]
         return "素材"
 
     @staticmethod
@@ -385,7 +511,7 @@ class V3EngineAdapter:
         supplied_plans = {
             (plan.source, plan.size): plan for plan in request.composition_plans
         }
-        short_names = self._short_names(sources)
+        short_names = self._short_names(sources, request.product_root)
         outputs: list[str] = []
         failures: list[dict[str, str]] = []
         review_items: dict[str, dict[str, object]] = {}
@@ -430,8 +556,8 @@ class V3EngineAdapter:
             diagnostic = self._diagnostic_source(source, source_type, metadata)
             diagnostics_by_source[str(source)] = diagnostic
             category = str(request.category_override or metadata.get("category") or "产品主图")
-            group = "" if is_model_source else self._group_label(source)
-            output_category = "模特图" if is_model_source else "产品主图"
+            group = "" if is_model_source else self._group_label(source, request.product_root)
+            output_category = MODEL_ROOT if is_model_source else PRODUCT_MAIN_ROOT
             background_value = metadata.get("background")
             background = None
             if isinstance(background_value, (tuple, list)) and len(background_value) == 3:
@@ -574,7 +700,7 @@ class V3EngineAdapter:
 
             skipped_square = "1440x1440" in skipped_sizes
             if skipped_square and request.include_vip:
-                skipped_sizes.append("唯品专享1440")
+                skipped_sizes.append(VIP_ROOT)
             if skipped_sizes:
                 skipped_plan = next(plan for plan in plans_by_size.values() if plan is not None and plan.composition_mode == "skipped")
                 skipped_renders.append({
@@ -583,7 +709,7 @@ class V3EngineAdapter:
                     "reason": str(skipped_plan.evidence.get("skip_reason", "")),
                 })
             if request.include_vip and "1440x1440" in request.selected_sizes and not skipped_square:
-                vip_path = request.output_root / "唯品专享1440" / "无Logo" / filename
+                vip_path = request.output_root / VIP_ROOT / "1440x1440" / "无Logo" / filename
                 vip_request = build_vip_request(
                     str(source),
                     str(request.output_root),
@@ -635,7 +761,7 @@ class V3EngineAdapter:
 
             if source.suffix.lower() == ".png" and request.selected_sizes:
                 for size in ("800x800", "1440x1440", "1440x1920", "1440x2160"):
-                    transparent_path = request.output_root / "透明产品图" / size / f"{short_names[source]}_透明.png"
+                    transparent_path = request.output_root / TRANSPARENT_ROOT / size / f"{short_names[source]}_透明.png"
                     transparent_request = build_transparent_request(
                         str(source),
                         str(request.output_root),
@@ -798,11 +924,14 @@ class V3EngineAdapter:
             float(timings.get(key, 0.0) or 0.0)
             for key in ("classification_seconds", "decode_seconds", "analysis_seconds", "compose_seconds", "overlay_seconds", "encode_seconds", "write_seconds")
         )
-        diagnostics_path = _write_v3_diagnostics(
+        diagnostics_path, diagnostics_sha256 = _write_v3_diagnostics(
             request.output_root,
+            request.product_root,
             request.request_id,
             sorted(diagnostics_by_source.values(), key=lambda item: str(item["source_path"])),
+            request.local_model_path,
         )
+        output_inventory = _output_inventory(request.output_root, outputs)
         return {
             "sources": len(sources),
             "main_images": main_count,
@@ -825,13 +954,16 @@ class V3EngineAdapter:
             "validation": {"passed": len(outputs) - skipped_outputs, "failed": len(failures), "skipped": skipped_outputs},
             "audit": {"checked_outputs": len(outputs)},
             "diagnostics_path": diagnostics_path,
+            "diagnostics_sha256": diagnostics_sha256,
             "diagnostics_sources": len(diagnostics_by_source),
+            "output_inventory": output_inventory,
+            "duplicate_groups": output_inventory["duplicate_groups"],
             "performance": timings,
         }
 
     @staticmethod
     def _output_size(path: Path) -> str | None:
-        if "唯品专享1440" in path.parts:
+        if VIP_ROOT in path.parts or "唯品专享1440" in path.parts:
             return "1440x1440"
         for part in reversed(path.parts):
             if part.count("x") != 1:
@@ -867,8 +999,8 @@ class V3EngineAdapter:
             size = self._output_size(path)
             if size is None:
                 continue
-            transparent = "透明产品图" in path.parts or path.suffix.lower() == ".png"
-            vip = "唯品专享1440" in path.parts
+            transparent = TRANSPARENT_ROOT in path.parts or "透明产品图" in path.parts or path.suffix.lower() == ".png"
+            vip = VIP_ROOT in path.parts or "唯品专享1440" in path.parts
             source_type = "model" if "模特图" in path.parts else "main_product"
             layout = RenderLayout(filename=path.name, category="模特图" if source_type == "model" else "产品主图")
             if transparent:
@@ -984,11 +1116,9 @@ class ImageEngine:
         if mode == "v3":
             try:
                 result = self._run_adapter(self.v3_adapter, request, progress, cancel_event)
-                # Renderer.render reports per-file errors in the typed result
-                # instead of raising.  Promote those errors here so the
-                # ImageEngine owns the documented legacy fallback path.
-                if result.get("failures"):
-                    raise RuntimeError(f"v3 renderer reported failures: {result['failures']}")
+                # Per-output failures are already isolated by the V3 adapter;
+                # rerunning the full request through legacy duplicates its
+                # successful outputs and hides the source-level diagnostics.
                 return result
             except Exception as error:
                 # v3 failures must preserve the proven output path.

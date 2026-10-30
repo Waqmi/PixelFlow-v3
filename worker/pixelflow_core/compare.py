@@ -231,9 +231,9 @@ def _difference_classification(status: str, metrics: dict[str, Any] | None) -> s
 
 def _output_kind(relative_path: str) -> str:
     parts = set(Path(relative_path).parts)
-    if "透明产品图" in parts:
+    if "产品透明图" in parts or "透明产品图" in parts:
         return "transparent"
-    if "唯品专享1440" in parts:
+    if "唯品会专享" in parts or "唯品专享1440" in parts:
         return "vip"
     if "模特图" in parts:
         return "model"

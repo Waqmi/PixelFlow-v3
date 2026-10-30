@@ -129,6 +129,7 @@ const systemDark = ref(initialSystemDark)
 const reducedMotion = ref(false)
 const { progress, setProgress } = useTaskProgress(reducedMotion)
 const { progress: classificationProgress, setProgress: setClassificationProgress } = useTaskProgress(reducedMotion)
+const generationStarted = ref(false)
 const progressComplete = ref(false)
 let progressCompleteTimer: number | undefined
 
@@ -326,7 +327,7 @@ const classificationModelStatus = computed(() => {
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
-const displayProgress = computed(() => classificationRunning.value ? classificationProgress.value : progress.value)
+const displayProgress = computed(() => generationStarted.value ? progress.value : classificationProgress.value)
 const outputSummary = computed(() => {
   const validation = lastResult.value.validation as { passed?: unknown } | undefined
   const legacyCount = ['main_images', 'model_images', 'transparent_images', 'vip_images', 'selling_point_images']
@@ -349,8 +350,8 @@ const resultWarnings = computed(() => {
 const resultShortcuts = computed(() => [
   { label: '主图', path: outputRoot.value, visible: outputSummary.value.success > 0 },
   { label: '模特图', path: `${outputRoot.value}/模特图`, visible: Number(lastResult.value.model_images || 0) > 0 },
-  { label: '透明图', path: `${outputRoot.value}/透明产品图`, visible: Number(lastResult.value.transparent_images || 0) > 0 },
-  { label: '唯品图', path: `${outputRoot.value}/唯品专享1440`, visible: Number(lastResult.value.vip_images || 0) > 0 },
+  { label: '透明图', path: `${outputRoot.value}/产品透明图`, visible: Number(lastResult.value.transparent_images || 0) > 0 },
+  { label: '唯品图', path: `${outputRoot.value}/唯品会专享`, visible: Number(lastResult.value.vip_images || 0) > 0 },
 ].filter((item) => item.visible))
 const failures = computed(() => Array.isArray(lastResult.value.failures) ? lastResult.value.failures as Record<string, unknown>[] : [])
 const reviewItems = computed(() => Array.isArray(lastResult.value.requires_review) ? lastResult.value.requires_review as Record<string, unknown>[] : [])
@@ -451,7 +452,11 @@ function readResumeTask(): ResumeSnapshot | null {
 
 function diagnosticsSnapshot() {
   return {
+    schema_version: 2,
     generated_at: new Date().toISOString(),
+    path_privacy_mode: 'basename',
+    task_started_at: lastResult.value.task_started_at || null,
+    task_completed_at: lastResult.value.task_completed_at || null,
     app_version: appVersion,
     user_agent: navigator.userAgent,
     platform: navigator.platform,
@@ -459,10 +464,10 @@ function diagnosticsSnapshot() {
     worker_build_hash: workerBuildHash.value || null,
     rules_version: workerRulesVersion.value,
     worker_status: workerReadyState.value,
-    model_root: localModelPath.value || null,
-    models: modelDiagnostics.value,
-    input_root: inputRoot.value || null,
-    output_root: outputRoot.value || null,
+    model_root: diagnosticPath(localModelPath.value) || null,
+    models: sanitizeDiagnosticValue(modelDiagnostics.value),
+    input_root: diagnosticPath(inputRoot.value) || null,
+    output_root: diagnosticPath(outputRoot.value) || null,
     task_state: {
       status: status.value,
       phase: taskPhase.value,
@@ -478,6 +483,26 @@ function diagnosticsSnapshot() {
       performance: lastResult.value.performance || null,
     },
   }
+}
+
+function diagnosticPath(value: string) {
+  return value ? value.split(/[\\/]/).filter(Boolean).pop() || value : ''
+}
+
+function sanitizeDiagnosticValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeDiagnosticValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+      const safeKey = key.includes('/') || key.includes('\\') ? String(sanitizeDiagnosticValue(key)) : key
+      return [safeKey, sanitizeDiagnosticValue(item)]
+    }))
+  }
+  if (typeof value !== 'string') return value
+  let text = value
+  for (const [root, label] of [[inputRoot.value, '$INPUT'], [outputRoot.value, '$OUTPUT'], [localModelPath.value, '$MODEL']] as const) {
+    if (root) text = text.split(root).join(label)
+  }
+  return text.replace(/\/(?:Users|home|private|tmp|Volumes)\/[^\s"'<>]+|[A-Za-z]:[\\/][^\s"'<>]+/g, (path) => diagnosticPath(path))
 }
 
 function applySettings(value: Partial<SettingsSnapshot>) {
@@ -917,18 +942,19 @@ async function exportDiagnostics() {
     settingsNotice.value = '请在桌面 App 中导出诊断包'
     return
   }
-  const snapshot = { ...diagnosticsSnapshot(), model_status: modelStatus.value }
+  const snapshot = sanitizeDiagnosticValue({ ...diagnosticsSnapshot(), model_status: modelStatus.value })
   const entries = [
     { name: 'diagnostics.json', content: JSON.stringify(snapshot, null, 2) },
-    { name: 'failures.txt', content: failureReportText() },
-    { name: 'last-result.json', content: JSON.stringify(lastResult.value, null, 2) },
-    { name: 'resume-task.json', content: JSON.stringify(resumeSnapshot.value, null, 2) },
+    { name: 'failures.txt', content: failureReportText(true) },
+    { name: 'last-result.json', content: JSON.stringify({ schema_version: 2, path_privacy_mode: 'basename', result: sanitizeDiagnosticValue(lastResult.value) }, null, 2) },
+    { name: 'resume-task.json', content: JSON.stringify({ schema_version: 2, path_privacy_mode: 'basename', resume: sanitizeDiagnosticValue(resumeSnapshot.value) }, null, 2) },
   ]
   settingsNotice.value = '正在生成诊断包…'
   try {
     const path = await invoke<string | null>('export_diagnostics', {
       defaultName: 'PixelFlow-诊断包.zip',
       entries,
+      diagnosticsPath: typeof lastResult.value.diagnostics_path === 'string' ? lastResult.value.diagnostics_path : null,
     })
     settingsNotice.value = path ? `诊断包已导出：${path}` : '已取消导出诊断包'
   } catch (error) {
@@ -1096,11 +1122,14 @@ async function openOutputFolder(path = outputRoot.value) {
     reportNotice.value = String(error)
   }
 }
-function failureReportText() {
+function failureReportText(sanitizePaths = false) {
+  const sourceText = (value: unknown) => sanitizePaths
+    ? String(sanitizeDiagnosticValue(String(value || '未知素材')))
+    : String(value || '未知素材')
   return ['PixelFlow 失败素材报告', '', ...failures.value.flatMap((failure, index) => [
-    `${index + 1}. ${String(failure.source || '未知素材')}`,
+    `${index + 1}. ${sourceText(failure.source)}`,
     `   类型：${String(failure.code || 'unknown')}`,
-    `   原因：${String(failure.message || '未提供原因')}`,
+    `   原因：${sourceText(failure.message || '未提供原因')}`,
     '',
   ])].join('\n')
 }
@@ -1150,7 +1179,8 @@ function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   if (!worker || isRunning.value) return
   reportOpen.value = false
   failureOpen.value = false
-  setProgress(0, true)
+  generationStarted.value = true
+  setProgress(300, true)
   const payload = { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true }
   generationRequestId.value = worker.request('retry_failed', payload)
   persistGenerationResume(payload)
@@ -1213,6 +1243,7 @@ function resumeTask() {
       if (typeof classification.local_model_enabled === 'boolean') localModelEnabled.value = classification.local_model_enabled
       if (typeof classification.local_model_path === 'string') localModelPath.value = classification.local_model_path
     }
+    generationStarted.value = false
     classifyMaterials(true)
     return
   }
@@ -1229,7 +1260,8 @@ function resumeTask() {
   workerInterrupted.value = false
   isRunning.value = true
   isCancelling.value = false
-  setProgress(0, true)
+  generationStarted.value = true
+  setProgress(300, true)
   clearProgressComplete()
   status.value = '正在继续未完成任务'
   taskPhase.value = '恢复任务'
@@ -1541,16 +1573,16 @@ function handleWorkerMessage(message: WorkerMessage) {
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
     if (phase === 'Pose') {
-      setClassificationProgress(total ? 400 + Math.round((completed / total) * 450) : 400)
+      setClassificationProgress(total ? 120 + Math.round((completed / total) * 100) : 120)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
-      setClassificationProgress(total ? 850 + Math.round((completed / total) * 150) : 850)
+      setClassificationProgress(total ? 220 + Math.round((completed / total) * 80) : 220)
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
     } else if (phase === 'Pose/Seg') {
-      setClassificationProgress(total ? 400 + Math.round((completed / total) * 600) : 400)
+      setClassificationProgress(total ? 120 + Math.round((completed / total) * 180) : 120)
       taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
-      setClassificationProgress(total ? Math.round((completed / total) * 400) : 0)
+      setClassificationProgress(total ? Math.round((completed / total) * 120) : 0)
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
     }
     taskPhase.value = '识别分类'
@@ -1576,8 +1608,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     excludedModelSources.value = Array.isArray(result?.suggested_exclusions)
       ? result.suggested_exclusions.filter((source) => materials.value.some((material) => material.source === source))
       : []
-    setClassificationProgress(1000, true)
-    markProgressComplete()
+    setClassificationProgress(300, true)
     clearResumeTask()
     materialConfirmed.value = false
     status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材，请确认后继续'
@@ -1606,7 +1637,8 @@ function handleWorkerMessage(message: WorkerMessage) {
     const total = Number(payload.total || 0)
     const completed = Number(payload.completed || 0)
     const detail = String(payload.phase || '处理中')
-    setProgress(total ? Math.round((completed / total) * 1000) : 0)
+    // Keep 100% reserved for the worker's done event after final validation.
+    setProgress(total ? 300 + Math.min(690, Math.round((completed / total) * 690)) : 300)
     taskPhase.value = /^(透明图|唯品图|卖点图)：/.test(detail) ? '整理输出' : '生成图片'
     taskDetail.value = `${completed} / ${total} · ${detail}`
     status.value = taskDetail.value
@@ -1696,6 +1728,7 @@ function classifyMaterials(fromResume = false) {
     return
   }
   if (classificationRunning.value || isRunning.value) return
+  generationStarted.value = false
   if (!fromResume) clearResumeTask()
   workerInterrupted.value = false
   materials.value = []
@@ -2113,6 +2146,7 @@ function startGeneration() {
   }
   if (classifiedInputRoot.value !== inputRoot.value || classifiedOptionsKey.value !== currentClassificationKey()) {
     materialConfirmed.value = false
+    generationStarted.value = false
     classifyMaterials()
     return
   }
@@ -2120,7 +2154,8 @@ function startGeneration() {
     status.value = 'Worker 未连接，暂不能生成'
     return
   }
-  setProgress(0, true)
+  generationStarted.value = true
+  setProgress(300, true)
   clearProgressComplete()
   isRunning.value = true
   status.value = '任务已准备'

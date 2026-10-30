@@ -693,9 +693,9 @@ class Renderer:
             return base if base.suffix else base / filename
         root = Path(request.output_root)
         if transparent:
-            return root / "透明产品图" / size_name / filename
+            return root / "产品透明图" / size_name / filename
         if vip:
-            return root / "唯品专享1440" / "无Logo" / filename
+            return root / "唯品会专享" / "1440x1440" / "无Logo" / filename
         category = str(request.layout.output_category or request.layout.category or metadata.get("category") or "产品主图")
         group = str(request.layout.group or metadata.get("group") or "")
         parts = [root, category]

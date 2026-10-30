@@ -65,6 +65,7 @@ SIZES = {
 
 # Bump whenever rendering logic changes; this invalidates old manifests.
 ENGINE_VERSION = "stable-33"
+VIP_OUTPUT_VERSION = 2
 
 TRANSPARENT_SIZES = {
     "800x800": (800, 800),
@@ -1637,70 +1638,109 @@ def generate_vip_square_images(
     failures: list[dict[str, str]] | None = None,
     reusable_paths: set[Path] | None = None,
     source_records: dict[Path, dict[str, object]] | None = None,
+    managed_paths: set[Path] | None = None,
 ) -> int:
     if not border_path.exists():
         raise FileNotFoundError(f"唯品会边框不存在：{border_path}")
     border = Image.open(border_path).convert("RGBA")
     count = 0
-    source_roots = sorted(
-        source_root
-        for source_root in output_root.rglob("1440x1440")
-        if source_root.is_dir()
-        and "透明产品图" not in source_root.parts
-        and "唯品专享1440" not in source_root.parts
-    )
-    for source_root in source_roots:
-        for logo_state in ("无Logo",):
-            # 唯品专享是输出根目录下的独立渠道目录，不嵌套在分类或颜色目录中。
-            output_dir = output_root / "唯品专享1440" / logo_state
-            output_dir.mkdir(parents=True, exist_ok=True)
-            for source in sorted((source_root / logo_state).glob("*.jpg")):
-                if allowed_source_paths is not None and source not in allowed_source_paths:
-                    continue
-                try:
-                    with Image.open(source) as opened:
-                        image = opened.convert("RGBA")
-                    image = Image.alpha_composite(image, border)
-                    output_path = output_dir / source.name
-                    if output_path.exists() and (reusable_paths is None or output_path not in reusable_paths):
-                        stem, suffix = output_path.stem, output_path.suffix
-                        index = 2
-                        while (output_dir / f"{stem}_{index}{suffix}").exists():
-                            index += 1
-                        output_path = output_dir / f"{stem}_{index}{suffix}"
-                    if reusable_paths is not None and output_path in reusable_paths:
-                        if generated_paths is not None:
-                            generated_paths.add(output_path)
-                        count += 1
-                        if notify_progress:
-                            notify_progress(f"唯品图：{output_path.name}（复用）")
-                        continue
-                    save_jpeg_with_limit(image.convert("RGB"), output_path, max_size_mb)
-                    if generated_paths is not None:
-                        generated_paths.add(output_path)
-                    if validation_issues is not None:
-                        validation_issues.extend(validate_output(output_path, (1440, 1440), "RGB", max_size_mb))
-                    if source_records is not None:
-                        for record in source_records.values():
-                            if source in record.get("paths", []):
-                                record["paths"].append(output_path)
-                                record["vip_images"] = int(record.get("vip_images", 0) or 0) + 1
-                                break
-                    count += 1
-                    if notify_progress:
-                        notify_progress(f"唯品图：{output_path.name}")
-                except Exception as error:  # noqa: BLE001 - keep the remaining sources running
-                    if failures is not None:
-                        retry_source = None
-                        if source_records is not None:
-                            for original, record in source_records.items():
-                                if source in record.get("paths", []):
-                                    retry_source = str(original)
-                                    break
-                        failure = {"source": str(source), "code": "vip_output_failed", "message": str(error)}
-                        if retry_source:
-                            failure["retry_source"] = retry_source
-                        failures.append(failure)
+    # Only consume the outputs recorded for this batch. Recursing through the
+    # whole output tree also finds older aggregate/category copies and flattens
+    # them into VIP, where a basename collision used to create ``_2`` copies.
+    candidates = sorted(allowed_source_paths or set())
+    seen_content: set[str] = set()
+    seen_names: dict[str, int] = {}
+    used_output_names: set[str] = set()
+    output_dir = output_root / "唯品专享1440" / "无Logo"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for source in candidates:
+        if not source.is_file() or source.suffix.lower() != ".jpg":
+            continue
+        if "1440x1440" not in source.parts or "无Logo" not in source.parts:
+            continue
+        # The source image is already the rendered 1440 square. Hashing its
+        # pixels collapses exact duplicates across aggregate and color-group
+        # paths while retaining distinct content, including same-name inputs.
+        try:
+            with Image.open(source) as opened:
+                source_image = opened.convert("RGB")
+                image = Image.alpha_composite(source_image.convert("RGBA"), border)
+            content_key = hashlib.sha256(source_image.tobytes()).hexdigest()
+            if content_key in seen_content:
+                continue
+            source_name_key = source.name.casefold()
+            name_index = seen_names.get(source_name_key, 0)
+        except Exception as error:  # noqa: BLE001 - keep the remaining sources running
+            if failures is not None:
+                failures.append({"source": str(source), "code": "vip_output_failed", "message": str(error)})
+            continue
+        try:
+            output_path = output_dir / source.name
+            # Only distinct same-named content gets a stable suffix. Existing
+            # files are prior outputs and can be refreshed in place.
+            if name_index:
+                stem, suffix = output_path.stem, output_path.suffix
+                output_path = output_dir / f"{stem}_{name_index + 1}{suffix}"
+            if (
+                output_path.name.casefold() in used_output_names
+                or (
+                    output_path.exists()
+                    and output_path not in (reusable_paths or set())
+                    and output_path not in (managed_paths or set())
+                )
+            ):
+                stem, suffix = output_path.stem, output_path.suffix
+                index = 2
+                while (
+                    f"{stem}_{index}{suffix}".casefold() in used_output_names
+                    or (
+                        (output_dir / f"{stem}_{index}{suffix}").exists()
+                        and (
+                            (output_dir / f"{stem}_{index}{suffix}") not in (reusable_paths or set())
+                            and (output_dir / f"{stem}_{index}{suffix}") not in (managed_paths or set())
+                        )
+                    )
+                ):
+                    index += 1
+                output_path = output_dir / f"{stem}_{index}{suffix}"
+            used_output_names.add(output_path.name.casefold())
+            if reusable_paths is not None and output_path in reusable_paths:
+                if generated_paths is not None:
+                    generated_paths.add(output_path)
+                seen_content.add(content_key)
+                seen_names[source_name_key] = name_index + 1
+                count += 1
+                if notify_progress:
+                    notify_progress(f"唯品图：{output_path.name}（复用）")
+                continue
+            save_jpeg_with_limit(image.convert("RGB"), output_path, max_size_mb)
+            if generated_paths is not None:
+                generated_paths.add(output_path)
+            seen_content.add(content_key)
+            seen_names[source_name_key] = name_index + 1
+            if validation_issues is not None:
+                validation_issues.extend(validate_output(output_path, (1440, 1440), "RGB", max_size_mb))
+            if source_records is not None:
+                for record in source_records.values():
+                    if source in record.get("paths", []):
+                        record["paths"].append(output_path)
+                        record["vip_images"] = int(record.get("vip_images", 0) or 0) + 1
+                        break
+            count += 1
+            if notify_progress:
+                notify_progress(f"唯品图：{output_path.name}")
+        except Exception as error:  # noqa: BLE001 - keep the remaining sources running
+            if failures is not None:
+                retry_source = None
+                if source_records is not None:
+                    for original, record in source_records.items():
+                        if source in record.get("paths", []):
+                            retry_source = str(original)
+                            break
+                failure = {"source": str(source), "code": "vip_output_failed", "message": str(error)}
+                if retry_source:
+                    failure["retry_source"] = retry_source
+                failures.append(failure)
     return count
 
 
@@ -1834,6 +1874,7 @@ def generate_images(
         "selected_sizes": list(selected_sizes),
         "include_logo": include_logo,
         "include_vip": include_vip,
+        "vip_output_version": VIP_OUTPUT_VERSION,
         "include_model_images": include_model_images,
         "include_selling_point_images": include_selling_point_images,
         "selling_points": list(selling_points),
@@ -2460,6 +2501,13 @@ def generate_images(
                     if isinstance(path, Path) and "唯品专享1440" in path.parts
                 },
                 source_records_by_path,
+                {
+                    output_root / relative
+                    for relative in previous_manifest.get("generated_paths", [])
+                    if isinstance(relative, str)
+                    and "唯品专享1440" in Path(relative).parts
+                    and (output_root / relative).is_relative_to(output_root)
+                },
             )
             if include_vip and "1440x1440" in selected_sizes
             else 0

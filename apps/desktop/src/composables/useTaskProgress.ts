@@ -11,7 +11,12 @@ export function useTaskProgress(reducedMotion: Ref<boolean>) {
   let previousTime = 0
 
   function setProgress(value: number, immediate = false) {
-    target = Math.max(0, Math.min(1000, value))
+    const nextTarget = Math.max(0, Math.min(1000, value))
+    if (!immediate) {
+      target = Math.max(target, nextTarget)
+    } else {
+      target = nextTarget
+    }
     if (immediate || reducedMotion.value) {
       progress.value = target
       cancelAnimationFrame(frame)

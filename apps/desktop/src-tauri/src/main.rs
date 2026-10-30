@@ -7,7 +7,7 @@ use std::{
     process::{Child, ChildStdin, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use serde_json::Value;
@@ -28,6 +28,9 @@ const RESTART_BACKOFF: [Duration; MAX_RESTARTS] = [
 const MAX_DIAGNOSTIC_ENTRY_BYTES: usize = 10 * 1024 * 1024;
 const MAX_DIAGNOSTIC_TOTAL_BYTES: usize = 32 * 1024 * 1024;
 const MAX_DIAGNOSTIC_LOG_BYTES: usize = 256 * 1024;
+const MAX_WORKER_EVENTS_BYTES: u64 = 512 * 1024;
+const MAX_WORKER_EVENT_LINE_BYTES: usize = 2048;
+const MAX_LAST_TASK_BYTES: usize = 10 * 1024 * 1024;
 
 struct WorkerProcess {
     child: Child,
@@ -463,14 +466,229 @@ fn build_zip_archive(entries: Vec<(String, Vec<u8>)>) -> Result<Vec<u8>, String>
 
 fn recent_worker_log() -> Vec<u8> {
     match std::fs::read(worker_log_path()) {
-        Ok(bytes) => bytes[bytes.len().saturating_sub(MAX_DIAGNOSTIC_LOG_BYTES)..].to_vec(),
+        Ok(bytes) => redact_log_bytes(&bytes),
         Err(error) => format!("worker log unavailable: {error}\n").into_bytes(),
     }
 }
 
+fn redact_log_bytes(bytes: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(bytes);
+    let redacted = text.lines().map(privacy_text).collect::<Vec<_>>().join("\n") + "\n";
+    let bytes = redacted.into_bytes();
+    bytes[bytes.len().saturating_sub(MAX_DIAGNOSTIC_LOG_BYTES)..].to_vec()
+}
+
+fn recent_log_file(path: PathBuf, name: &str) -> Option<(String, Vec<u8>)> {
+    let bytes = std::fs::read(path).ok()?;
+    Some((name.to_string(), redact_log_bytes(&bytes)))
+}
+
+fn worker_events_path() -> PathBuf {
+    worker_log_path().with_file_name("worker-events.jsonl")
+}
+
+fn diagnostics_cache_root() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    return std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+        .join("Library/Caches/PixelFlow/diagnostics");
+    #[cfg(not(target_os = "macos"))]
+    return std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("PixelFlow/diagnostics");
+}
+
+fn safe_diagnostics_path(raw: &str) -> Option<PathBuf> {
+    safe_diagnostics_path_under(&PathBuf::from(raw), &diagnostics_cache_root())
+}
+
+fn safe_diagnostics_path_under(path: &PathBuf, root: &PathBuf) -> Option<PathBuf> {
+    let relative = path.strip_prefix(&root).ok()?;
+    if relative.components().count() != 1 {
+        return None;
+    }
+    let name = path.file_name()?.to_string_lossy();
+    if !name.starts_with("v3-") || !name.ends_with(".json") {
+        return None;
+    }
+    if path.exists() {
+        let canonical_root = root.canonicalize().ok()?;
+        let canonical_path = path.canonicalize().ok()?;
+        if !canonical_path.starts_with(canonical_root) {
+            return None;
+        }
+    }
+    Some(path.clone())
+}
+
+fn privacy_text(value: &str) -> String {
+    let normalized = value.replace('\\', "/");
+    let text = normalized
+        .split_whitespace()
+        .map(|part| {
+            let is_path_char = |character: char| character.is_ascii_alphanumeric() || character == '.' || character == '_';
+            let start = part.find("/").filter(|index| {
+                *index == 0 || !is_path_char(part[..*index].chars().last().unwrap_or(' '))
+            });
+            let drive = part.find(":/");
+            let offset = drive.or(start);
+            match offset {
+                Some(index) => {
+                    let suffix = &part[index..];
+                    let basename = suffix.rsplit('/').next().unwrap_or_default();
+                    format!("{}{basename}", &part[..index])
+                }
+                None => part.to_string(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    text.chars().take(512).collect()
+}
+
+fn summarize_worker_event(line: &str) -> String {
+    let Ok(message) = serde_json::from_str::<Value>(line) else {
+        return serde_json::json!({"type": "invalid", "raw": "unparseable"}).to_string();
+    };
+    let request_id = message.get("request_id").and_then(Value::as_str).unwrap_or("");
+    let event_type = message.get("type").and_then(Value::as_str).unwrap_or("unknown");
+    let mut summary = serde_json::Map::new();
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    summary.insert("timestamp_ms".to_string(), Value::from(timestamp_ms as u64));
+    summary.insert("protocol".to_string(), message.get("protocol").cloned().unwrap_or(Value::Null));
+    summary.insert("request_id".to_string(), Value::String(privacy_text(request_id)));
+    summary.insert("type".to_string(), Value::String(event_type.to_string()));
+    if let Some(payload) = message.get("payload").and_then(Value::as_object) {
+        for key in ["state", "phase", "code", "message", "completed", "total"] {
+            if let Some(value) = payload.get(key) {
+                let safe = match value {
+                    Value::String(text) => Value::String(privacy_text(text)),
+                    _ => value.clone(),
+                };
+                summary.insert(key.to_string(), safe);
+            }
+        }
+        if let Some(source) = payload.get("source").and_then(Value::as_str) {
+            summary.insert("source".to_string(), Value::String(privacy_text(source)));
+        }
+        if let Some(result) = payload.get("result").and_then(Value::as_object) {
+            for key in ["sources", "outputs", "failures", "diagnostics_sources", "duplicate_groups"] {
+                if let Some(value) = result.get(key) {
+                    let compact = if let Some(items) = value.as_array() {
+                        Value::from(items.len() as u64)
+                    } else {
+                        value.clone()
+                    };
+                    summary.insert(key.to_string(), compact);
+                }
+            }
+        }
+    }
+    let serialized = serde_json::Value::Object(summary).to_string();
+    serialized.chars().take(MAX_WORKER_EVENT_LINE_BYTES).collect()
+}
+
+fn append_worker_event(line: &str) {
+    let path = worker_events_path();
+    append_bounded_record(&path, &summarize_worker_event(line), MAX_WORKER_EVENTS_BYTES);
+}
+
+fn append_bounded_record(path: &PathBuf, record: &str, max_bytes: u64) {
+    let Some(parent) = path.parent() else { return };
+    if std::fs::create_dir_all(parent).is_err() { return; }
+    let record_size = record.len() as u64 + 1;
+    if path.metadata().map(|metadata| metadata.len().saturating_add(record_size) > max_bytes).unwrap_or(false) {
+        let rotated = path.with_extension("jsonl.1");
+        let _ = std::fs::remove_file(&rotated);
+        let _ = std::fs::rename(&path, rotated);
+    }
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{record}");
+    }
+}
+
+fn recent_worker_events() -> Vec<(String, Vec<u8>)> {
+    [worker_events_path(), worker_events_path().with_extension("jsonl.1")]
+        .into_iter()
+        .filter_map(|path| {
+            let name = path.file_name()?.to_string_lossy().into_owned();
+            let bytes = std::fs::read(&path).ok()?;
+            Some((name, bytes[bytes.len().saturating_sub(MAX_DIAGNOSTIC_LOG_BYTES)..].to_vec()))
+        })
+        .collect()
+}
+
+fn last_task_path() -> PathBuf {
+    diagnostics_cache_root().join("last-task.json")
+}
+
+fn sanitize_diagnostic_value(value: &Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(privacy_text(text)),
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_diagnostic_value).collect()),
+        Value::Object(items) => Value::Object(
+            items.iter().map(|(key, item)| (key.clone(), sanitize_diagnostic_value(item))).collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+fn task_event_record(line: &str) -> Option<Value> {
+    let message = serde_json::from_str::<Value>(line).ok()?;
+    let event_type = message.get("type").and_then(Value::as_str).unwrap_or_default();
+    if !matches!(event_type, "done" | "cancelled" | "error") { return None; }
+    let request_id = message.get("request_id").and_then(Value::as_str).unwrap_or_default();
+    if !(request_id.starts_with("main-") || request_id.starts_with("retry-")) { return None; }
+    let payload = message.get("payload").cloned().unwrap_or(Value::Null);
+    if payload.get("cleared").and_then(Value::as_bool) == Some(true) { return None; }
+    if event_type == "done" && payload.get("result").and_then(Value::as_object).is_none() { return None; }
+    let diagnostics_path = payload
+        .get("result")
+        .and_then(|result| result.get("diagnostics_path"))
+        .and_then(Value::as_str)
+        .and_then(safe_diagnostics_path);
+    Some(serde_json::json!({
+        "schema_version": 1,
+        "saved_at": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
+        "request_id": request_id,
+        "type": event_type,
+        "diagnostics_path": diagnostics_path.and_then(|path| path.file_name().map(|name| name.to_string_lossy().into_owned())),
+        "payload": sanitize_diagnostic_value(&payload),
+    }))
+}
+
+fn persist_task_event(line: &str) {
+    let Some(record) = task_event_record(line) else { return; };
+    let Ok(bytes) = serde_json::to_vec_pretty(&record) else { return; };
+    if bytes.len() > MAX_LAST_TASK_BYTES { return; }
+    let path = last_task_path();
+    let Some(parent) = path.parent() else { return; };
+    if std::fs::create_dir_all(parent).is_err() { return; }
+    let temporary = path.with_extension("json.tmp");
+    if std::fs::write(&temporary, bytes).is_ok() { let _ = std::fs::rename(temporary, path); }
+}
+
+fn recent_last_task() -> Option<Vec<u8>> {
+    let bytes = std::fs::read(last_task_path()).ok()?;
+    (bytes.len() <= MAX_LAST_TASK_BYTES).then_some(bytes)
+}
+
+fn persisted_diagnostics_path() -> Option<String> {
+    let bytes = std::fs::read(last_task_path()).ok()?;
+    let value: Value = serde_json::from_slice(&bytes).ok()?;
+    let name = value.get("diagnostics_path")?.as_str()?;
+    let path = diagnostics_cache_root().join(name);
+    let safe = safe_diagnostics_path(&path.to_string_lossy())?;
+    safe.is_file().then(|| safe.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
-fn export_diagnostics(default_name: String, entries: Vec<Value>) -> Result<Option<String>, String> {
-    let mut archive_entries = Vec::with_capacity(entries.len() + 1);
+fn export_diagnostics(default_name: String, entries: Vec<Value>, diagnostics_path: Option<String>) -> Result<Option<String>, String> {
+    let mut archive_entries = Vec::with_capacity(entries.len() + 4);
     for entry in entries {
         let name = entry
             .get("name")
@@ -484,6 +702,49 @@ fn export_diagnostics(default_name: String, entries: Vec<Value>) -> Result<Optio
         archive_entries.push((name, content.as_bytes().to_vec()));
     }
     archive_entries.push(("worker.log".to_string(), recent_worker_log()));
+    if let Some(entry) = recent_log_file(worker_log_path().with_extension("log.1"), "worker.log.1") {
+        archive_entries.push(entry);
+    }
+    for (name, content) in recent_worker_events() {
+        archive_entries.push((name, content));
+    }
+    if let Some(content) = recent_last_task() {
+        archive_entries.push(("last-task.json".to_string(), content));
+    }
+    let diagnostics_path = persisted_diagnostics_path().or_else(|| {
+        diagnostics_path.and_then(|raw| safe_diagnostics_path(&raw).map(|path| path.to_string_lossy().into_owned()))
+    });
+    if let Some(raw_path) = diagnostics_path {
+        let path = safe_diagnostics_path(&raw_path);
+        if path.is_none() {
+            archive_entries.push((
+                "per-source-diagnostics-unavailable.txt".to_string(),
+                b"diagnostics unavailable: path outside PixelFlow cache\n".to_vec(),
+            ));
+        }
+        let Some(path) = path else {
+            let archive = build_zip_archive(archive_entries)?;
+            let Some(path) = choose_save_path(&default_name, "导出诊断包", "ZIP files (*.zip)|*.zip")? else { return Ok(None); };
+            std::fs::write(&path, archive).map_err(|error| format!("write diagnostics failed: {error}"))?;
+            return Ok(Some(path.to_string_lossy().into_owned()));
+        };
+        match std::fs::metadata(&path) {
+            Ok(metadata) if metadata.len() as usize <= MAX_DIAGNOSTIC_ENTRY_BYTES => match std::fs::read(&path) {
+                Ok(content) => archive_entries.push(("per-source-diagnostics.json".to_string(), content)),
+                Err(error) => archive_entries.push(("per-source-diagnostics-unavailable.txt".to_string(), format!("diagnostics unavailable: {error}\n").into_bytes())),
+            },
+            Ok(_) => archive_entries.push(("per-source-diagnostics-unavailable.txt".to_string(), b"diagnostics unavailable: file exceeds size limit\n".to_vec())),
+            Err(error) => archive_entries.push((
+                "per-source-diagnostics-unavailable.txt".to_string(),
+                format!("diagnostics unavailable: {error}\n").into_bytes(),
+            )),
+        }
+    } else {
+        archive_entries.push((
+            "per-source-diagnostics-unavailable.txt".to_string(),
+            b"no per-source diagnostics artifact was recorded\n".to_vec(),
+        ));
+    }
     let archive = build_zip_archive(archive_entries)?;
     let Some(path) = choose_save_path(
         &default_name,
@@ -677,6 +938,8 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
     let app = app.clone();
     thread::spawn(move || {
         for line in BufReader::new(stdout).lines().flatten() {
+            append_worker_event(&line);
+            persist_task_event(&line);
             if let Ok(message) = serde_json::from_str::<Value>(&line) {
                 let request_id = message.get("request_id").and_then(Value::as_str);
                 let event_type = message.get("type").and_then(Value::as_str);
@@ -824,5 +1087,71 @@ mod tests {
         assert!(archive.windows(4).any(|window| window == b"PK\x01\x02"));
         assert!(archive.windows(4).any(|window| window == b"PK\x05\x06"));
         assert!(validate_zip_entry_name("../outside.txt").is_err());
+    }
+
+    #[test]
+    fn worker_event_summary_keeps_signal_and_redacts_paths() {
+        let line = r#"{"protocol":1,"request_id":"job-1","type":"progress","payload":{"completed":2,"total":4,"phase":"生成","source":"/Users/test/input/red.jpg"}}"#;
+        let summary: Value = serde_json::from_str(&summarize_worker_event(line)).unwrap();
+        assert_eq!(summary["request_id"], "job-1");
+        assert_eq!(summary["completed"], 2);
+        assert_eq!(summary["source"], "red.jpg");
+        assert!(summary["timestamp_ms"].as_u64().is_some());
+        assert!(!summary.to_string().contains("/Users/"));
+    }
+
+    #[test]
+    fn exported_logs_redact_home_paths() {
+        let redacted = String::from_utf8(redact_log_bytes(b"Traceback: File \"/Users/private/input/photo.jpg\", line 4\n")).unwrap();
+        assert!(redacted.contains("photo.jpg"));
+        assert!(!redacted.contains("/Users/private"));
+    }
+
+    #[test]
+    fn worker_event_rotation_keeps_current_and_previous_window() {
+        let root = std::env::temp_dir().join(format!("pixelflow-event-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("worker-events.jsonl");
+        let rotated = root.join("worker-events.jsonl.1");
+        let record = summarize_worker_event(r#"{"protocol":1,"request_id":"job","type":"status","payload":{"state":"started"}}"#);
+        let max_bytes = 160;
+        std::fs::write(&path, vec![b'x'; (max_bytes as usize) - record.len()]).unwrap();
+        append_bounded_record(&path, &record, max_bytes);
+        assert!(rotated.is_file());
+        assert!(path.is_file());
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), record.len() as u64 + 1);
+        assert_eq!(std::fs::read_to_string(path).unwrap(), format!("{record}\n"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn diagnostics_path_is_limited_to_app_cache_and_filename_pattern() {
+        let root = std::env::temp_dir().join(format!("pixelflow-diag-path-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join(format!("v3-test-{}.json", std::process::id()));
+        std::fs::write(&path, b"{}").unwrap();
+        assert_eq!(safe_diagnostics_path_under(&path, &root), Some(path.clone()));
+        assert!(safe_diagnostics_path_under(&PathBuf::from("/tmp/unrelated.json"), &root).is_none());
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn task_event_record_keeps_safe_diagnostics_path_and_redacts_payload() {
+        let line = r#"{"request_id":"main-7","type":"done","payload":{"result":{"diagnostics_path":"/Users/test/Library/Caches/PixelFlow/diagnostics/v3-test.json","outputs":["/Users/test/input/a.jpg"]}}}"#;
+        let record = task_event_record(line).unwrap();
+        assert_eq!(record["request_id"], "main-7");
+        assert!(record["diagnostics_path"].is_null());
+        assert_eq!(record["payload"]["result"]["outputs"][0], "a.jpg");
+    }
+
+    #[test]
+    fn task_event_record_skips_classification_and_cache_clear_events() {
+        let classify = r#"{"request_id":"classify-1","type":"done","payload":{"result":{"sources":1}}}"#;
+        let clear = r#"{"request_id":"main-2","type":"done","payload":{"cleared":true}}"#;
+        assert!(task_event_record(classify).is_none());
+        assert!(task_event_record(clear).is_none());
     }
 }

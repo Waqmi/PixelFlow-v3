@@ -11,7 +11,7 @@ from .contracts import CompositionPlan, ProtectedRegion
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-GENERATED_OUTPUT_MARKERS = {"唯品专享1440", "卖点图", "1440x1440", "1440x1920", "1125x1500"}
+GENERATED_OUTPUT_MARKERS = {"唯品会专享", "唯品专享1440", "产品透明图", "透明产品图", "卖点图", "1440x1440", "1440x1920", "1125x1500"}
 ClassificationProgress = Callable[[int, int, Path, "ClassificationDecision"], None]
 ClassificationStageProgress = Callable[[str, int, int, Path], None]
 SIZES = {

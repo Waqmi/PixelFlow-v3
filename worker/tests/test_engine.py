@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import threading
@@ -16,6 +17,8 @@ from PIL import Image
 
 from pixelflow_core.contracts import CompositionPlan, RenderResult
 from pixelflow_core.engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
+from pixelflow_core.engine import _output_inventory, _write_v3_diagnostics
+from pixelflow_core.legacy_engine.generate_main_images import generate_vip_square_images
 from pixelflow_core.worker import WorkerRuntime, _generation_request
 
 _manifest_dir = tempfile.TemporaryDirectory()
@@ -37,6 +40,124 @@ def tearDownModule() -> None:
 
 
 class EngineAdapterTests(unittest.TestCase):
+    def test_v3_product_outputs_use_colour_folder_names(self) -> None:
+        class BatchRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3", metadata={"size": request.size}))
+                return tuple(results), {}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            product_root = root / "Pure2.0 Pro极寒"
+            source_names = ("XRPM023-2 深棕色", "XRPM024-1 女 白绿", "XRPM023-3 红黑", "XRPM023-1 黑色", "未分类素材")
+            sources = []
+            for index, folder_name in enumerate(source_names):
+                folder = product_root / folder_name
+                folder.mkdir(parents=True)
+                source = folder / f"source_{index}.jpg"
+                Image.new("RGB", (8, 8), "white").save(source)
+                sources.append(source)
+            result = V3EngineAdapter(renderer=BatchRenderer()).run(GenerationRequest(
+                product_root=product_root,
+                output_root=root / "output",
+                selected_sizes=("1440x1440", "1440x1920"),
+                include_logo=False,
+                include_vip=False,
+                source_type_overrides={str(source): "main_product" for source in sources},
+                mode="v3",
+            ))
+            self.assertEqual(result["failures"], [])
+            for colour in ("深棕色", "女_白绿", "红黑", "黑色", "未分类素材"):
+                self.assertTrue((root / "output" / "产品主图" / colour / "1440x1440" / "无Logo").is_dir())
+
+    def test_vip_outputs_deduplicate_identical_sources_and_keep_distinct_collisions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_root = root / "output"
+            source_root = output_root / "产品主图"
+            first = source_root / "红色" / "1440x1440" / "无Logo" / "sample.jpg"
+            duplicate = source_root / "红色合集" / "1440x1440" / "无Logo" / "sample_2.jpg"
+            distinct = source_root / "蓝色" / "1440x1440" / "无Logo" / "sample.jpg"
+            for path, color in ((first, "red"), (duplicate, "red"), (distinct, "blue")):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                Image.new("RGB", (1440, 1440), color).save(path, quality=95)
+            border_path = root / "border.png"
+            Image.new("RGBA", (1440, 1440), (0, 0, 0, 0)).save(border_path)
+
+            generated_paths: set[Path] = set()
+            count = generate_vip_square_images(
+                output_root,
+                border_path,
+                allowed_source_paths={first, duplicate, distinct},
+                generated_paths=generated_paths,
+            )
+
+            vip_dir = output_root / "唯品专享1440" / "无Logo"
+            self.assertEqual(count, 2)
+            self.assertEqual(
+                {path.name for path in vip_dir.glob("*.jpg")},
+                {"sample.jpg", "sample_2.jpg"},
+            )
+            self.assertEqual(len(generated_paths), 2)
+            output_hashes = {
+                hashlib.sha256(Image.open(path).convert("RGB").tobytes()).hexdigest()
+                for path in vip_dir.glob("*.jpg")
+            }
+            self.assertEqual(len(output_hashes), 2)
+
+            reused_paths: set[Path] = set()
+            reused_messages: list[str] = []
+            reused_count = generate_vip_square_images(
+                output_root,
+                border_path,
+                allowed_source_paths={first, duplicate, distinct},
+                generated_paths=reused_paths,
+                reusable_paths=set(generated_paths),
+                notify_progress=reused_messages.append,
+            )
+            self.assertEqual(reused_count, 2)
+            self.assertEqual(reused_paths, generated_paths)
+            self.assertEqual(sum("（复用）" in message for message in reused_messages), 2)
+
+    def test_vip_preserves_unmanaged_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_root = root / "output"
+            source_root = output_root / "产品主图"
+            source = source_root / "红色" / "1440x1440" / "无Logo" / "sample.jpg"
+            source.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGB", (1440, 1440), "red").save(source, quality=95)
+            border_path = root / "border.png"
+            Image.new("RGBA", (1440, 1440), (0, 0, 0, 0)).save(border_path)
+            vip_dir = output_root / "唯品专享1440" / "无Logo"
+            vip_dir.mkdir(parents=True, exist_ok=True)
+            existing = vip_dir / "sample.jpg"
+            Image.new("RGB", (1440, 1440), "green").save(existing, quality=95)
+            original_pixels = Image.open(existing).convert("RGB").tobytes()
+            managed_existing = vip_dir / "sample_2.jpg"
+            Image.new("RGB", (1440, 1440), "blue").save(managed_existing, quality=95)
+            managed_pixels = Image.open(managed_existing).convert("RGB").tobytes()
+
+            generated_paths: set[Path] = set()
+            count = generate_vip_square_images(
+                output_root,
+                border_path,
+                allowed_source_paths={source},
+                generated_paths=generated_paths,
+                managed_paths={managed_existing},
+            )
+
+            self.assertEqual(count, 1)
+            self.assertTrue(existing.is_file())
+            self.assertEqual(Image.open(existing).convert("RGB").tobytes(), original_pixels)
+            self.assertTrue((vip_dir / "sample_2.jpg").is_file())
+            self.assertNotEqual(Image.open(managed_existing).convert("RGB").tobytes(), managed_pixels)
+
     def test_v3_ignores_external_v2_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
             os.environ, {"PIXELFLOW_V2_ROOT": str(Path(temp_dir) / "missing-v2")}, clear=False
@@ -266,7 +387,7 @@ class EngineAdapterTests(unittest.TestCase):
         self.assertEqual([request.size for request in renderer.requests], ["1440x1920"])
         self.assertEqual(
             result["skipped_outputs"],
-            [{"source": str(source), "sizes": ["1440x1440", "唯品专享1440"], "reason": "背景不适合补边"}],
+                [{"source": str(source), "sizes": ["1440x1440", "唯品会专享"], "reason": "背景不适合补边"}],
         )
         self.assertFalse(stale.exists())
 
@@ -429,7 +550,7 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(result["model_images"], 1)
             self.assertEqual(result["vip_images"], 1)
             self.assertTrue((output_root / "模特图" / "1440x1440" / "无Logo" / "素材_01.jpg").is_file())
-            self.assertTrue((output_root / "唯品专享1440" / "无Logo" / "素材_01.jpg").is_file())
+            self.assertTrue((output_root / "唯品会专享" / "1440x1440" / "无Logo" / "素材_01.jpg").is_file())
 
     def test_v3_model_folders_get_distinct_short_names(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -553,6 +674,42 @@ class EngineAdapterTests(unittest.TestCase):
         ))
         self.assertEqual(skipped["mode"], "skipped")
         self.assertEqual(skipped["skip_reason"], "背景不适合补边")
+
+    def test_v3_output_inventory_hashes_only_generated_outputs_and_groups_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "产品主图" / "红色" / "1440x1440" / "a.jpg"
+            second = root / "产品主图" / "蓝色" / "1440x1440" / "b.jpg"
+            outside = root.parent / f"{root.name}-source.jpg"
+            for path in (first, second, outside):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                Image.new("RGB", (8, 8), "red").save(path)
+            inventory = _output_inventory(root, [str(first), str(second), str(outside)])
+            self.assertEqual(len(inventory["entries"]), 2)
+            self.assertEqual(len(inventory["duplicate_groups"]), 1)
+            self.assertEqual(set(inventory["duplicate_groups"][0]["paths"]), {
+                "产品主图/红色/1440x1440/a.jpg",
+                "产品主图/蓝色/1440x1440/b.jpg",
+            })
+
+    def test_v3_diagnostics_paths_are_relative_and_versioned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            product_root = root / "input"
+            output_root = root / "output"
+            product_root.mkdir()
+            source = product_root / "red" / "image.jpg"
+            source.parent.mkdir()
+            source.write_bytes(b"source")
+            output = output_root / "产品主图" / "image.jpg"
+            row = {"source_path": str(source), "outputs": [{"path": str(output)}]}
+            path, digest = _write_v3_diagnostics(output_root, product_root, "test", [row])
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.assertEqual(payload["schema_version"], 2)
+            self.assertEqual(payload["path_privacy_mode"], "relative_paths")
+            self.assertEqual(payload["sources"][0]["source_path"], "red/image.jpg")
+            self.assertEqual(payload["sources"][0]["outputs"][0]["path"], "产品主图/image.jpg")
+            self.assertEqual(digest, hashlib.sha256(Path(path).read_bytes()).hexdigest())
 
     def test_v3_same_name_reuses_by_default_and_force_rerender_overwrites(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1062,28 +1219,73 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(result["fallback_reason"], "renderer failed")
             self.assertTrue((request.output_root / "legacy-ok.txt").is_file())
 
-    def test_v3_reported_file_failure_falls_back_to_legacy_output(self) -> None:
+    def test_v3_output_size_failure_keeps_partial_outputs_without_legacy_rerun(self) -> None:
         class LegacyAdapter:
+            calls = 0
+
             def run(self, request, progress=None, cancel_event=None):
+                self.calls += 1
                 request.output_root.mkdir(parents=True, exist_ok=True)
                 (request.output_root / "legacy-ok.txt").write_text("ok", encoding="utf-8")
                 return {"outputs": ["legacy-ok.txt"]}
 
-        class ReportingV3:
-            def run(self, request, progress=None, cancel_event=None):
-                return {"failures": [{"source": "sample.jpg", "error": "write failed"}]}
+        class PartiallyFailingRenderer:
+            def render_source_batch(self, requests):
+                results = []
+                for index, render_request in enumerate(requests):
+                    output = Path(render_request.output_path)
+                    if index == 1:
+                        results.append(RenderResult(
+                            source=render_request.source,
+                            outputs=(),
+                            success=False,
+                            mode="v3",
+                            errors=("output exceeds max_size_mb",),
+                            metadata={"size": render_request.size},
+                        ))
+                        continue
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    results.append(RenderResult(
+                        source=render_request.source,
+                        outputs=(str(output),),
+                        mode="v3",
+                        metadata={"size": render_request.size},
+                    ))
+                return tuple(results), {}
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            source = product_root / "sample.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            legacy = LegacyAdapter()
             request = GenerationRequest(
-                product_root=Path(temp_dir),
+                product_root=product_root,
                 output_root=Path(temp_dir) / "output",
-                selected_sizes=("1440x1440",),
+                selected_sizes=("1440x1440", "1440x1920"),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                source_type_overrides={str(source): "main_product"},
+                max_size_mb=0.0001,
                 mode="v3",
             )
-            result = ImageEngine(LegacyAdapter(), ReportingV3()).run(request)
-            self.assertTrue(result["fallback"])
-            self.assertIn("write failed", result["fallback_reason"])
-            self.assertTrue((request.output_root / "legacy-ok.txt").is_file())
+            result = ImageEngine(legacy, V3EngineAdapter(renderer=PartiallyFailingRenderer())).run(request)
+            diagnostic_path = Path(result["diagnostics_path"])
+            diagnostics = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+            output_paths = [Path(path) for path in result["outputs"]]
+
+            self.assertFalse(result.get("fallback", False))
+            self.assertEqual(legacy.calls, 0)
+            self.assertEqual(len(result["failures"]), 1)
+            self.assertIn("output exceeds max_size_mb", result["failures"][0]["message"])
+            self.assertTrue(output_paths)
+            self.assertTrue(all(path.is_file() for path in output_paths))
+            self.assertFalse((request.output_root / "legacy-ok.txt").exists())
+            self.assertEqual(len(list(request.output_root.rglob("*.jpg"))) + len(list(request.output_root.rglob("*.png"))), len(output_paths))
+            source_diagnostic = diagnostics["sources"][0]
+            self.assertTrue(any(not output["success"] for output in source_diagnostic["outputs"]))
 
     def test_compare_isolates_v3_writes_from_formal_output(self) -> None:
         class WritingAdapter:
@@ -1120,8 +1322,8 @@ class EngineAdapterTests(unittest.TestCase):
             def run(self, request, progress=None, cancel_event=None):
                 outputs = (
                     request.output_root / "产品主图" / "1440x1440" / "sample.jpg",
-                    request.output_root / "透明产品图" / "1440x1440" / "sample.png",
-                    request.output_root / "唯品专享1440" / "无Logo" / "sample.jpg",
+                    request.output_root / "产品透明图" / "1440x1440" / "sample.png",
+                    request.output_root / "唯品会专享" / "1440x1440" / "无Logo" / "sample.jpg",
                 )
                 for output in outputs:
                     output.parent.mkdir(parents=True, exist_ok=True)

@@ -57,7 +57,7 @@ def audit_output_tree(
             if not path.is_absolute():
                 path = output_root / path
             channel_output = any(
-                name in path.parts for name in ("透明产品图", "唯品专享1440", "卖点图")
+                name in path.parts for name in ("产品透明图", "透明产品图", "唯品会专享", "唯品专享1440", "卖点图")
             )
             if path in seen:
                 issues.append({"code": "duplicate_output", "path": str(path), "message": "同一输出路径被多个素材重复记录"})

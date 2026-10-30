@@ -9,6 +9,7 @@ from io import BytesIO
 import shutil
 import sys
 import threading
+from datetime import datetime, timezone
 from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
@@ -24,6 +25,10 @@ from .classification import (
 )
 from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 
+
+# Also cover development mode (`python -m pixelflow_core.worker`), where the
+# PyInstaller entry point is bypassed.
+os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 
 WORKER_VERSION = os.environ.get("PIXELFLOW_WORKER_VERSION", "3.0.0")
 RULES_VERSION = "v3-composition-11"
@@ -413,6 +418,7 @@ class WorkerRuntime:
         return result
 
     def _run(self, request_id: str, request: GenerationRequest, cancel_event: threading.Event) -> None:
+        task_started_at = datetime.now(timezone.utc).isoformat()
         def report(completed: int, total: int, phase: str) -> None:
             self._emit(
                 request_id,
@@ -422,6 +428,8 @@ class WorkerRuntime:
 
         try:
             result = self.engine.run(request, progress=report, cancel_event=cancel_event)
+            result.setdefault("task_started_at", task_started_at)
+            result.setdefault("task_completed_at", datetime.now(timezone.utc).isoformat())
             event_type = "cancelled" if bool(result.get("cancelled")) else "done"
             self._emit(request_id, event_type, {"result": result})
         except Exception as error:  # worker boundary must report failures, not die silently
