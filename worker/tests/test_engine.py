@@ -9,6 +9,7 @@ import unittest
 import shutil
 import os
 import sys
+import unicodedata
 from dataclasses import replace
 from unittest.mock import patch
 from pathlib import Path
@@ -19,6 +20,7 @@ from pixelflow_core.contracts import CompositionPlan, RenderResult
 from pixelflow_core.engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 from pixelflow_core.engine import _output_inventory, _write_v3_diagnostics
 from pixelflow_core.legacy_engine.generate_main_images import generate_vip_square_images
+from pixelflow_core.legacy_engine.output_names import original_output_stem, unique_output_stems
 from pixelflow_core.worker import WorkerRuntime, _generation_request
 
 _manifest_dir = tempfile.TemporaryDirectory()
@@ -691,6 +693,83 @@ class EngineAdapterTests(unittest.TestCase):
                 "产品主图/红色/1440x1440/a.jpg",
                 "产品主图/蓝色/1440x1440/b.jpg",
             })
+
+    def test_output_stems_resolve_unicode_collisions_without_renaming_unique_stems(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "a" / "same.jpg"
+            second = root / "b" / "same.jpeg"
+            reserved = root / "c" / "other.jpg"
+            digest = hashlib.sha256(os.fsencode("a/same.jpg")).hexdigest()[:8]
+            base_stems = {
+                first: "item_jpg",
+                second: "item_jpg",
+                reserved: f"item_jpg_{digest}",
+            }
+            names = unique_output_stems([first, second, reserved], root, base_stems)
+
+        keys = [unicodedata.normalize("NFD", name).casefold() for name in names.values()]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(names[reserved], base_stems[reserved])
+        self.assertNotEqual(names[first], f"item_jpg_{digest}")
+        self.assertEqual(original_output_stem(Path("foo 2.jpg")), "foo 2_jpg")
+
+    def test_v3_duplicate_output_names_are_unique_and_stable_for_retries(self) -> None:
+        class CaptureRenderer:
+            def __init__(self):
+                self.vip_paths = {}
+
+            def render_source_batch(self, requests):
+                results = []
+                for request in tuple(requests):
+                    output = Path(request.output_path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"rendered")
+                    if request.output_kind == "vip":
+                        self.vip_paths[unicodedata.normalize("NFD", request.source)] = output
+                    results.append(RenderResult(source=request.source, outputs=(str(output),), mode="v3"))
+                return tuple(results), {}
+
+            def validate_existing(self, request):
+                return RenderResult(source=request.source, outputs=(request.output_path,), mode="v3")
+
+        for naming_mode in ("short", "original"):
+            with self.subTest(naming_mode=naming_mode), tempfile.TemporaryDirectory() as temp_dir:
+                product_root = Path(temp_dir) / "input"
+                sources = [
+                    product_root / "SKU_A" / "same.jpg",
+                    product_root / "SKU_B" / "same.jpeg",
+                    product_root / "SKU_C" / "same.jpg",
+                ]
+                for source in sources:
+                    source.parent.mkdir(parents=True, exist_ok=True)
+                    Image.new("RGB", (32, 32), "white").save(source)
+                renderer = CaptureRenderer()
+                adapter = V3EngineAdapter(renderer=renderer)
+                request = GenerationRequest(
+                    product_root=product_root,
+                    output_root=Path(temp_dir) / "output",
+                    selected_sizes=("1440x1440",),
+                    include_logo=False,
+                    include_vip=True,
+                    naming_mode=naming_mode,
+                    mode="v3",
+                )
+                result = adapter.run(request)
+                vip_paths = [str(item) for item in renderer.vip_paths.values()]
+                normalized_names = {
+                    unicodedata.normalize("NFD", Path(path).name).casefold()
+                    for path in vip_paths
+                }
+                self.assertEqual(result["failures"], [])
+                self.assertEqual(len(vip_paths), 3)
+                self.assertEqual(len(normalized_names), 3)
+
+                expected_source = sorted(renderer.vip_paths)[1]
+                expected = str(renderer.vip_paths[expected_source])
+                retry = adapter.run(replace(request, source_filter={expected_source}, force_rerender=True))
+                self.assertTrue(retry["retried_only"])
+                self.assertIn(expected, retry["outputs"])
 
     def test_v3_diagnostics_paths_are_relative_and_versioned(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

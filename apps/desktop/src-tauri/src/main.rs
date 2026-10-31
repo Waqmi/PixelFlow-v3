@@ -264,8 +264,13 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn windows_dialog(script: &str) -> Result<Option<String>, String> {
+    let script = windows_utf8_script(script);
     let mut command = Command::new("powershell");
-    command.args(["-NoProfile", "-STA", "-Command", script]);
+    command
+        .arg("-NoProfile")
+        .arg("-STA")
+        .arg("-Command")
+        .arg(&script);
     hide_console(&mut command);
     let output = command
         .output()
@@ -273,8 +278,22 @@ fn windows_dialog(script: &str) -> Result<Option<String>, String> {
     if !output.status.success() {
         return Err(format!("file dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
     }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let path = decode_windows_stdout(&output.stdout)?;
     Ok((!path.is_empty()).then_some(path))
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_utf8_script(script: &str) -> String {
+    format!(
+        "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); {script}"
+    )
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn decode_windows_stdout(output: &[u8]) -> Result<String, String> {
+    std::str::from_utf8(output)
+        .map(|path| path.trim().to_string())
+        .map_err(|error| format!("file dialog returned invalid UTF-8: {error}"))
 }
 
 #[tauri::command]
@@ -312,9 +331,13 @@ fn choose_save_path(
     #[cfg(target_os = "windows")]
     {
         let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
+        let script = windows_utf8_script(script);
         let mut command = Command::new("powershell");
         command
-            .args(["-NoProfile", "-STA", "-Command", script])
+            .arg("-NoProfile")
+            .arg("-STA")
+            .arg("-Command")
+            .arg(&script)
             .env("PIXELFLOW_FILE_NAME", default_name)
             .env("PIXELFLOW_FILE_FILTER", windows_filter)
             .env("PIXELFLOW_DIALOG_TITLE", prompt);
@@ -325,7 +348,7 @@ fn choose_save_path(
         if !output.status.success() {
             return Err(format!("save dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
         }
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let path = decode_windows_stdout(&output.stdout)?;
         return Ok((!path.is_empty()).then_some(PathBuf::from(path)));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
@@ -1078,6 +1101,13 @@ mod tests {
         std::fs::write(models.join("pose").join("yolo11n-pose.onnx"), b"test").unwrap();
         assert_eq!(discover_models_under(&root).as_deref(), Some(models.as_path()));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn windows_dialog_output_is_decoded_as_utf8() {
+        assert!(windows_utf8_script("Write-Output test").contains("UTF8Encoding"));
+        assert_eq!(decode_windows_stdout("文档\n".as_bytes()).unwrap(), "文档");
+        assert!(decode_windows_stdout(&[0xff]).is_err());
     }
 
     #[test]
