@@ -247,6 +247,18 @@ fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Resu
     { Ok(None) }
 }
 
+#[tauri::command]
+fn authorize_logo_preview(path: String, key: String, state: State<'_, WorkerState>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
+    register_logo_preview(&mut guard, &path, &key)
+}
+
+fn register_logo_preview(guard: &mut WorkerSupervisor, path: &str, key: &str) -> Result<(), String> {
+    validate_logo(path, key)?;
+    remember_preview_root(guard, path);
+    Ok(())
+}
+
 fn validate_logo(path: &str, key: &str) -> Result<(), String> {
     let expected = if key.starts_with("logo_square_") { (1440, 1440) }
         else if key.starts_with("logo_tall_") { (1440, 1920) }
@@ -1039,6 +1051,7 @@ fn main() {
             pick_directory,
             discover_models_directory,
             pick_file,
+            authorize_logo_preview,
             save_text_file,
             export_diagnostics,
             open_path
@@ -1071,6 +1084,36 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_logo_preview_registers_only_its_parent_scope() {
+        let path = std::env::temp_dir().join(format!("pixelflow-logo-{}.png", std::process::id()));
+        let mut png_header = vec![0; 26];
+        png_header[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        png_header[12..16].copy_from_slice(b"IHDR");
+        png_header[16..20].copy_from_slice(&1440u32.to_be_bytes());
+        png_header[20..24].copy_from_slice(&1440u32.to_be_bytes());
+        png_header[25] = 6;
+        std::fs::write(&path, png_header).unwrap();
+
+        let mut supervisor = WorkerSupervisor {
+            process: None,
+            restart_history: VecDeque::new(),
+            active_task_id: None,
+            preview_roots: Vec::new(),
+            shutting_down: false,
+        };
+        let path = path.to_string_lossy().into_owned();
+        register_logo_preview(&mut supervisor, &path, "logo_square_dark").unwrap();
+
+        let parent = PathBuf::from(&path).parent().unwrap().to_string_lossy().into_owned();
+        let request = serde_json::json!({
+            "payload": { "path": path, "allowed_roots": [parent] }
+        });
+        assert!(validate_preview_request(&supervisor, &request).is_ok());
+        assert_eq!(supervisor.preview_roots.len(), 1);
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn restart_budget_stops_after_three_attempts() {

@@ -328,6 +328,10 @@ const previewConcurrencyLimit = computed(() => classificationConcurrency.value =
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
 const displayProgress = computed(() => generationStarted.value ? progress.value : classificationProgress.value)
+const classificationAwaitingConfirmation = computed(() => Boolean(classifiedInputRoot.value)
+  && classifiedInputRoot.value === inputRoot.value
+  && classifiedOptionsKey.value === currentClassificationKey()
+  && !materialConfirmed.value)
 const outputSummary = computed(() => {
   const validation = lastResult.value.validation as { passed?: unknown } | undefined
   const legacyCount = ['main_images', 'model_images', 'transparent_images', 'vip_images', 'selling_point_images']
@@ -984,6 +988,7 @@ function requestPreview(path: string, allowedRoots = [previewParent(path)]) {
 }
 async function loadLogoPreview(key: string, path: string) {
   try {
+    if (window.__TAURI_INTERNALS__) await invoke('authorize_logo_preview', { path, key })
     const preview = await requestPreview(path, [previewParent(path)])
     const binary = atob(preview.data)
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
@@ -1180,7 +1185,7 @@ function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   reportOpen.value = false
   failureOpen.value = false
   generationStarted.value = true
-  setProgress(300, true)
+  setProgress(0, true)
   const payload = { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true }
   generationRequestId.value = worker.request('retry_failed', payload)
   persistGenerationResume(payload)
@@ -1261,7 +1266,7 @@ function resumeTask() {
   isRunning.value = true
   isCancelling.value = false
   generationStarted.value = true
-  setProgress(300, true)
+  setProgress(0, true)
   clearProgressComplete()
   status.value = '正在继续未完成任务'
   taskPhase.value = '恢复任务'
@@ -1573,16 +1578,16 @@ function handleWorkerMessage(message: WorkerMessage) {
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
     if (phase === 'Pose') {
-      setClassificationProgress(total ? 120 + Math.round((completed / total) * 100) : 120)
+      setClassificationProgress(total ? 400 + Math.min(300, Math.round((completed / total) * 300)) : 400)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
-      setClassificationProgress(total ? 220 + Math.round((completed / total) * 80) : 220)
+      setClassificationProgress(total ? 700 + Math.min(290, Math.round((completed / total) * 290)) : 700)
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
     } else if (phase === 'Pose/Seg') {
-      setClassificationProgress(total ? 120 + Math.round((completed / total) * 180) : 120)
+      setClassificationProgress(total ? 400 + Math.min(590, Math.round((completed / total) * 590)) : 400)
       taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
-      setClassificationProgress(total ? Math.round((completed / total) * 120) : 0)
+      setClassificationProgress(total ? Math.min(400, Math.round((completed / total) * 400)) : 0)
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
     }
     taskPhase.value = '识别分类'
@@ -1608,7 +1613,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     excludedModelSources.value = Array.isArray(result?.suggested_exclusions)
       ? result.suggested_exclusions.filter((source) => materials.value.some((material) => material.source === source))
       : []
-    setClassificationProgress(300, true)
+    setClassificationProgress(1000, true)
     clearResumeTask()
     materialConfirmed.value = false
     status.value = materials.value.length ? '请确认素材分类' : '未发现可分类素材，请确认后继续'
@@ -1638,7 +1643,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     const completed = Number(payload.completed || 0)
     const detail = String(payload.phase || '处理中')
     // Keep 100% reserved for the worker's done event after final validation.
-    setProgress(total ? 300 + Math.min(690, Math.round((completed / total) * 690)) : 300)
+    setProgress(total ? Math.min(990, Math.round((completed / total) * 990)) : 0)
     taskPhase.value = /^(透明图|唯品图|卖点图)：/.test(detail) ? '整理输出' : '生成图片'
     taskDetail.value = `${completed} / ${total} · ${detail}`
     status.value = taskDetail.value
@@ -2155,7 +2160,7 @@ function startGeneration() {
     return
   }
   generationStarted.value = true
-  setProgress(300, true)
+  setProgress(0, true)
   clearProgressComplete()
   isRunning.value = true
   status.value = '任务已准备'
@@ -2209,7 +2214,7 @@ function startGeneration() {
           <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong aria-live="polite" aria-atomic="true">{{ taskDetail }}</strong></div>
           <div class="run-actions"><button v-if="resumeAvailable && !isRunning && !classificationRunning" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button type="button" class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button type="button" class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
         </section>
-        <div v-if="classificationRunning || isRunning || progressComplete" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :data-complete="progressComplete" :style="{ width: `${displayProgress / 10}%` }" /></div>
+        <div v-if="classificationRunning || classificationAwaitingConfirmation || isRunning || progressComplete" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :data-complete="progressComplete" :style="{ width: `${displayProgress / 10}%` }" /></div>
       </div>
     </section>
 
