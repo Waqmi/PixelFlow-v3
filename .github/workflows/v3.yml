@@ -134,7 +134,6 @@ jobs:
           printf '{"commit":"%s","version":"%s","platform":"macos","arch":"arm64","ref":"%s","signature":"unsigned"}\n' "$GITHUB_SHA" "$version" "$GITHUB_REF_NAME" > "artifacts/build-metadata-macos-arm64.json"
           shasum -a 256 artifacts/PixelFlow-*.app.zip artifacts/*.dmg artifacts/build-metadata-macos-arm64.json > "artifacts/SHA256SUMS-macos-arm64.txt"
       - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
         with:
           name: pixelflow-${{ github.ref_name }}-macos-arm64-${{ github.sha }}
           path: artifacts
@@ -209,7 +208,6 @@ jobs:
           printf '{"commit":"%s","version":"%s","platform":"macos","arch":"x86_64","ref":"%s","signature":"unsigned","runner":"GitHub-hosted macos-15-intel"}\n' "$GITHUB_SHA" "$version" "$GITHUB_REF_NAME" > "artifacts/build-metadata-macos-x64.json"
           shasum -a 256 artifacts/PixelFlow-*.app.zip artifacts/*.dmg artifacts/build-metadata-macos-x64.json > "artifacts/SHA256SUMS-macos-x64.txt"
       - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
         with:
           name: pixelflow-${{ github.ref_name }}-macos-x64-${{ github.sha }}
           path: artifacts
@@ -367,7 +365,6 @@ jobs:
           Set-Content -Encoding utf8 artifacts/build-metadata-windows-x64.json $metadata
           Get-ChildItem artifacts -File | Where-Object { $_.Name -notlike 'SHA256SUMS-*' } | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content artifacts/SHA256SUMS-windows-x64.txt
       - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
         with:
           name: pixelflow-${{ github.ref_name }}-windows-x64-${{ github.sha }}
           path: artifacts
