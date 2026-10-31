@@ -135,7 +135,7 @@ jobs:
           shasum -a 256 artifacts/PixelFlow-*.app.zip artifacts/*.dmg artifacts/build-metadata-macos-arm64.json > "artifacts/SHA256SUMS-macos-arm64.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: pixelflow-${{ github.ref_name }}-macos-arm64-${{ github.sha }}
+          name: pixelflow-macos-arm64-${{ github.sha }}-${{ github.run_id }}
           path: artifacts
           if-no-files-found: error
 
@@ -209,7 +209,7 @@ jobs:
           shasum -a 256 artifacts/PixelFlow-*.app.zip artifacts/*.dmg artifacts/build-metadata-macos-x64.json > "artifacts/SHA256SUMS-macos-x64.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: pixelflow-${{ github.ref_name }}-macos-x64-${{ github.sha }}
+          name: pixelflow-macos-x64-${{ github.sha }}-${{ github.run_id }}
           path: artifacts
           if-no-files-found: error
 
@@ -366,7 +366,7 @@ jobs:
           Get-ChildItem artifacts -File | Where-Object { $_.Name -notlike 'SHA256SUMS-*' } | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content artifacts/SHA256SUMS-windows-x64.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: pixelflow-${{ github.ref_name }}-windows-x64-${{ github.sha }}
+          name: pixelflow-windows-x64-${{ github.sha }}-${{ github.run_id }}
           path: artifacts
           if-no-files-found: error
 
