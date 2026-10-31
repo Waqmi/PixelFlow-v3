@@ -329,15 +329,19 @@ jobs:
           $label = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "main-$($env:GITHUB_SHA.Substring(0, 12))" }
           $portable = (Resolve-Path "artifacts/PixelFlow-$label-windows-x64-portable.exe").Path
           $events = Join-Path $env:LOCALAPPDATA 'PixelFlow\logs\worker-events.jsonl'
+          $workerLog = Join-Path $env:LOCALAPPDATA 'PixelFlow\logs\worker.log'
           Remove-Item $events -Force -ErrorAction SilentlyContinue
           $launcher = Start-Process -FilePath $portable -WorkingDirectory (Get-Location).Path -PassThru
           $started = $false
           for ($attempt = 0; $attempt -lt 90; $attempt++) {
-            $app = Get-Process -Name 'pixelflow-desktop','PixelFlow' -ErrorAction SilentlyContinue | Select-Object -First 1
-            $worker = Get-Process -Name 'pixelflow-worker' -ErrorAction SilentlyContinue | Select-Object -First 1
-            $eventText = if (Test-Path $events) { Get-Content -Raw $events } else { '' }
-            $readyCount = ([regex]::Matches($eventText, '"type":"ready"')).Count
-            if ($app -and $worker -and $readyCount -ge 2) {
+            $records = if (Test-Path $events) {
+              Get-Content $events | ForEach-Object {
+                try { $_ | ConvertFrom-Json } catch { $null }
+              }
+            } else { @() }
+            $workerReady = @($records | Where-Object { $_.type -eq 'ready' -and $_.request_id -eq 'worker' }).Count -gt 0
+            $pingReady = @($records | Where-Object { $_.type -eq 'ready' -and $_.request_id -eq 'main-1' }).Count -gt 0
+            if ($workerReady -and $pingReady) {
               $started = $true
               break
             }
@@ -345,9 +349,12 @@ jobs:
           }
           if (-not $started) {
             if (Test-Path $events) { Get-Content $events -Tail 200 }
+            if (Test-Path $workerLog) { Get-Content $workerLog -Tail 200 }
             Stop-Process -Id $launcher.Id -Force -ErrorAction SilentlyContinue
             throw 'Portable smoke test did not observe PixelFlow, Worker, startup ready and ping ready events.'
           }
+          $app = Get-Process | Where-Object { $_.ProcessName -match 'pixelflow' } | Select-Object -First 1
+          if (-not $app) { throw 'PixelFlow process was not found after startup ready events.' }
           Start-Sleep -Seconds 30
           if (-not (Get-Process -Id $app.Id -ErrorAction SilentlyContinue)) { throw 'PixelFlow exited during the smoke test.' }
           Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
