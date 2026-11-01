@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 import json
 import math
 from pathlib import Path
+import threading
 from typing import Any
 
 from PIL import Image, ImageChops, ImageFilter, ImageStat
@@ -26,6 +27,27 @@ BODY_KEYPOINT_CONFIDENCE = 0.28
 _GLOBAL_DETECTION_CACHE: dict[tuple[str, int, int, str], list[PersonDetection]] = {}
 _GLOBAL_SEGMENTATION_CACHE: dict[tuple[str, int, int, str], dict[str, object]] = {}
 _GLOBAL_OBJECT_CACHE: dict[tuple[str, int, int, str], list[tuple[str, float, tuple[float, float, float, float]]]] = {}
+# One source is analysed by several model steps in a row (Pose, Seg,
+# detection, side-fill checks).  Decoding a camera-sized JPEG dominates those
+# steps, so keep the most recent full decode.  One entry bounds the memory to
+# a single source image; callers must not modify the returned image.
+_DECODED_SOURCE: tuple[tuple[str, int, int], Image.Image] | None = None
+_DECODED_SOURCE_LOCK = threading.Lock()
+
+
+def _decoded_source(source: Path) -> Image.Image:
+    """Return the fully decoded source, reusing it for consecutive model steps."""
+    global _DECODED_SOURCE
+    stat = source.stat()
+    key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size)
+    with _DECODED_SOURCE_LOCK:
+        if _DECODED_SOURCE is not None and _DECODED_SOURCE[0] == key:
+            return _DECODED_SOURCE[1]
+        with Image.open(source) as opened:
+            opened.load()
+            image = opened.copy()
+        _DECODED_SOURCE = (key, image)
+        return image
 
 
 def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
@@ -504,15 +526,15 @@ def side_fill_structure(
 ) -> dict[str, float]:
     """Structure share (``measure``) of each strip a side fill would be built from."""
     result: dict[str, float] = {}
-    with Image.open(source) as image:
-        width, height = image.size
-        top, bottom = round(crop_box[1] * height), round(crop_box[3] * height)
-        for side, key in (("left", "strip_left"), ("right", "strip_right")):
-            strip = round(side_fill.get(key, 0.0) * width)
-            if strip <= 0:
-                continue
-            box = (0, top, strip, bottom) if side == "left" else (width - strip, top, width, bottom)
-            result[side] = measure(image.crop(box))
+    image = _decoded_source(source)
+    width, height = image.size
+    top, bottom = round(crop_box[1] * height), round(crop_box[3] * height)
+    for side, key in (("left", "strip_left"), ("right", "strip_right")):
+        strip = round(side_fill.get(key, 0.0) * width)
+        if strip <= 0:
+            continue
+        box = (0, top, strip, bottom) if side == "left" else (width - strip, top, width, bottom)
+        result[side] = measure(image.crop(box))
     return result
 
 
@@ -2691,9 +2713,9 @@ class LocalModelAssistant:
         shoe_boxes: list[tuple[float, float, float, float]] | None = None,
         detector_boxes: list[tuple[float, float, float, float]] | None = None,
     ) -> dict[str, object]:
-        with Image.open(source) as opened:
-            image_size = opened.size
-            relief_score = _image_relief_score(opened)
+        decoded = _decoded_source(source)
+        image_size = decoded.size
+        relief_score = _image_relief_score(decoded)
         detections = self.detect(source)
         visibility = body_visibility(detections, image_size)
         image_width, image_height = image_size
@@ -3009,9 +3031,9 @@ class LocalSegmentationAssistant:
         key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size, str(self.model_path.resolve()))
         if key in _GLOBAL_SEGMENTATION_CACHE:
             return _GLOBAL_SEGMENTATION_CACHE[key]
-        with Image.open(source) as opened:
-            image_size = opened.size
-            input_array = self._letterbox(opened)
+        decoded = _decoded_source(source)
+        image_size = decoded.size
+        input_array = self._letterbox(decoded)
         outputs = self.session.run(None, {self.input_name: input_array})
         arrays = [self._np.asarray(item) for item in outputs]
         proto = next((item for item in arrays if item.ndim == 4), None)
@@ -3135,9 +3157,9 @@ class LocalDetectionAssistant:
         key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size, str(self.model_path.resolve()))
         if key in _GLOBAL_OBJECT_CACHE:
             return _GLOBAL_OBJECT_CACHE[key]
-        with Image.open(source) as opened:
-            image_size = opened.size
-            input_array = self._letterbox(opened)
+        decoded = _decoded_source(source)
+        image_size = decoded.size
+        input_array = self._letterbox(decoded)
         output = self.session.run(None, {self.input_name: input_array})[0]
         _GLOBAL_OBJECT_CACHE[key] = result = self._decode(output, image_size)
         return result
