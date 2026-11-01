@@ -415,11 +415,11 @@ class ModelParallelismTests(unittest.TestCase):
 
     def test_limit_follows_physical_memory(self) -> None:
         for gib, expected in ((4, 1), (8, 2), (16, 4), (32, 4)):
-            with self.subTest(gib=gib), patch("os.sysconf", self._memory(gib)), patch("os.cpu_count", return_value=10):
+            with self.subTest(gib=gib), patch("os.sysconf", self._memory(gib), create=True), patch("os.cpu_count", return_value=10):
                 self.assertEqual(_model_parallelism(self._Service()), expected)
 
     def test_limit_never_exceeds_cpu_count(self) -> None:
-        with patch("os.sysconf", self._memory(32)), patch("os.cpu_count", return_value=2):
+        with patch("os.sysconf", self._memory(32), create=True), patch("os.cpu_count", return_value=2):
             self.assertEqual(_model_parallelism(self._Service()), 2)
 
 
