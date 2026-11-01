@@ -29,6 +29,7 @@ from .contracts import (
     build_vip_request,
     validate_run_mode,
 )
+from .legacy_engine.output_names import original_output_stem, unique_output_stems
 from .renderer import Renderer
 
 
@@ -479,7 +480,8 @@ class V3EngineAdapter:
         from .classification import ClassificationRequest, _material_sources
         from .v3_classification import V3ClassifierAdapter
 
-        sources = [p for p in _material_sources(request.product_root) if request.source_filter is None or str(p) in request.source_filter]
+        all_sources = _material_sources(request.product_root)
+        sources = [p for p in all_sources if request.source_filter is None or str(p) in request.source_filter]
         if not sources:
             return {"sources": 0, "main_images": 0, "model_images": 0, "transparent_images": 0, "vip_images": 0, "render_workers": 0, "failures": [], "outputs": [], "validation": {"passed": 0, "failed": 0}, "audit": {"checked_outputs": 0}}
         timings: dict[str, float | int] = {}
@@ -511,7 +513,16 @@ class V3EngineAdapter:
         supplied_plans = {
             (plan.source, plan.size): plan for plan in request.composition_plans
         }
-        short_names = self._short_names(sources, request.product_root)
+        short_names = self._short_names(all_sources, request.product_root)
+        base_stems = {
+            source: (
+                short_names[source]
+                if request.naming_mode == "short"
+                else original_output_stem(source)
+            )
+            for source in all_sources
+        }
+        output_stems = unique_output_stems(all_sources, request.product_root, base_stems)
         outputs: list[str] = []
         failures: list[dict[str, str]] = []
         review_items: dict[str, dict[str, object]] = {}
@@ -613,13 +624,7 @@ class V3EngineAdapter:
                     plan = _typed_plans_from_metadata(source, metadata).get(size)
                 plans_by_size[size] = plan
                 diagnostic["plans"][size] = self._diagnostic_plan(plan)  # type: ignore[index]
-                filename = (
-                    f"{short_names[source]}.jpg"
-                    if request.naming_mode == "short"
-                    else f"{source.stem}_png.jpg"
-                    if source.suffix.lower() == ".png"
-                    else f"{source.stem}_jpg.jpg"
-                )
+                filename = f"{output_stems[source]}.jpg"
                 output_dir = request.output_root / output_category
                 if group:
                     output_dir /= group
@@ -761,7 +766,7 @@ class V3EngineAdapter:
 
             if source.suffix.lower() == ".png" and request.selected_sizes:
                 for size in ("800x800", "1440x1440", "1440x1920", "1440x2160"):
-                    transparent_path = request.output_root / TRANSPARENT_ROOT / size / f"{short_names[source]}_透明.png"
+                    transparent_path = request.output_root / TRANSPARENT_ROOT / size / f"{output_stems[source]}_透明.png"
                     transparent_request = build_transparent_request(
                         str(source),
                         str(request.output_root),

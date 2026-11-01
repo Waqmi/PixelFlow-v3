@@ -18,6 +18,11 @@ from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, ImageStat
 
+try:
+    from .output_names import original_output_stem, unique_output_stems
+except ImportError:
+    from output_names import original_output_stem, unique_output_stems
+
 from output_validator import ValidationIssue, audit_output_tree, validate_output
 from local_model_assistant import (
     resolve_model_source_type,
@@ -1108,8 +1113,13 @@ def _build_short_source_names(
 
 
 def _source_output_stem(
-    source: Path, short_names: dict[Path, str] | None, naming_mode: str
+    source: Path,
+    short_names: dict[Path, str] | None,
+    naming_mode: str,
+    output_stems: dict[Path, str] | None = None,
 ) -> str:
+    if output_stems is not None and source in output_stems:
+        return output_stems[source]
     if naming_mode == "short" and short_names is not None:
         return short_names.get(source, f"素材_{source.stem[:SHORT_NAME_MAX_LENGTH]}")
     return output_stem(source)
@@ -1237,6 +1247,7 @@ def generate_selling_point_images(
     short_group_names: dict[Path, str] | None = None,
     naming_mode: str = "original",
     source_records: dict[Path, dict[str, object]] | None = None,
+    output_stems: dict[Path, str] | None = None,
 ) -> int:
     """Assign configured selling points, using AI matches when available."""
     if not selling_points:
@@ -1280,7 +1291,7 @@ def generate_selling_point_images(
                 output_dir = output_root / "卖点图" / group_name / size_name
                 output_dir.mkdir(parents=True, exist_ok=True)
                 short_point = _safe_filename_component(point, 12)
-                output_path = output_dir / f"{_source_output_stem(source, short_names, naming_mode)}_{short_point}.jpg"
+                output_path = output_dir / f"{_source_output_stem(source, short_names, naming_mode, output_stems)}_{short_point}.jpg"
                 save_jpeg_with_limit(canvas, output_path, max_size_mb)
                 if generated_paths is not None:
                     generated_paths.add(output_path)
@@ -1315,6 +1326,7 @@ def generate_transparent_products(
     naming_mode: str = "original",
     source_records: dict[Path, dict[str, object]] | None = None,
     allowed_source_paths: set[Path] | None = None,
+    output_stems: dict[Path, str] | None = None,
 ) -> int:
     count = 0
     for color_dir in _material_dirs(product_root):
@@ -1371,7 +1383,7 @@ def generate_transparent_products(
                         canvas.alpha_composite(working, position)
                     output_dir = output_root / "透明产品图" / size_name
                     output_dir.mkdir(parents=True, exist_ok=True)
-                    output_path = output_dir / f"{_source_output_stem(png, short_names, naming_mode)}_透明.png"
+                    output_path = output_dir / f"{_source_output_stem(png, short_names, naming_mode, output_stems)}_透明.png"
                     save_png_with_limit(canvas, output_path, max_size_mb)
                     if generated_paths is not None:
                         generated_paths.add(output_path)
@@ -1834,10 +1846,15 @@ def generate_images(
     # Build names from the complete input set so a retry-only run produces
     # exactly the same output paths as the original batch.
     short_names, short_group_names = _build_short_source_names(all_sources, product_root)
+    base_stems = {
+        source: short_names[source] if naming_mode == "short" else original_output_stem(source)
+        for source in all_sources
+    }
+    output_stems = unique_output_stems(all_sources, product_root, base_stems)
     source_mappings = [
         {
             "short_name": short_names[source],
-            "output_stem": _source_output_stem(source, short_names, naming_mode),
+            "output_stem": output_stems[source],
             "original_name": source.name,
             "original_path": source.relative_to(product_root).as_posix(),
         }
@@ -2383,7 +2400,7 @@ def generate_images(
                         output_dir /= output_group_name
                     output_dir = output_dir / size_name / logo_state
                     output_dir.mkdir(parents=True, exist_ok=True)
-                    output_path = output_dir / f"{_source_output_stem(source, short_names, naming_mode)}.jpg"
+                    output_path = output_dir / f"{_source_output_stem(source, short_names, naming_mode, output_stems)}.jpg"
                     save_jpeg_with_limit(canvas.convert("RGB"), output_path, max_size_mb)
                     local_paths.add(output_path)
                     local_validation.extend(validate_output(output_path, size, "RGB", max_size_mb))
@@ -2483,6 +2500,7 @@ def generate_images(
             naming_mode,
             source_records_by_path,
             set(sources),
+            output_stems,
         )
         vip_count = (
             generate_vip_square_images(
@@ -2529,6 +2547,7 @@ def generate_images(
                 short_group_names,
                 naming_mode,
                 source_records_by_path,
+                output_stems,
             )
     audit = audit_output_tree(output_root, generated_paths, source_records_by_path)
     stale_removed = 0

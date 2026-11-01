@@ -247,6 +247,18 @@ fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Resu
     { Ok(None) }
 }
 
+#[tauri::command]
+fn authorize_logo_preview(path: String, key: String, state: State<'_, WorkerState>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
+    register_logo_preview(&mut guard, &path, &key)
+}
+
+fn register_logo_preview(guard: &mut WorkerSupervisor, path: &str, key: &str) -> Result<(), String> {
+    validate_logo(path, key)?;
+    remember_preview_root(guard, path);
+    Ok(())
+}
+
 fn validate_logo(path: &str, key: &str) -> Result<(), String> {
     let expected = if key.starts_with("logo_square_") { (1440, 1440) }
         else if key.starts_with("logo_tall_") { (1440, 1920) }
@@ -264,8 +276,13 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn windows_dialog(script: &str) -> Result<Option<String>, String> {
+    let script = windows_utf8_script(script);
     let mut command = Command::new("powershell");
-    command.args(["-NoProfile", "-STA", "-Command", script]);
+    command
+        .arg("-NoProfile")
+        .arg("-STA")
+        .arg("-Command")
+        .arg(&script);
     hide_console(&mut command);
     let output = command
         .output()
@@ -273,8 +290,22 @@ fn windows_dialog(script: &str) -> Result<Option<String>, String> {
     if !output.status.success() {
         return Err(format!("file dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
     }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let path = decode_windows_stdout(&output.stdout)?;
     Ok((!path.is_empty()).then_some(path))
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_utf8_script(script: &str) -> String {
+    format!(
+        "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); {script}"
+    )
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn decode_windows_stdout(output: &[u8]) -> Result<String, String> {
+    std::str::from_utf8(output)
+        .map(|path| path.trim().to_string())
+        .map_err(|error| format!("file dialog returned invalid UTF-8: {error}"))
 }
 
 #[tauri::command]
@@ -312,9 +343,13 @@ fn choose_save_path(
     #[cfg(target_os = "windows")]
     {
         let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
+        let script = windows_utf8_script(script);
         let mut command = Command::new("powershell");
         command
-            .args(["-NoProfile", "-STA", "-Command", script])
+            .arg("-NoProfile")
+            .arg("-STA")
+            .arg("-Command")
+            .arg(&script)
             .env("PIXELFLOW_FILE_NAME", default_name)
             .env("PIXELFLOW_FILE_FILTER", windows_filter)
             .env("PIXELFLOW_DIALOG_TITLE", prompt);
@@ -325,7 +360,7 @@ fn choose_save_path(
         if !output.status.success() {
             return Err(format!("save dialog failed: {}", String::from_utf8_lossy(&output.stderr)));
         }
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let path = decode_windows_stdout(&output.stdout)?;
         return Ok((!path.is_empty()).then_some(PathBuf::from(path)));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
@@ -910,7 +945,19 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
                 Some(resource)
             } else {
                 let executable = resource.join("pixelflow-worker");
-                executable.is_file().then_some(executable)
+                if executable.is_file() {
+                    Some(executable)
+                } else {
+                    #[cfg(target_os = "windows")]
+                    {
+                        let windows_executable = resource.join("pixelflow-worker.exe");
+                        windows_executable.is_file().then_some(windows_executable)
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        None
+                    }
+                }
             }
         });
     let (program, args, working_dir) = match bundled_worker {
@@ -1004,6 +1051,7 @@ fn main() {
             pick_directory,
             discover_models_directory,
             pick_file,
+            authorize_logo_preview,
             save_text_file,
             export_diagnostics,
             open_path
@@ -1036,6 +1084,36 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_logo_preview_registers_only_its_parent_scope() {
+        let path = std::env::temp_dir().join(format!("pixelflow-logo-{}.png", std::process::id()));
+        let mut png_header = vec![0; 26];
+        png_header[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        png_header[12..16].copy_from_slice(b"IHDR");
+        png_header[16..20].copy_from_slice(&1440u32.to_be_bytes());
+        png_header[20..24].copy_from_slice(&1440u32.to_be_bytes());
+        png_header[25] = 6;
+        std::fs::write(&path, png_header).unwrap();
+
+        let mut supervisor = WorkerSupervisor {
+            process: None,
+            restart_history: VecDeque::new(),
+            active_task_id: None,
+            preview_roots: Vec::new(),
+            shutting_down: false,
+        };
+        let path = path.to_string_lossy().into_owned();
+        register_logo_preview(&mut supervisor, &path, "logo_square_dark").unwrap();
+
+        let parent = PathBuf::from(&path).parent().unwrap().to_string_lossy().into_owned();
+        let request = serde_json::json!({
+            "payload": { "path": path, "allowed_roots": [parent] }
+        });
+        assert!(validate_preview_request(&supervisor, &request).is_ok());
+        assert_eq!(supervisor.preview_roots.len(), 1);
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn restart_budget_stops_after_three_attempts() {
@@ -1078,6 +1156,13 @@ mod tests {
         std::fs::write(models.join("pose").join("yolo11n-pose.onnx"), b"test").unwrap();
         assert_eq!(discover_models_under(&root).as_deref(), Some(models.as_path()));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn windows_dialog_output_is_decoded_as_utf8() {
+        assert!(windows_utf8_script("Write-Output test").contains("UTF8Encoding"));
+        assert_eq!(decode_windows_stdout("文档\n".as_bytes()).unwrap(), "文档");
+        assert!(decode_windows_stdout(&[0xff]).is_err());
     }
 
     #[test]
