@@ -327,7 +327,10 @@ const classificationModelStatus = computed(() => {
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
-const displayProgress = computed(() => generationStarted.value ? progress.value : classificationProgress.value)
+// Two stage bars: classification stays full once generation starts, so the
+// hand-off from the confirmation dialog never moves a bar backwards.
+const classificationStageProgress = computed(() => generationStarted.value ? 1000 : classificationProgress.value)
+const generationStageProgress = computed(() => generationStarted.value ? progress.value : 0)
 const classificationAwaitingConfirmation = computed(() => Boolean(classifiedInputRoot.value)
   && classifiedInputRoot.value === inputRoot.value
   && classifiedOptionsKey.value === currentClassificationKey()
@@ -2214,7 +2217,10 @@ function startGeneration() {
           <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong aria-live="polite" aria-atomic="true">{{ taskDetail }}</strong></div>
           <div class="run-actions"><button v-if="resumeAvailable && !isRunning && !classificationRunning" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button type="button" class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button type="button" class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
         </section>
-        <div v-if="classificationRunning || classificationAwaitingConfirmation || isRunning || progressComplete" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(displayProgress)"><span :data-complete="progressComplete" :style="{ width: `${displayProgress / 10}%` }" /></div>
+        <div v-if="classificationRunning || classificationAwaitingConfirmation || isRunning || progressComplete" class="progress-stages">
+          <div class="progress-stage" :data-active="!generationStarted"><span class="progress-stage-label">识别分类</span><div class="progress-track progress-bar-bottom" role="progressbar" aria-label="识别分类进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(classificationStageProgress)"><span :style="{ width: `${classificationStageProgress / 10}%` }" /></div></div>
+          <div class="progress-stage" :data-active="generationStarted"><span class="progress-stage-label">生成输出</span><div class="progress-track progress-bar-bottom" role="progressbar" aria-label="生成输出进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(generationStageProgress)"><span :data-complete="progressComplete" :style="{ width: `${generationStageProgress / 10}%` }" /></div></div>
+        </div>
       </div>
     </section>
 
