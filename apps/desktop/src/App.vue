@@ -327,14 +327,42 @@ const classificationModelStatus = computed(() => {
 const previewConcurrencyLimit = computed(() => classificationConcurrency.value === 'conservative' ? 2 : 4)
 const mainWindowTitle = 'PixelFlow'
 const canStart = computed(() => Boolean(inputRoot.value.trim() && outputRoot.value.trim() && selectedSizes.value.length && !isRunning.value && !classificationRunning.value))
-// Two stage bars: classification stays full once generation starts, so the
-// hand-off from the confirmation dialog never moves a bar backwards.
-const classificationStageProgress = computed(() => generationStarted.value ? 1000 : classificationProgress.value)
-const generationStageProgress = computed(() => generationStarted.value ? progress.value : 0)
+const stageProgress = computed(() => generationStarted.value ? progress.value : classificationProgress.value)
+// One bar for both stages.  When a stage starts from empty (classification ->
+// generation, retry, resume) the full bar fades out and comes back empty
+// instead of shrinking back to the start.
+const barProgress = ref(0)
+const barFading = ref(false)
+const barResetting = ref(false)
+const progressFadeMs = 300
+let barFadeTimer: number | undefined
 const classificationAwaitingConfirmation = computed(() => Boolean(classifiedInputRoot.value)
   && classifiedInputRoot.value === inputRoot.value
   && classifiedOptionsKey.value === currentClassificationKey()
   && !materialConfirmed.value)
+const progressBarVisible = computed(() => classificationRunning.value || classificationAwaitingConfirmation.value || isRunning.value || progressComplete.value)
+watch([stageProgress, progressBarVisible], ([value, visible], [, wasVisible]) => {
+  // While fading, the end of the fade picks up the latest value.
+  if (barFadeTimer !== undefined) return
+  if (!visible || !wasVisible || value >= barProgress.value - 1) {
+    barProgress.value = value
+    return
+  }
+  barFading.value = true
+  barFadeTimer = window.setTimeout(() => {
+    // Swap the width while the bar is invisible, without its width transition.
+    barResetting.value = true
+    barProgress.value = stageProgress.value
+    // Two frames: the first paints the new width, the second restores transitions.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      barResetting.value = false
+      barFading.value = false
+      barFadeTimer = undefined
+      barProgress.value = stageProgress.value
+    }))
+  }, reducedMotion.value ? 0 : progressFadeMs)
+})
+onBeforeUnmount(() => window.clearTimeout(barFadeTimer))
 const outputSummary = computed(() => {
   const validation = lastResult.value.validation as { passed?: unknown } | undefined
   const legacyCount = ['main_images', 'model_images', 'transparent_images', 'vip_images', 'selling_point_images']
@@ -2217,10 +2245,7 @@ function startGeneration() {
           <div class="status-copy"><h2>生成状态</h2><span :key="taskPhase" class="status-phase">{{ taskPhase }}</span><strong aria-live="polite" aria-atomic="true">{{ taskDetail }}</strong></div>
           <div class="run-actions"><button v-if="resumeAvailable && !isRunning && !classificationRunning" type="button" class="outline-button resume-button" @click="resumeTask">继续未完成</button><button type="button" class="cancel-button" :disabled="(!isRunning && !classificationRunning) || isCancelling" @click="cancelGeneration">{{ isCancelling ? '取消中…' : '停止' }}</button><button type="button" class="primary-button" :class="{ busy: classificationRunning || isRunning }" :disabled="!canStart" :aria-busy="classificationRunning || isRunning" @click="startGeneration"><span>{{ classificationRunning ? '正在分析' : isRunning ? '任务已准备' : '开始生成' }}</span></button></div>
         </section>
-        <div v-if="classificationRunning || classificationAwaitingConfirmation || isRunning || progressComplete" class="progress-stages">
-          <div class="progress-stage" :data-active="!generationStarted"><span class="progress-stage-label">识别分类</span><div class="progress-track progress-bar-bottom" role="progressbar" aria-label="识别分类进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(classificationStageProgress)"><span :style="{ width: `${classificationStageProgress / 10}%` }" /></div></div>
-          <div class="progress-stage" :data-active="generationStarted"><span class="progress-stage-label">生成输出</span><div class="progress-track progress-bar-bottom" role="progressbar" aria-label="生成输出进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(generationStageProgress)"><span :data-complete="progressComplete" :style="{ width: `${generationStageProgress / 10}%` }" /></div></div>
-        </div>
+        <div v-if="progressBarVisible" class="progress-track progress-bar-bottom" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="1000" :aria-valuenow="Math.round(stageProgress)"><span :data-complete="progressComplete" :data-fading="barFading" :data-resetting="barResetting" :style="{ width: `${barProgress / 10}%` }" /></div>
       </div>
     </section>
 
