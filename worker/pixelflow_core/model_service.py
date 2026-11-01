@@ -257,6 +257,39 @@ def _worker_main(request_queue: Any, response_queue: Any) -> None:
             )
 
 
+_INFERENCE_PURPOSES = {
+    "compose": "pose",
+    "segment": "segmentation",
+    "detect_shoes": "detection",
+    "detect_boxes": "detection",
+}
+
+
+def _run_inference(action: str, assistant: Any, payload: Dict[str, Any]) -> Any:
+    """Run one in-process inference request on an already loaded assistant."""
+    if action == "compose":
+        result = dict(
+            assistant.compose_for_sizes(
+                Path(payload["source"]),
+                payload["sizes"],
+                product_category=payload.get("product_category"),
+                segmentation=payload.get("segmentation"),
+                shoe_boxes=payload.get("shoe_boxes"),
+                detector_boxes=payload.get("detector_boxes"),
+            )
+        )
+    elif action == "segment":
+        result = dict(assistant.segment(Path(payload["source"])))
+    elif action == "detect_shoes":
+        return assistant.shoe_boxes(Path(payload["source"]))
+    else:
+        return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
+    result.setdefault("model_status", STATUS_READY)
+    result.setdefault("state", STATE_READY)
+    result.setdefault("fallback", False)
+    return result
+
+
 class ModelProcessService:
     """Synchronous client used from Worker background threads."""
 
@@ -393,8 +426,24 @@ class ModelProcessService:
             self._restart()
             raise ModelProcessError(message)
 
+    @property
+    def supports_concurrent_requests(self) -> bool:
+        """In-process inference can serve several Worker threads at once.
+
+        The spawned-process path keeps one request queue per process and stays
+        serial.
+        """
+        return self._direct
+
     def _request_in_process(self, action: str, **payload: Any) -> Any:
         """Run one model request without spawning a second macOS process."""
+        purpose = _INFERENCE_PURPOSES.get(action)
+        if purpose is not None:
+            # Only model loading is serialised.  ONNX Runtime sessions and the
+            # assistants' per-source result caches are shared across threads.
+            with self._lock:
+                assistant = _load_assistant(self._direct_assistants, payload["model_root"], purpose)
+            return _run_inference(action, assistant, payload)
         with self._lock:
             if action == "ping":
                 return "ready"
@@ -408,35 +457,6 @@ class ModelProcessService:
                     "state": STATE_READY,
                     "model_version": file_version(getattr(assistant, "model_path", None)),
                 }
-            if action == "compose":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "pose")
-                result = dict(
-                    assistant.compose_for_sizes(
-                        Path(payload["source"]),
-                        payload["sizes"],
-                        product_category=payload.get("product_category"),
-                        segmentation=payload.get("segmentation"),
-                        shoe_boxes=payload.get("shoe_boxes"),
-                        detector_boxes=payload.get("detector_boxes"),
-                    )
-                )
-                result.setdefault("model_status", STATUS_READY)
-                result.setdefault("state", STATE_READY)
-                result.setdefault("fallback", False)
-                return result
-            if action == "segment":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "segmentation")
-                result = dict(assistant.segment(Path(payload["source"])))
-                result.setdefault("model_status", STATUS_READY)
-                result.setdefault("state", STATE_READY)
-                result.setdefault("fallback", False)
-                return result
-            if action == "detect_shoes":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
-                return assistant.shoe_boxes(Path(payload["source"]))
-            if action == "detect_boxes":
-                assistant = _load_assistant(self._direct_assistants, payload["model_root"], "detection")
-                return assistant.boxes_for(Path(payload["source"]), str(payload.get("category", "shoes")))
             if action == "probe":
                 result: Dict[str, Dict[str, Any]] = {}
                 for purpose in MODEL_PURPOSES:

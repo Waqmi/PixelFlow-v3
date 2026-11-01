@@ -13,6 +13,7 @@ from pixelflow_core.classification import (
     ClassificationRequest,
     V26ClassifierAdapter,
     _merge_composition_metadata,
+    _model_parallelism,
     classification_summary,
     _material_sources,
 )
@@ -398,6 +399,28 @@ class AnchoredCloseupSourceTypeTests(unittest.TestCase):
     def test_other_categories_and_unanchored_stay_model_detail(self) -> None:
         self.assertEqual(self._resolve("shirt", "anchor_crop", "model_detail").source_type, "model_detail")
         self.assertEqual(self._resolve("hat", "zoom_focus", "model_detail").source_type, "model_detail")
+
+
+class ModelParallelismTests(unittest.TestCase):
+    class _Service:
+        supports_concurrent_requests = True
+
+    @staticmethod
+    def _memory(gib: int):
+        page = 16384
+        return lambda name: page if name == "SC_PAGE_SIZE" else gib * 1024 ** 3 // page
+
+    def test_serial_service_runs_one_source_at_a_time(self) -> None:
+        self.assertEqual(_model_parallelism(object()), 1)
+
+    def test_limit_follows_physical_memory(self) -> None:
+        for gib, expected in ((4, 1), (8, 2), (16, 4), (32, 4)):
+            with self.subTest(gib=gib), patch("os.sysconf", self._memory(gib)), patch("os.cpu_count", return_value=10):
+                self.assertEqual(_model_parallelism(self._Service()), expected)
+
+    def test_limit_never_exceeds_cpu_count(self) -> None:
+        with patch("os.sysconf", self._memory(32)), patch("os.cpu_count", return_value=2):
+            self.assertEqual(_model_parallelism(self._Service()), 2)
 
 
 if __name__ == "__main__":

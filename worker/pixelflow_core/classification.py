@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import asdict, dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Event
 from typing import Callable
@@ -297,6 +298,24 @@ def _merge_composition_metadata(
     return result
 
 
+def _model_parallelism(service: object) -> int:
+    """How many sources may run model inference at once on this machine.
+
+    Each in-flight source holds one decoded camera-sized image.  Measured on
+    2026-11-01 (M4, 16 GB): the Worker peaked at about 2.2-2.8 GB with two
+    sources and 2.8-3.1 GB with four, versus 1.5-2.1 GB serially.
+    """
+    if not getattr(service, "supports_concurrent_requests", False):
+        return 1
+    try:
+        total_memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, OSError, ValueError):
+        return 1
+    gib = 1024 ** 3
+    limit = 4 if total_memory >= 15 * gib else 2 if total_memory >= 7 * gib else 1
+    return max(1, min(limit, os.cpu_count() or 1))
+
+
 def _material_sources(product_root: Path) -> list[Path]:
     sources: list[Path] = []
 
@@ -423,6 +442,7 @@ class V26ClassifierAdapter:
                 category,
                 request.cancel_event,
                 request.stage_progress,
+                workers=request.workers,
             )
         return [_typed_decision(source, decision) for source, decision in decisions.items()]
 
@@ -433,6 +453,7 @@ class V26ClassifierAdapter:
         category: str | None,
         cancel_event: Event | None,
         stage_progress: ClassificationStageProgress | None = None,
+        workers: int = 1,
     ):
         """Match v2.6 confirmation behavior without importing Qt."""
         root_text = str(model_root).strip()
@@ -609,80 +630,103 @@ class V26ClassifierAdapter:
                     pass
                 return []
 
-            def run_pose(sources_to_check: list[Path]) -> None:
-                for index, source in enumerate(sources_to_check, start=1):
-                    if cancel_event is not None and cancel_event.is_set():
-                        raise ClassificationCancelled()
-                    decision = decisions[source]
-                    try:
-                        composition = (
-                            load_model_result(
+            def analyze_pose(source: Path):
+                """Pose (plus anchor Seg and detector boxes) for one source; returns its new decision."""
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ClassificationCancelled()
+                decision = decisions[source]
+                try:
+                    composition = (
+                        load_model_result(
+                            source,
+                            pose_model_path,
+                            "pose",
+                            category,
+                            output_size="all",
+                            detection_model_path=detection_model_path,
+                            source_version=cache_source_version(source),
+                        )
+                        if pose_model_path is not None
+                        else None
+                    )
+                    if composition is None:
+                        composition = service.compose_for_sizes(
+                            root_text, source, SIZES, product_category=category
+                        )
+                        segmentation = anchor_segmentation(source, composition)
+                        boxes = detector_boxes(source)
+                        if segmentation is not None or boxes:
+                            # Pose detections are cached in-process, so the
+                            # second pass only recomputes the crop window.
+                            extra = {"detector_boxes": boxes} if boxes else {}
+                            composition = service.compose_for_sizes(
+                                root_text, source, SIZES, product_category=category,
+                                segmentation=segmentation, **extra,
+                            )
+                        if pose_model_path is not None:
+                            store_model_result(
                                 source,
                                 pose_model_path,
                                 "pose",
                                 category,
+                                composition,
                                 output_size="all",
                                 detection_model_path=detection_model_path,
                                 source_version=cache_source_version(source),
                             )
-                            if pose_model_path is not None
-                            else None
-                        )
-                        if composition is None:
-                            composition = service.compose_for_sizes(
-                                root_text, source, SIZES, product_category=category
-                            )
-                            segmentation = anchor_segmentation(source, composition)
-                            boxes = detector_boxes(source)
-                            if segmentation is not None or boxes:
-                                # Pose detections are cached in-process, so the
-                                # second pass only recomputes the crop window.
-                                extra = {"detector_boxes": boxes} if boxes else {}
-                                composition = service.compose_for_sizes(
-                                    root_text, source, SIZES, product_category=category,
-                                    segmentation=segmentation, **extra,
-                                )
-                            if pose_model_path is not None:
-                                store_model_result(
-                                    source,
-                                    pose_model_path,
-                                    "pose",
-                                    category,
-                                    composition,
-                                    output_size="all",
-                                    detection_model_path=detection_model_path,
-                                    source_version=cache_source_version(source),
-                                )
-                        updated = resolve_model_source_type(decision, composition, category)
-                        metadata = _merge_composition_metadata(
-                            dict(updated.metadata or {}),
-                            composition,
-                            category,
-                            source=str(source),
-                            purpose="pose",
-                        )
-                        decisions[source] = type(updated)(
-                            updated.source_type, updated.confidence, updated.source,
-                            updated.reason, metadata=metadata,
-                        )
-                    except Exception as error:
-                        from .model_service import _fallback_composition
+                    updated = resolve_model_source_type(decision, composition, category)
+                    metadata = _merge_composition_metadata(
+                        dict(updated.metadata or {}),
+                        composition,
+                        category,
+                        source=str(source),
+                        purpose="pose",
+                    )
+                    return type(updated)(
+                        updated.source_type, updated.confidence, updated.source,
+                        updated.reason, metadata=metadata,
+                    )
+                except Exception as error:
+                    from .model_service import _fallback_composition
 
-                        fallback = _fallback_composition(SIZES, f"Pose：{error}")
-                        metadata = _merge_composition_metadata(
-                            dict(decision.metadata or {}),
-                            fallback,
-                            category,
-                            source=str(source),
-                            purpose="pose",
-                        )
-                        metadata["model_error"] = f"Pose：{error}"
-                        decisions[source] = type(decision)(
-                            decision.source_type, decision.confidence, decision.source,
-                            decision.reason, metadata=metadata,
-                        )
-                    if stage_progress is not None:
-                        stage_progress("Pose", index, len(sources_to_check), source)
+                    fallback = _fallback_composition(SIZES, f"Pose：{error}")
+                    metadata = _merge_composition_metadata(
+                        dict(decision.metadata or {}),
+                        fallback,
+                        category,
+                        source=str(source),
+                        purpose="pose",
+                    )
+                    metadata["model_error"] = f"Pose：{error}"
+                    return type(decision)(
+                        decision.source_type, decision.confidence, decision.source,
+                        decision.reason, metadata=metadata,
+                    )
+
+            pose_workers = max(1, min(int(workers or 1), _model_parallelism(service)))
+
+            def run_pose(sources_to_check: list[Path]) -> None:
+                total = len(sources_to_check)
+                if pose_workers <= 1 or total <= 1:
+                    for index, source in enumerate(sources_to_check, start=1):
+                        decisions[source] = analyze_pose(source)
+                        if stage_progress is not None:
+                            stage_progress("Pose", index, total, source)
+                    return
+                # Sources are independent, so several run at once; results and
+                # progress are applied here on the classification thread.
+                with ThreadPoolExecutor(max_workers=min(pose_workers, total), thread_name_prefix="PixelFlowPose") as executor:
+                    futures = {executor.submit(analyze_pose, source): source for source in sources_to_check}
+                    try:
+                        for index, future in enumerate(as_completed(futures), start=1):
+                            source = futures[future]
+                            decisions[source] = future.result()
+                            if stage_progress is not None:
+                                stage_progress("Pose", index, total, source)
+                    except BaseException:
+                        for pending in futures:
+                            pending.cancel()
+                        raise
 
             run_pose(pose_sources)
             expanded_sources: list[Path] = []
