@@ -1755,8 +1755,8 @@ function classifyMaterials(fromResume = false) {
   const workers = classificationConcurrency.value === 'conservative'
     ? 1
     : classificationConcurrency.value === 'performance'
-      ? Math.min(4, navigator.hardwareConcurrency || 4)
-      : Math.min(4, Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)))
+      ? Math.min(8, navigator.hardwareConcurrency || 4)
+      : Math.min(8, Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)))
   const classificationPayload = {
     product_root: inputRoot.value,
     output_root: outputRoot.value,
@@ -2228,7 +2228,7 @@ function startGeneration() {
             <section class="settings-page-intro"><h3>通用设置</h3><p>控制界面反馈和处理过程中的通用行为。系统启用“减少动态效果”时会自动关闭动画。</p></section>
             <label class="general-setting-row"><span><strong>主题模式</strong><small>可跟随 macOS 外观，也可固定使用浅色或夜间模式</small></span><select v-model="theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">夜间</option></select></label>
             <label class="general-setting-row"><span><strong>界面动画</strong><small>关闭确认卡片入场、核心按钮磁吸、进度过冲和状态弹性反馈</small></span><span class="general-check"><input v-model="reducedMotion" type="checkbox" />关闭动画</span></label>
-            <label class="general-setting-row"><span><strong>分类并发级别</strong><small>预览并发 {{ previewConcurrencyLimit }} 张；自动按电脑性能调整分类线程，高性能最多使用 4 个分类线程，不会增加模型进程</small></span><select v-model="classificationConcurrency"><option value="auto">自动</option><option value="conservative">保守</option><option value="performance">高性能</option></select></label>
+            <label class="general-setting-row"><span><strong>分类并发级别</strong><small>预览并发 {{ previewConcurrencyLimit }} 张；自动按电脑性能调整分类线程，高性能最多使用 8 个分类线程，不会增加模型进程</small></span><select v-model="classificationConcurrency"><option value="auto">自动</option><option value="conservative">保守</option><option value="performance">高性能</option></select></label>
             <div class="general-setting-row"><span><strong>缓存</strong><small>清除 manifest 与 Pose/Seg 模型结果缓存；不会删除输出图片或模型文件</small></span><button class="settings-row-button" @click="clearCache">清理缓存</button></div>
           </template>
           <template v-else-if="settingsTab === 'output'">
