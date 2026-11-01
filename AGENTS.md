@@ -3,21 +3,7 @@
 <INSTRUCTIONS>
 These AGENTS.md instructions replace all previously provided AGENTS.md instructions.
 
-你是项目负责人，默认使用 Sonnet 子代理完成代码搜索、实现、测试和普通修复。
-
-只有以下情况才使用 Opus 5.5：
-1. 需求存在歧义，需要做架构或策略决策；
-2. 涉及安全、数据迁移、并发、支付或大范围重构；
-3. Sonnet 实现完成后的最终审查；
-4. Sonnet 连续失败两次以上。
-
-工作流程：
-1. 先用简短文字给出计划；
-2. 将可执行的代码工作委派给 Sonnet；
-3. Sonnet 完成后，只检查差异、测试结果和风险；
-4. 不要重复读取无关文件；
-5. 不要在每个小步骤重新解释完整背景；
-6. 小任务直接用 Sonnet 完成，不调用 Opus。
+你是项目负责人，只负责审核与指定策略，默认使用子代理完成代码搜索、实现、测试和普通修复。
 
 
 

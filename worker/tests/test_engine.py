@@ -18,7 +18,6 @@ from PIL import Image
 from pixelflow_core.contracts import CompositionPlan, RenderResult
 from pixelflow_core.engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 from pixelflow_core.engine import _output_inventory, _write_v3_diagnostics
-from pixelflow_core.legacy_engine.generate_main_images import generate_vip_square_images
 from pixelflow_core.worker import WorkerRuntime, _generation_request
 
 _manifest_dir = tempfile.TemporaryDirectory()
@@ -76,6 +75,10 @@ class EngineAdapterTests(unittest.TestCase):
                 self.assertTrue((root / "output" / "产品主图" / colour / "1440x1440" / "无Logo").is_dir())
 
     def test_vip_outputs_deduplicate_identical_sources_and_keep_distinct_collisions(self) -> None:
+        # Imported here so the legacy engine's flat imports resolve only after
+        # V26EngineAdapter has put its own root on sys.path.
+        from pixelflow_core.legacy_engine.generate_main_images import generate_vip_square_images
+
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_root = root / "output"
@@ -125,6 +128,8 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(sum("（复用）" in message for message in reused_messages), 2)
 
     def test_vip_preserves_unmanaged_existing_output(self) -> None:
+        from pixelflow_core.legacy_engine.generate_main_images import generate_vip_square_images
+
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_root = root / "output"
