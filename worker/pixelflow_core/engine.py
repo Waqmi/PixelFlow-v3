@@ -524,7 +524,7 @@ class V3EngineAdapter:
         diagnostics_by_source: dict[str, dict[str, object]] = {}
         main_count = model_count = transparent_count = vip_count = 0
         source_jobs: list[tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]] = []
-        render_workers = 1 if len(sources) <= 1 else min(3, len(sources))
+        render_workers = 1 if len(sources) <= 1 else min(4, len(sources))
         total = 0
         completed = 0
         for source in sources:

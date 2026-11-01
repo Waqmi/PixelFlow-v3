@@ -467,7 +467,7 @@ class V3ClassifierAdapter:
                 metadata=metadata,
             )
 
-        workers = 1 if len(sources) <= 1 else min(4, len(sources))
+        workers = 1 if len(sources) <= 1 else min(8, len(sources))
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="PixelFlowV3Classify") as executor:
             futures = {
                 executor.submit(classify_one, source): (index, source)
