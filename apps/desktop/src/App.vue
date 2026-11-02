@@ -256,6 +256,7 @@ let systemMedia: MediaQueryList | undefined
 let stopNativeThemeListener: (() => void) | undefined
 let stopSettingsListener: (() => void) | undefined
 let stopSettingsChangedListener: (() => void) | undefined
+let stopSettingsReopenListener: (() => void) | undefined
 let stopReportReadyListener: (() => void) | undefined
 let stopReportDataListener: (() => void) | undefined
 let stopReportActionListener: (() => void) | undefined
@@ -263,6 +264,7 @@ let stopConfirmReadyListener: (() => void) | undefined
 let stopConfirmDataListener: (() => void) | undefined
 let stopConfirmResultListener: (() => void) | undefined
 let stopDropListener: (() => void) | undefined
+let stopAuxiliaryCloseListener: (() => void) | undefined
 const previewUrls = new Set<string>()
 const previewLoadedSources = new Set<string>()
 const previewFailedSources = new Set<string>()
@@ -565,15 +567,19 @@ async function openSettings() {
     settingsOpen.value = true
     return
   }
+  const snapshot = currentSettings()
+  try { localStorage.setItem('pixelflow.output-settings', JSON.stringify(snapshot)) } catch { /* optional */ }
   const existing = await WebviewWindow.getByLabel('settings')
   if (existing) {
     const visible = await existing.isVisible().catch(() => true)
-    if (visible) {
+    try {
+      if (!visible) await emitTo('settings', 'settings-reopen', snapshot)
       await existing.show()
       await existing.setFocus()
-      return
+    } catch {
+      status.value = '设置窗口重新打开失败'
     }
-    await existing.close().catch(() => {})
+    return
   }
   const settingsWindow = new WebviewWindow('settings', {
     url: '/?view=settings',
@@ -600,23 +606,17 @@ async function closeSettings(save = false) {
   }
   settingsSnapshot = undefined
   if (isSettingsWindow && window.__TAURI_INTERNALS__) {
-    await closeOwnWindow()
+    await hideOwnWindow()
     return
   }
   settingsOpen.value = false
 }
 
-// Closing a secondary WebView from its own JS can crash the whole app on
-// macOS: WebKit touches the freed page on the next run-loop tick while the
-// main window becomes key (tauri-apps/wry#1730). Hide first, destroy later.
-let ownWindowClosing = false
-async function closeOwnWindow() {
-  if (ownWindowClosing) return
-  ownWindowClosing = true
-  const current = getCurrentWindow()
-  await current.hide().catch(() => {})
-  await new Promise((resolve) => window.setTimeout(resolve, 200))
-  await current.destroy().catch(() => current.close().catch(() => {}))
+async function hideOwnWindow() {
+  if (isSettingsWindow) settingsOpen.value = false
+  if (isConfirmWindow) confirmOpen.value = false
+  if (isReportWindow) reportOpen.value = false
+  await getCurrentWindow().hide().catch(() => {})
 }
 
 function reportSnapshot(): ReportSnapshot {
@@ -665,7 +665,7 @@ async function openReportWindow() {
 
 async function closeReport() {
   if (isReportWindow && window.__TAURI_INTERNALS__) {
-    await closeOwnWindow()
+    await hideOwnWindow()
     return
   }
   reportOpen.value = false
@@ -689,6 +689,7 @@ function confirmSnapshot(): ConfirmSnapshot {
 
 function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
   const snapshotKey = JSON.stringify({
+    inputRoot: snapshot.inputRoot,
     materials: snapshot.materials,
     excludedModelSources: snapshot.excludedModelSources || [],
     scaleAdjustments: snapshot.scaleAdjustments || {},
@@ -699,7 +700,12 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
     confirmOpen.value = true
     return
   }
-  if (isConfirmWindow) appliedConfirmSnapshotKey = snapshotKey
+  if (isConfirmWindow) {
+    appliedConfirmSnapshotKey = snapshotKey
+    previewSession += 1
+    previewQueue.length = 0
+    previewQueuedSources.clear()
+  }
   inputRoot.value = snapshot.inputRoot || inputRoot.value
   classifiedInputRoot.value = snapshot.inputRoot || classifiedInputRoot.value
   const previousMaterials = new Map(materials.value.map((material) => [material.source, material]))
@@ -711,7 +717,7 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
           ...material,
           previewUrl: previous.previewUrl,
           previewFailed: previous.previewFailed,
-          previewLoading: previous.previewLoading,
+          previewLoading: false,
           previewReady: previous.previewReady,
           isVisible: index < 20 && previous.isVisible === true,
         }
@@ -728,6 +734,21 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
   confirmOpen.value = true
   if (isConfirmWindow) {
     void nextTick(() => {
+      const activeSources = new Set(materials.value.map((material) => material.source))
+      for (const source of previewLoadedSources) {
+        if (!activeSources.has(source)) previewLoadedSources.delete(source)
+      }
+      for (const source of previewFailedSources) {
+        if (!activeSources.has(source)) previewFailedSources.delete(source)
+      }
+      const activePreviewUrls = new Set(
+        materials.value.map((material) => material.previewUrl).filter((url): url is string => Boolean(url)),
+      )
+      for (const url of previewUrls) {
+        if (activePreviewUrls.has(url)) continue
+        URL.revokeObjectURL(url)
+        previewUrls.delete(url)
+      }
       refreshMaterialPreviews()
       startPreviewObserver()
       setupCardObserver()
@@ -761,11 +782,11 @@ async function openConfirmWindow() {
     try {
       await existing.show()
       await existing.setFocus()
-      void emitTo('confirm', 'confirm-data', snapshot)
+      await emitTo('confirm', 'confirm-data', snapshot)
       return
     } catch {
-      // A stale WebView label can survive a crash/close. Recreate it below.
-      await existing.close().catch(() => {})
+      status.value = '素材确认窗口重新打开失败'
+      return
     }
   }
   const confirmWindow = new WebviewWindow('confirm', {
@@ -1337,6 +1358,15 @@ async function revealMainWindow() {
 }
 
 onMounted(() => {
+  if (window.__TAURI_INTERNALS__ && (isSettingsWindow || isConfirmWindow || isReportWindow)) {
+    const auxiliaryWindow = getCurrentWindow()
+    void auxiliaryWindow.onCloseRequested((event) => {
+      event.preventDefault()
+      if (isSettingsWindow) void closeSettings()
+      else if (isConfirmWindow) dismissMaterialConfirmation()
+      else void closeReport()
+    }).then((unlisten) => { stopAuxiliaryCloseListener = unlisten }).catch(() => {})
+  }
   let hasSavedModelPath = false
   const savedResume = readResumeTask()
   if (savedResume) {
@@ -1407,6 +1437,15 @@ onMounted(() => {
       handleConfirmResult(event.payload)
     }).then((unlisten) => { stopConfirmResultListener = unlisten })
   }
+  if (isSettingsWindow && window.__TAURI_INTERNALS__) {
+    void listen<SettingsSnapshot>('settings-reopen', (event) => {
+      applySettings(event.payload)
+      settingsSnapshot = { ...event.payload, logoOverrides: { ...event.payload.logoOverrides } }
+      settingsTab.value = 'brand'
+      settingsNotice.value = ''
+      settingsOpen.value = true
+    }).then((unlisten) => { stopSettingsReopenListener = unlisten })
+  }
   if (isReportWindow && window.__TAURI_INTERNALS__) {
     void listen<ReportSnapshot>('report-data', (event) => {
       applyReportSnapshot(event.payload)
@@ -1461,6 +1500,7 @@ onBeforeUnmount(() => {
 onBeforeUnmount(() => Object.values(logoPreviews.value).forEach((url) => URL.revokeObjectURL(url)))
 onBeforeUnmount(() => stopSettingsListener?.())
 onBeforeUnmount(() => stopSettingsChangedListener?.())
+onBeforeUnmount(() => stopSettingsReopenListener?.())
 onBeforeUnmount(() => stopReportReadyListener?.())
 onBeforeUnmount(() => stopReportDataListener?.())
 onBeforeUnmount(() => stopReportActionListener?.())
@@ -1468,6 +1508,7 @@ onBeforeUnmount(() => stopConfirmReadyListener?.())
 onBeforeUnmount(() => stopConfirmDataListener?.())
 onBeforeUnmount(() => stopConfirmResultListener?.())
 onBeforeUnmount(() => stopDropListener?.())
+onBeforeUnmount(() => stopAuxiliaryCloseListener?.())
 onBeforeUnmount(() => {
   if (typeof systemMedia?.removeEventListener === 'function') systemMedia.removeEventListener('change', onMediaThemeChange)
   else systemMedia?.removeListener?.(onMediaThemeChange)
@@ -1554,8 +1595,10 @@ watch(confirmOpen, (open) => {
     previewObserver?.disconnect()
     previewObserver = undefined
     if (previewBackgroundTimer) window.clearTimeout(previewBackgroundTimer)
+    previewBackgroundTimer = 0
     previewBackgroundIndex = 0
     if (previewScrollTimer) window.clearTimeout(previewScrollTimer)
+    previewScrollTimer = 0
     previewScrollRoot?.removeEventListener('scroll', onPreviewScroll)
     previewScrollRoot = undefined
     previewScrolling = false
@@ -1566,7 +1609,7 @@ watch(confirmOpen, (open) => {
     refreshMaterialPreviews()
     startPreviewObserver()
   })
-}, { immediate: isConfirmWindow })
+}, { immediate: isConfirmWindow, flush: 'sync' })
 
 watch(settingsOpen, (open) => { if (open) focusFirstDialogControl('.settings-dialog') })
 watch(confirmOpen, (open) => { if (open) focusFirstDialogControl('.confirmation-dialog') })
@@ -1926,11 +1969,13 @@ async function loadMaterialPreview(material: MaterialDecision, session = preview
     target.previewUrl = url
     target.previewFailed = false
   } catch {
-    const target = session === previewSession ? (currentMaterial() || material) : material
-    target.previewUrl = ''
-    target.previewFailed = true
-    target.previewReady = false
-    previewFailedSources.add(material.source)
+    if (session === previewSession) {
+      const target = currentMaterial() || material
+      target.previewUrl = ''
+      target.previewFailed = true
+      target.previewReady = false
+      previewFailedSources.add(material.source)
+    }
   } finally {
     material.previewLoading = false
     if (session === previewSession) {
@@ -1995,7 +2040,10 @@ function refreshMaterialPreviews(priority = false) {
 }
 
 function setPreviewElement(material: MaterialDecision, element: unknown) {
-  if (!(element instanceof HTMLElement)) return
+  if (!(element instanceof HTMLElement)) {
+    previewElements.delete(material.source)
+    return
+  }
   previewElements.set(material.source, element)
   if (previewObserver) previewObserver.observe(element)
 }
@@ -2090,7 +2138,7 @@ function confirmMaterials() {
   if (isConfirmWindow && window.__TAURI_INTERNALS__) {
     void (async () => {
       await emitTo('main', 'confirm-result', { ...confirmSnapshot(), action: 'confirm' })
-      await closeOwnWindow()
+      await hideOwnWindow()
     })()
     return
   }
@@ -2103,7 +2151,7 @@ function dismissMaterialConfirmation() {
   if (isConfirmWindow && window.__TAURI_INTERNALS__) {
     void (async () => {
       await emitTo('main', 'confirm-result', { ...confirmSnapshot(), action: 'cancel' })
-      await closeOwnWindow()
+      await hideOwnWindow()
     })()
     return
   }
