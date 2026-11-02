@@ -331,6 +331,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .category-menu button,.compact-menu button,.settings-tabs button,.text-button{transition:color .14s var(--ease-standard),background-color .14s var(--ease-standard),border-color .14s var(--ease-standard)}
 .category-menu button:active,.compact-menu button:active{transform:scale(.985)}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--selected-border);outline-offset:2px}
+/* Dialog containers take focus only to trap Tab; older WebKit (macOS 11/12) draws its focus ring on them as full-width blue bars. */
+[role="dialog"][tabindex="-1"]:focus{outline:none}
 .reduce-motion *,.reduce-motion *::before,.reduce-motion *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 .reduce-motion button:hover:not(:disabled),.reduce-motion button:active:not(:disabled),.reduce-motion .option-card:hover,.reduce-motion .option-card:active{transform:none!important}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

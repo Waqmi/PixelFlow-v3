@@ -600,10 +600,23 @@ async function closeSettings(save = false) {
   }
   settingsSnapshot = undefined
   if (isSettingsWindow && window.__TAURI_INTERNALS__) {
-    await WebviewWindow.getCurrent().close()
+    await closeOwnWindow()
     return
   }
   settingsOpen.value = false
+}
+
+// Closing a secondary WebView from its own JS can crash the whole app on
+// macOS: WebKit touches the freed page on the next run-loop tick while the
+// main window becomes key (tauri-apps/wry#1730). Hide first, destroy later.
+let ownWindowClosing = false
+async function closeOwnWindow() {
+  if (ownWindowClosing) return
+  ownWindowClosing = true
+  const current = getCurrentWindow()
+  await current.hide().catch(() => {})
+  await new Promise((resolve) => window.setTimeout(resolve, 200))
+  await current.destroy().catch(() => current.close().catch(() => {}))
 }
 
 function reportSnapshot(): ReportSnapshot {
@@ -652,7 +665,7 @@ async function openReportWindow() {
 
 async function closeReport() {
   if (isReportWindow && window.__TAURI_INTERNALS__) {
-    await WebviewWindow.getCurrent().close()
+    await closeOwnWindow()
     return
   }
   reportOpen.value = false
@@ -2077,7 +2090,7 @@ function confirmMaterials() {
   if (isConfirmWindow && window.__TAURI_INTERNALS__) {
     void (async () => {
       await emitTo('main', 'confirm-result', { ...confirmSnapshot(), action: 'confirm' })
-      await WebviewWindow.getCurrent().close()
+      await closeOwnWindow()
     })()
     return
   }
@@ -2090,7 +2103,7 @@ function dismissMaterialConfirmation() {
   if (isConfirmWindow && window.__TAURI_INTERNALS__) {
     void (async () => {
       await emitTo('main', 'confirm-result', { ...confirmSnapshot(), action: 'cancel' })
-      await WebviewWindow.getCurrent().close()
+      await closeOwnWindow()
     })()
     return
   }
