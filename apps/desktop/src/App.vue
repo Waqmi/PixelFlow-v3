@@ -248,6 +248,8 @@ let worker: WorkerClient | undefined
 let classificationWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
+let settingsWindowReady = false
+let settingsReadyListener: Promise<void> = Promise.resolve()
 let modelProbeRoot = ''
 let modelProbeRetryTimer: number | undefined
 let modelProbeReadyHandled = false
@@ -257,6 +259,7 @@ let stopNativeThemeListener: (() => void) | undefined
 let stopSettingsListener: (() => void) | undefined
 let stopSettingsChangedListener: (() => void) | undefined
 let stopSettingsReopenListener: (() => void) | undefined
+let stopSettingsReadyListener: (() => void) | undefined
 let stopReportReadyListener: (() => void) | undefined
 let stopReportDataListener: (() => void) | undefined
 let stopReportActionListener: (() => void) | undefined
@@ -569,13 +572,20 @@ async function openSettings() {
   }
   const snapshot = currentSettings()
   try { localStorage.setItem('pixelflow.output-settings', JSON.stringify(snapshot)) } catch { /* optional */ }
+  await settingsReadyListener
   const existing = await WebviewWindow.getByLabel('settings')
   if (existing) {
-    const visible = await existing.isVisible().catch(() => true)
     try {
-      if (!visible) await emitTo('settings', 'settings-reopen', snapshot)
       await existing.show()
       await existing.setFocus()
+      for (let attempt = 0; attempt < 20 && !settingsWindowReady; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 50))
+      }
+      if (!settingsWindowReady) {
+        status.value = '设置窗口尚未就绪，请重试'
+        return
+      }
+      await emitTo('settings', 'settings-reopen', snapshot)
     } catch {
       status.value = '设置窗口重新打开失败'
     }
@@ -1418,6 +1428,9 @@ onMounted(() => {
   }
   if (!hasSavedModelPath && !isReportWindow && !isConfirmWindow) void discoverDefaultModelPath()
   if (!isSettingsWindow && !isReportWindow && !isConfirmWindow && window.__TAURI_INTERNALS__) {
+    settingsReadyListener = listen('settings-ready', () => { settingsWindowReady = true })
+      .then((unlisten) => { stopSettingsReadyListener = unlisten })
+      .catch(() => {})
     void listen<{ paths?: string[] }>('tauri://drag-drop', (event) => {
       applyDroppedPaths(event.payload?.paths || [])
     }).then((unlisten) => { stopDropListener = unlisten })
@@ -1440,11 +1453,14 @@ onMounted(() => {
   if (isSettingsWindow && window.__TAURI_INTERNALS__) {
     void listen<SettingsSnapshot>('settings-reopen', (event) => {
       applySettings(event.payload)
-      settingsSnapshot = { ...event.payload, logoOverrides: { ...event.payload.logoOverrides } }
+      settingsSnapshot = { ...event.payload, logoOverrides: { ...(event.payload.logoOverrides || {}) } }
       settingsTab.value = 'brand'
       settingsNotice.value = ''
       settingsOpen.value = true
-    }).then((unlisten) => { stopSettingsReopenListener = unlisten })
+    }).then((unlisten) => {
+      stopSettingsReopenListener = unlisten
+      void emitTo('main', 'settings-ready')
+    })
   }
   if (isReportWindow && window.__TAURI_INTERNALS__) {
     void listen<ReportSnapshot>('report-data', (event) => {
@@ -1501,6 +1517,7 @@ onBeforeUnmount(() => Object.values(logoPreviews.value).forEach((url) => URL.rev
 onBeforeUnmount(() => stopSettingsListener?.())
 onBeforeUnmount(() => stopSettingsChangedListener?.())
 onBeforeUnmount(() => stopSettingsReopenListener?.())
+onBeforeUnmount(() => stopSettingsReadyListener?.())
 onBeforeUnmount(() => stopReportReadyListener?.())
 onBeforeUnmount(() => stopReportDataListener?.())
 onBeforeUnmount(() => stopReportActionListener?.())
