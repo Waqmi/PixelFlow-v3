@@ -46,7 +46,7 @@ graph TD
 | 工具 | `tools` | `check_protocol_schema.py`、`run_acceptance.py`、`run_renderer_baseline.py`、`verify_output_baseline.py` | 无单独文档 |
 | 固定素材 | `fixtures` | `manifest.json`、`model-manifest.json`、`shoe-matrix.json`（只引用外部素材，不复制图片） | 见 `fixtures/README.md` |
 | 基线 | `baselines` | v2.6 输出基线 JSON（图片本地忽略） | 见 `baselines/README.md` |
-| 文档 | `docs` | 架构、协议、状态、各阶段方案与验收（中文） | `docs/STATUS.md`、`docs/architecture.md`、`docs/worker-protocol.md` |
+| 文档 | `docs` | 架构、协议、状态、各阶段方案与验收（中文） | `docs/STATUS.md`、`docs/architecture.md`、`docs/worker-protocol.md`、`docs/bug-根因与修复记录.md` |
 | CI | `.github/workflows/v3.yml` | worker 测试（macos-14 / windows-2022，Python 3.12）；desktop（npm ci、protocol:check、build、cargo check） | - |
 | 规划 | `.planning` | GSD 规划记录（仅提及，不展开） | - |
 

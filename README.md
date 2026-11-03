@@ -10,6 +10,7 @@ UI, and a Tauri Host bridge. macOS arm64 app/DMG bundling is now wired to the
 packaged Worker; signing/notarization and Windows packaging remain release work.
 
 - v2.6 feature parity checklist: `docs/v2.6-feature-parity.md`
+- known bugs and root causes: `docs/bug-根因与修复记录.md`
 - v2.6 UI baseline and acceptance: `docs/v2.6-ui-baseline-and-acceptance.md`
 - output baseline plan: `docs/v2.6-output-baseline.md`
 - architecture decisions: `docs/architecture.md`
