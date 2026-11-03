@@ -17,6 +17,8 @@
 | 2026-11-03 | 设置窗口关掉后再点没反应（三端） | Tauri ACL | 复用窗口要调 `show()`/`setFocus()`，但 capability 从未授予这两个权限 | `8b1278c` |
 | 2026-11-03 | Windows 打包图标是旧版 | 资源同步 | 换品牌只换了 `icns`/`png`，`icon.ico` 停留在 09-13 的旧图 | `a6ece63` |
 | 2026-11-03 | Windows 打开输出文件夹打开错目录 | 跨平台路径 | 前端用 `/` 拼 Windows 路径得到混合分隔符，原样交给 explorer | `8b1278c` |
+| 2026-11-03 | Windows 打开 App 附带控制台黑窗，关掉黑窗 App 一起退出 | Windows 子系统 | 主 exe 是控制台子系统（PE `Subsystem=3`）；`windows_subsystem` 属性 11-02 才进主仓，用户手上的 10-31 包早于它 | `314e59f` + CI 断言 |
+| 2026-11-03 | 设置页「测试模型」等很久 / 检测不到 / 一直"检测中"（Intel、Windows） | 探测成本 | `probe` 会真正加载三个 ONNX 会话并对每个模型全量算 SHA-256；macOS 在 Worker 进程内跑、Windows 还要 spawn 冻结子进程；前端互斥锁 30s 短于后端 180s 超时 | 未提交（`model_service.py`、`worker.py`、`App.vue`） |
 | 2026-11-02 | 设置窗口保存后重开空白/失败 | 窗口生命周期 | 复用隐藏窗口时依赖 `isVisible()`，跨 WebView 事件存在竞态 | `314e59f` |
 | 2026-11-02 | macOS 关闭辅助窗口时崩溃 | 窗口生命周期 | 在窗口自己的 JS 里 `close()`，WebKit 在 dealloc 时访问已释放页面 | `8f64c00` |
 | 2026-11-01 | 生成进度会往回跳 | 进度语义 | 不同阶段 `completed/total` 会重置，前端插值器还接受更低目标 | `0ce3e2e`、`beedb34`、`134883e` |
@@ -65,6 +67,15 @@
 17. **`git add` 只加本次改动的文件**，不要 `git add -A`。历史上有两次误提交：`:memory:.ses`（加进 `.gitignore` 但没 `git rm --cached`，所以第一次"修完"其实没生效）和 `.planning` 笔记。
 18. **`.gitignore` 不影响已跟踪文件**。要停止跟踪必须 `git rm --cached`，两步都做才算完。
 
+### 构建与产物
+
+19. **源码修了不等于产物修了**。用户"装了新包还复现"时，先核对那个包对应的 commit（`build-metadata-*.json`、包内 Worker 的 sha256），再回源码找问题。Windows 控制台黑窗和旧图标两个 bug 都是"源码已修、包里没有"。
+20. **能用产物属性自动断言的，别留给人眼验收**。PE `Subsystem`（应为 2）、`icon.ico` 的尺寸档位、包内 Worker 哈希，都能在 CI 里直接读文件判定；`v3.yml` 的 `Assert GUI subsystem (no console window)` 就是这条的落地。
+
+### 模型与推理
+
+21. **设置页的"检测/测试"不能做重活**。`probe_models` 的默认路径只做 `glob` + `.classes.json` + 文件大小/时间（状态 `已找到`）；真正加载模型是 `deep=True` 的「加载测试」。别再往默认路径里塞会话创建或全量哈希。
+
 ## 三、重点案例
 
 ### 3.1 辅助窗口：四轮才修完
@@ -94,14 +105,55 @@
 - 修复：路径按自身分隔符拼接；Windows 分支统一转反斜杠后再调用；不校验 explorer 退出码。
 - 教训：路径是"数据"，不是"字符串"。凡是要交给外部程序（explorer、open、osascript、PowerShell）的路径，先规范化。
 
+### 3.4 Windows 控制台黑窗：修了两次，第二次才到产物
+
+- 现象：Windows 双击打开 App，旁边多一个黑色控制台窗口；**关掉这个黑窗，App 一起退出**。macOS 没有这个现象。
+- 判据：Windows 关闭控制台窗口只对"挂在该控制台上"的进程发 `CTRL_CLOSE_EVENT`。所以关黑窗能带走 App，说明黑窗是 **App 自己的**控制台，不是子进程的。
+- 排除过程（都验证过，别再重复怀疑）：
+  - Worker：spec 里 `console=True`，但 `spawn_worker` 调 `hide_console()` → `CREATE_NO_WINDOW`（`main.rs:872-877`、`991`），不会弹窗。
+  - Worker 死掉：只发 `worker-exit` + 最多重启 3 次（`main.rs:919-944`），主窗口不会退出。所以"黑窗归 Worker"这条解释不成立。
+  - portable / setup 启动器：四个版本的安装包 PE `Subsystem` 都是 2（GUI）。
+  - PowerShell 文件对话框：两处都走了 `hide_console`。
+- 根因：主 exe 编译成控制台子系统。Rust 在 Windows 上默认就是控制台子系统，必须靠 `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`（`main.rs:1`）切到 GUI。
+- 为什么"修过又出现"：这条修过两次，但**两次都没到用户手上**。
+  1. 10-18 `PixelFlow-App-v3-windows-sync` 仓库的 `9558cb7 fix: hide Windows app console and refresh icon` 就加了属性、也换了 ico，但那笔改动从没合回主仓。
+  2. 11-02 主仓 `314e59f` 才独立加了同样的属性。而 10-31 的交付包 `d245bf38` 早于它——交叉验证：那个包的图标还是旧的，而同步仓 10-18 已换过 ico，说明包是从主仓构建的，那棵树上既没有新图标也没有 GUI 子系统属性。
+- 修复：`314e59f` 保留属性；`.github/workflows/v3.yml` 新增 `Assert GUI subsystem (no console window)` 步骤，构建后直接读 `target/x86_64-pc-windows-msvc/release/*.exe` 的 PE 可选头，`Subsystem != 2` 就让构建失败。
+- 教训：**源码修了不等于产物修了**。凡是"用户装了包还复现"的问题，第一步先确认那个包的来源 commit，别在源码里再找一遍。另外，能用产物属性自动断言的（PE 子系统、图标尺寸、Worker 哈希），就别留给人眼验收。
+
+### 3.5 「测试模型」很久 / 检测不到：探测成本与预算错配
+
+现象：设置页「模型增强」添加模型目录后点「测试模型」，等很久，结果是"检测不到"或一直停在"检测中…"。ARM 上不明显，Intel 和 Windows 上常见。
+
+已从代码确认的事实：
+
+1. **`probe` 是重操作，不是存在性检查**。`ModelProcessService.probe_models` → `_request("probe")` 会遍历 `MODEL_PURPOSES`（pose、segmentation、**detection**），每个都 `_load_assistant()` 真正建 ONNX Runtime 会话，再用 `file_version(..., include_digest=True)` 把整个模型文件读一遍算 SHA-256（`model_cache.py` 的 `_file_version`）。三个模型加起来是数百 MB 的读取 + 三次会话创建。
+2. **平台路径不同**。`model_service.py:301` 的 `self._direct = sys.platform == "darwin"`：macOS 直接在 Worker 进程内跑（TCC 原因），Windows 走 `multiprocessing.get_context("spawn")`，先起一个冻结的 Worker 子进程再执行。Windows 每次冷启动要多付一次"重新加载整个冻结包"的代价。
+3. **时间预算不匹配**。`_request` 的超时是 `180s`；前端 `modelProbeLockTtlMs = 30_000`。主窗口在 Worker ready 时也会自动 probe 一次（`App.vue:1665`）。设置页的 probe 超过 30s 还没回来时，另一侧会抢到锁再发一次，而 Worker 侧 `_request` 用 `self._lock` 串行化，第二个只能排在第一个后面 → 等待翻倍；且 `modelProbeRequestId` 被覆盖后，第一个请求的 `done` 会被当成无关消息丢弃，界面上就是"一直检测中"。
+4. **`detection` 也在 probe 里加载**，但设置页状态行只需要 pose/seg。这一步在慢机器上是纯浪费。
+
+修复（未提交）：
+
+- `probe_models(model_root, *, deep=False)` 拆两级。默认 `deep=False` 走 `_probe_presence()`：只做 `glob`、`.classes.json` 检查、文件大小/时间，**不导入推理运行时**，状态是新的 `已找到`（`loaded: false`）。`deep=True` 才走原来的加载路径，状态是 `已就绪`/`不可用`（`loaded: true`）。
+- 轻量探测**不加载 detection**，只报 `已找到`；deep 才加载。
+- SHA-256 改为**只对小模型算**（≤ 64MB，pose/seg 各约 6MB，实测毫秒级）。大模型交给 deep 检查。完全去掉会让设置页的 SHA 列变空——那正好是 `3359911` 修过的症状，所以保留必需模型的摘要。
+- 前端互斥锁加**心跳续期**（每 10s 刷新 `startedAt`），TTL 仍是 30s：deep 加载再久也不会被另一个窗口抢锁，窗口崩了也只会阻塞 30s。
+- 前端把单个 `modelProbeRequestId` 换成 `Map<requestId, root>`，晚到的 `done`/`error` 不再因为 id 被覆盖而丢弃。
+- 设置页新增「加载测试」按钮（`probeModels(true)`），保留原来"真的加载一遍"的能力。
+
+验证：`worker/tests/test_model_service.py` 5 项新增用例（轻量探测不建会话、空目录报未配置、detection 缺 `.classes.json` 报不可用、小模型仍有摘要、deep 标记 `loaded`）；`test_model_cache.py` 的 macOS 进程内用例改为分别断言轻量探测不 spawn、deep 探测仍走进程内。
+
+未闭环：需要在 Intel / Windows 实机点一次「测试模型」与「加载测试」，确认状态与耗时符合预期。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
 |---|---|---|
 | Intel Big Sur 保存设置闪退 | 当前源码保存只 `hide()` 不销毁；崩溃栈指向 WebView dealloc。用户测试包的 Worker 哈希 `c5f28e36` 与当前 CI x64 产物 `5c2f6c25`、10-31 包 `1ed4a45d`、10-30 包 `2744fda9` 均不一致 | 用当前 x64 包在 Big Sur 复测；若仍崩溃，取 crash report 并核对二进制 UUID |
 | Intel 设置窗口上下蓝色横线 | `8f64c00` 已加 `[role="dialog"][tabindex="-1"]:focus{outline:none}`，当前源码无其他规则能画出该效果 | 同上，先确认测试包版本 |
-| Windows release EXE 的 GUI 子系统 | `windows_subsystem = "windows"` 已加，构建通过 | 对 CI 产物做 PE 可选头 `Subsystem` 检查（应为 2） |
+| Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`v3.yml` 新增 PE `Subsystem` 断言（本地未提交） | 推送后看 CI 的 `Assert GUI subsystem` 步骤是否通过 |
 | 设置/报告窗口二次打开 | 权限已补 | ARM 与 Windows 实机点验 |
+| Windows / Intel 设置页「测试模型」等很久、检测不到或一直"检测中" | 已改为两级探测 + 心跳锁（未提交，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | Intel / Windows 实机点一次两个按钮，确认状态与耗时 |
 
 ## 五、命令速查
 
@@ -122,4 +174,25 @@ src = Image.open('apps/desktop/src-tauri/icons/icon.icns').convert('RGBA')
 src.save('apps/desktop/src-tauri/icons/icon.ico', format='ICO',
          sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
 EOF
+
+# 读 Windows 产物的 PE 子系统（2 = GUI；3 = 控制台，双击会附带黑窗）
+python3 - <<'EOF'
+import struct, sys, glob
+for path in sys.argv[1:] or glob.glob('*.exe'):
+    data = open(path, 'rb').read(0x1000)
+    offset = struct.unpack_from('<I', data, 0x3c)[0]
+    magic = struct.unpack_from('<H', data, offset + 24)[0]
+    subsystem = struct.unpack_from('<H', data, offset + 24 + (68 if magic == 0x10b else 88))[0]
+    print(f'{path}: subsystem = {subsystem}')
+EOF
 ```
+
+## 六、日志位置
+
+排查"Worker 卡住 / 检测超时"这类问题先看这两个文件（`worker.log` 是 stderr，`worker-events.jsonl` 是协议事件）：
+
+| 平台 | 路径 |
+|---|---|
+| Windows | `%LOCALAPPDATA%\PixelFlow\logs\worker.log`、`worker-events.jsonl` |
+| macOS | `~/Library/Logs/PixelFlow/worker.log`、`worker-events.jsonl` |
+| Linux | `~/.local/state/PixelFlow/logs/` |
