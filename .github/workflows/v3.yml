@@ -275,12 +275,20 @@ jobs:
               $peOffset = $reader.ReadInt32()
               $stream.Position = $peOffset
               if ($reader.ReadUInt32() -ne 0x00004550) { throw "not a PE file: $Path" }
-              $stream.Position = $peOffset + 24
+              # The optional header starts 24 bytes past the PE signature
+              # (4-byte signature + 20-byte file header).
+              $optionalHeader = $peOffset + 24
+              $stream.Position = $optionalHeader
               $magic = $reader.ReadUInt16()
-              if ($magic -eq 0x20B) { $subsystemOffset = 88 }
-              elseif ($magic -eq 0x10B) { $subsystemOffset = 68 }
-              else { throw "unknown PE optional header magic $magic in $Path" }
-              $stream.Position = $peOffset + 24 + $subsystemOffset
+              # PE32+ drops BaseOfData but widens ImageBase from 4 to 8 bytes,
+              # so every field after ImageBase keeps the same offset. Subsystem is
+              # at optional-header offset 68 for both PE32 (0x10B) and PE32+ (0x20B).
+              # Reading 88 for PE32+ yields garbage (observed: 0), which is how a
+              # wrong offset once failed a perfectly good GUI build.
+              if ($magic -ne 0x20B -and $magic -ne 0x10B) {
+                throw "unknown PE optional header magic $magic in $Path"
+              }
+              $stream.Position = $optionalHeader + 68
               return $reader.ReadUInt16()
             } finally {
               $stream.Dispose()
@@ -292,11 +300,17 @@ jobs:
           $failures = @()
           foreach ($binary in $binaries) {
             $subsystem = Get-PeSubsystem $binary.FullName
-            Write-Host "$($binary.Name): PE subsystem = $subsystem (2 = GUI)"
-            if ($subsystem -ne 2) { $failures += $binary.Name }
+            Write-Host "$($binary.Name): PE subsystem = $subsystem (2 = GUI, 3 = CONSOLE)"
+            if ($subsystem -ne 2) {
+              if ($subsystem -eq 3) {
+                $failures += "$($binary.Name) (console subsystem)"
+              } else {
+                $failures += "$($binary.Name) (unexpected subsystem $subsystem)"
+              }
+            }
           }
           if ($failures.Count -gt 0) {
-            throw "console subsystem detected in: $($failures -join ', '). Such a build opens a console window that terminates the app when closed; keep the windows_subsystem attribute in main.rs and build with the release profile."
+            throw "GUI subsystem expected, got: $($failures -join ', '). A console build opens a window that terminates the app when closed; keep the windows_subsystem attribute in main.rs and build with the release profile."
           }
       - name: Build portable self-extracting EXE
         shell: pwsh

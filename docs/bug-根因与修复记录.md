@@ -119,7 +119,8 @@
   1. 10-18 `PixelFlow-App-v3-windows-sync` 仓库的 `9558cb7 fix: hide Windows app console and refresh icon` 就加了属性、也换了 ico，但那笔改动从没合回主仓。
   2. 11-02 主仓 `314e59f` 才独立加了同样的属性。而 10-31 的交付包 `d245bf38` 早于它——交叉验证：那个包的图标还是旧的，而同步仓 10-18 已换过 ico，说明包是从主仓构建的，那棵树上既没有新图标也没有 GUI 子系统属性。
 - 修复：`314e59f` 保留属性；`.github/workflows/v3.yml` 新增 `Assert GUI subsystem (no console window)` 步骤，构建后直接读 `target/x86_64-pc-windows-msvc/release/*.exe` 的 PE 可选头，`Subsystem != 2` 就让构建失败。
-- 教训：**源码修了不等于产物修了**。凡是"用户装了包还复现"的问题，第一步先确认那个包的来源 commit，别在源码里再找一遍。另外，能用产物属性自动断言的（PE 子系统、图标尺寸、Worker 哈希），就别留给人眼验收。
+- 断言本身也踩过一次坑（首次上线 CI 即误报）：初版按位数分流，PE32+ 读 `+88`，结果对 GUI 产物报出 `Subsystem = 0`。**`Subsystem` 在 PE32 与 PE32+ 中都是可选头 `+68`**——PE32+ 删掉 `BaseOfData`（-4）同时把 `ImageBase` 从 4 字节加宽到 8 字节（+4），两者抵消，`ImageBase` 之后所有字段偏移不变。本地用 PE32 产物可自证：`+68 = 2`、`+88 = 0`。现在断言对 `magic` 只做合法性校验，偏移恒取 `+68`，并在报错里区分 `3`（真控制台）与其它值（多半是偏移算错）。
+- 教训：**源码修了不等于产物修了**。凡是"用户装了包还复现"的问题，第一步先确认那个包的来源 commit，别在源码里再找一遍。另外，能用产物属性自动断言的（PE 子系统、图标尺寸、Worker 哈希），就别留给人眼验收。但断言写错会制造**假失败**，代价和假通过一样高——上线断言前先用已知正确/错误的样本各跑一遍。
 
 ### 3.5 「测试模型」很久 / 检测不到：探测成本与预算错配
 
@@ -176,14 +177,18 @@ src.save('apps/desktop/src-tauri/icons/icon.ico', format='ICO',
 EOF
 
 # 读 Windows 产物的 PE 子系统（2 = GUI；3 = 控制台，双击会附带黑窗）
+# 注意：Subsystem 在 PE32 与 PE32+ 中都在可选头 +68。不要按 32/64 位分流——
+# PE32+ 删掉了 BaseOfData 但 ImageBase 从 4 字节变 8 字节，两者抵消，后续字段偏移不变。
 python3 - <<'EOF'
 import struct, sys, glob
 for path in sys.argv[1:] or glob.glob('*.exe'):
     data = open(path, 'rb').read(0x1000)
     offset = struct.unpack_from('<I', data, 0x3c)[0]
+    assert data[offset:offset + 4] == b'PE\0\0', f'not a PE file: {path}'
     magic = struct.unpack_from('<H', data, offset + 24)[0]
-    subsystem = struct.unpack_from('<H', data, offset + 24 + (68 if magic == 0x10b else 88))[0]
-    print(f'{path}: subsystem = {subsystem}')
+    assert magic in (0x10b, 0x20b), f'unknown optional header magic {magic:#x}'
+    subsystem = struct.unpack_from('<H', data, offset + 24 + 68)[0]
+    print(f'{path}: subsystem = {subsystem} ({"PE32+" if magic == 0x20b else "PE32"})')
 EOF
 ```
 
