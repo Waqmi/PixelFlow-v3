@@ -18,7 +18,8 @@
 | 项目 | 状态 | 证据 / 缺口 |
 |---|---|---|
 | Intel Big Sur 崩溃复验 | ⏳ 待实机 | 已定位为 Wry 自定义 scheme 任务在 `WKWebView dealloc` 期间清理导致的 `EXC_BAD_ACCESS`；之前那份崩溃报告的可执行文件 UUID 与 `729f623` x64 产物不一致，不能作为验证。需要当前 x64 包在 Big Sur 上跑确认/保存/退出。 |
-| 设置页保存后重开（ARM / Windows） | ⏳ 待实机 | 握手与焦点逻辑已合入，`protocol:check`、`npm run build` 通过；尚未在真实 App 上点验。 |
+| 设置页保存后重开（ARM / Windows） | ⏳ 已修复，待实机 | 根因是 `capabilities/main.json` 缺 `core:window:allow-show` / `allow-set-focus`：窗口改为隐藏复用后，复用分支的 `show()` 被 ACL 拒绝且被 `catch` 吞掉。`8b1278c` 已补权限，报告/确认窗口同源问题一并解决。 |
+| Windows 图标 / 打开输出文件夹 | ⏳ 已修复，待实机 | `icon.ico` 停留在 09-13 的旧扁平图标，已按当前品牌图重生成（`a6ece63`）；输出路径改用平台分隔符、`explorer` 前统一为反斜杠并修正退出码误判（`8b1278c`）。 |
 | Windows release EXE 的 GUI 子系统 | ⏳ 待验证 | `windows_subsystem = "windows"` 已加，Windows x64 构建成功；尚未对产物做 PE 子系统检查。 |
 | 设置页蓝色横条 | ⏳ 待复现 | 用户确认窗口失焦即消失，倾向老 WebKit 整窗焦点环；当前 CSS 无对应规则，等匹配的 Big Sur 包复现后再动。 |
 
@@ -61,6 +62,13 @@
 - CI run `41415505474`（`314e59f`）：Desktop checks、Worker tests（macos-14 / windows-2022）、macOS arm64、macOS x64、Windows x64 全部成功。
 
 历史验证记录见 `baselines/` 与 `.planning/` 下的各期记录，不再在此重复。
+
+2026-11-03 修复轮（`8b1278c`、`a6ece63`）：
+
+- 补齐 `core:window:allow-show` / `allow-set-focus`，恢复设置、报告、确认窗口的二次打开。
+- 按当前品牌图重生成 `icon.ico`（16–256 七个尺寸，中心为蓝色 `#2876FD`）。
+- Windows 打开输出目录：路径按平台分隔符拼接、`explorer` 前统一反斜杠、不再把退出码 1 判为失败。
+- 验证：`cargo test` 14 项通过（含新增 `windows_shell_path` 用例）、`npm run protocol:check` 通过、`npm run build` 通过。三项均未做真机点验。
 
 ## 历史任务表（2026-09-27 制定，现状已更新）
 
