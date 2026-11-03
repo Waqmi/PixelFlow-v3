@@ -650,9 +650,13 @@ async function openReportWindow() {
   cacheReportSnapshot()
   const existing = await WebviewWindow.getByLabel('report')
   if (existing) {
-    await existing.show()
-    await existing.setFocus()
-    void emit('report-data', reportSnapshot())
+    try {
+      await existing.show()
+      await existing.setFocus()
+      void emit('report-data', reportSnapshot())
+    } catch {
+      status.value = '报告窗口重新打开失败'
+    }
     return
   }
   const reportWindow = new WebviewWindow('report', {
@@ -897,10 +901,11 @@ async function saveSettings() {
 }
 function suggestedOutputRoot(path: string) {
   const normalized = path.replace(/[\\/]$/, '')
+  const separator = normalized.includes('\\') ? '\\' : '/'
   const slash = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'))
   const parent = slash >= 0 ? normalized.slice(0, slash) : ''
   const name = normalized.slice(slash + 1)
-  return `${parent ? `${parent}/` : ''}${name.endsWith('主图') ? name : `${name}主图`}`
+  return `${parent ? `${parent}${separator}` : ''}${name.endsWith('主图') ? name : `${name}主图`}`
 }
 async function pickDirectory(target: 'input' | 'output' | 'model') {
   if (!window.__TAURI_INTERNALS__) {

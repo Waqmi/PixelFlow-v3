@@ -794,6 +794,13 @@ fn export_diagnostics(default_name: String, entries: Vec<Value>, diagnostics_pat
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn windows_shell_path(path: &str) -> String {
+    // Explorer opens the wrong folder when a Windows path carries forward
+    // slashes, so normalize before handing the path over.
+    path.replace('/', "\\")
+}
+
 #[tauri::command]
 fn open_path(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
@@ -803,17 +810,23 @@ fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let status = Command::new("open").arg(&path).status();
     #[cfg(target_os = "windows")]
-    let status = Command::new("explorer").arg(&path).status();
+    let status = Command::new("explorer")
+        .arg(windows_shell_path(&path.to_string_lossy()))
+        .status();
     #[cfg(all(unix, not(target_os = "macos")))]
     let status = Command::new("xdg-open").arg(&path).status();
+    let status = status.map_err(|error| format!("open directory failed: {error}"))?;
+    // explorer.exe reports exit code 1 even when it opens the folder.
+    #[cfg(target_os = "windows")]
+    {
+        let _ = status;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
     status
-        .map_err(|error| format!("open directory failed: {error}"))
-        .and_then(|result| {
-            result
-                .success()
-                .then_some(())
-                .ok_or_else(|| "open directory failed".to_string())
-        })
+        .success()
+        .then_some(())
+        .ok_or_else(|| "open directory failed".to_string())
 }
 
 fn worker_log_path() -> PathBuf {
@@ -1165,6 +1178,13 @@ mod tests {
         assert!(windows_utf8_script("Write-Output test").contains("UTF8Encoding"));
         assert_eq!(decode_windows_stdout("文档\n".as_bytes()).unwrap(), "文档");
         assert!(decode_windows_stdout(&[0xff]).is_err());
+    }
+
+    #[test]
+    fn windows_shell_path_normalizes_separators() {
+        assert_eq!(windows_shell_path("C:/Users/a/主图"), "C:\\Users\\a\\主图");
+        assert_eq!(windows_shell_path("C:\\Users\\a\\主图"), "C:\\Users\\a\\主图");
+        assert_eq!(windows_shell_path("/tmp/out"), "\\tmp\\out");
     }
 
     #[test]
