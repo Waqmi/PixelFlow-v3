@@ -23,3 +23,6 @@ baselines/**/*.png
 baselines/**/*.jpg
 baselines/**/*.jpeg
 :memory:.ses
+
+# WorkBuddy 本地工作区数据（记忆、会话记录），只属于本机，不入库
+.workbuddy-ai/
