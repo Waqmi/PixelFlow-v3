@@ -90,7 +90,8 @@ cd apps/desktop && npm run tauri:build  # worker:build 通过 tools/build_worker
 8. 模型文件（pose / seg / detection）不入 Git、不打包进 App，通过设置页指定目录；缺失时 Worker 回退到规则判断。
 9. 构建产物目录（`dist*`、`build*`、`worker/.pyinstaller-config*`、`target`）不要阅读或修改。
 10. **Pillow API**：已迁移到 `get_flattened_data()`（替代弃用的 `getdata()`），影响 `renderer.py`、`v3_classification.py`、`legacy_engine/category_engine/source_type_classifier.py`。
+11. **修完 bug 必须同步 `docs/bug-根因与修复记录.md`**：在索引表追加一行（现象 / 根因类别 / 一句话根因 / commit）；根因值得复盘的补一个小节，写清"为什么之前没发现、为什么上一轮没修好"。只改代码不更新这份文档，视为修复未完成。改代码之前也要先读它的自检清单。
 
 ## 当前状态入口
 
-`docs/STATUS.md`（更新日期 2026-09-27，部分条目已落后于代码，如规则版本）；锚点构图最新方案/验收见 `docs/v3-*锚点构图*.md`。
+`docs/STATUS.md`（更新日期 2026-11-03）；锚点构图最新方案/验收见 `docs/v3-*锚点构图*.md`，历史 bug 与自检清单见 `docs/bug-根因与修复记录.md`。
