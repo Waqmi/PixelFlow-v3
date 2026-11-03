@@ -25,15 +25,29 @@ from .model_cache import file_version
 MODEL_PURPOSES = ("pose", "segmentation", "detection")
 STATE_UNCONFIGURED = "未配置"
 STATE_LOADING = "加载中…"
+STATE_FOUND = "已找到"
 STATE_READY = "已就绪"
 STATE_UNAVAILABLE = "不可用"
 STATE_FALLBACK = "fallback"
 
 STATUS_UNCONFIGURED = "unconfigured"
 STATUS_LOADING = "loading"
+STATUS_FOUND = "found"
 STATUS_READY = "ready"
 STATUS_UNAVAILABLE = "unavailable"
 STATUS_FALLBACK = "fallback"
+
+# Hashing is only worth it for the small required models; the large optional
+# ones are verified by the deep check instead of on every settings-page visit.
+_DIGEST_LIMIT_BYTES = 64 * 1024 * 1024
+
+
+def _digest_is_cheap(path: Path) -> bool:
+    try:
+        return path.stat().st_size <= _DIGEST_LIMIT_BYTES
+    except OSError:
+        return False
+
 
 
 class ModelProcessError(RuntimeError):
@@ -364,6 +378,7 @@ class ModelProcessService:
             status = {
                 STATE_UNCONFIGURED: STATUS_UNCONFIGURED,
                 STATE_LOADING: STATUS_LOADING,
+                STATE_FOUND: STATUS_FOUND,
                 STATE_READY: STATUS_READY,
                 STATE_UNAVAILABLE: STATUS_UNAVAILABLE,
                 STATE_FALLBACK: STATUS_FALLBACK,
@@ -386,6 +401,7 @@ class ModelProcessService:
         self._statuses[key] = {
             STATE_UNCONFIGURED: STATUS_UNCONFIGURED,
             STATE_LOADING: STATUS_LOADING,
+            STATE_FOUND: STATUS_FOUND,
             STATE_READY: STATUS_READY,
             STATE_UNAVAILABLE: STATUS_UNAVAILABLE,
             STATE_FALLBACK: STATUS_FALLBACK,
@@ -504,15 +520,29 @@ class ModelProcessService:
     def ping(self) -> str:
         return self._request("ping")
 
-    def probe_models(self, model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
-        """Probe configured models and avoid starting inference when none exist."""
+    def probe_models(
+        self,
+        model_root: Union[str, Path],
+        *,
+        deep: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Report model availability.
+
+        The default pass only inspects the filesystem, so the settings page gets
+        an answer in milliseconds and never waits on an ONNX Runtime session.
+        ``deep=True`` keeps the older behaviour of loading every configured
+        model, which is the only way to prove a model actually works.
+        """
         root = str(model_root)
+        if not deep:
+            return self._probe_presence(root)
         if not any(configured_model_candidates(root, purpose) for purpose in MODEL_PURPOSES):
             return {
                 purpose: {
                     "state": STATE_UNCONFIGURED,
                     "status": STATUS_UNCONFIGURED,
                     "fallback": True,
+                    "loaded": False,
                 }
                 for purpose in MODEL_PURPOSES
             }
@@ -532,6 +562,7 @@ class ModelProcessService:
                     "state": self.model_state(root, purpose),
                     "status": self._statuses.get(self._state_key(root, purpose), STATUS_UNAVAILABLE),
                     "fallback": True,
+                    "loaded": False,
                     "error": reason,
                 }
                 for purpose in MODEL_PURPOSES
@@ -540,10 +571,62 @@ class ModelProcessService:
             status = result.get(purpose, {})
             state = str(status.get("state", STATE_UNAVAILABLE))
             self._set_state(root, purpose, state, str(status.get("error", "")))
+            if isinstance(status, dict):
+                status["loaded"] = state == STATE_READY
         return result
 
-    def probe(self, model_root: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
-        return self.probe_models(model_root)
+    def _probe_presence(self, root: str) -> Dict[str, Dict[str, Any]]:
+        """Describe configured models without importing the inference runtime.
+
+        ``detection`` is reported as found but never loaded here: the settings
+        status line only needs pose and segmentation, and the detector model is
+        the largest one to create a session for.
+        """
+        result: Dict[str, Dict[str, Any]] = {}
+        for purpose in MODEL_PURPOSES:
+            if not configured_model_candidates(root, purpose):
+                self._set_state(root, purpose, STATE_UNCONFIGURED)
+                result[purpose] = {
+                    "state": STATE_UNCONFIGURED,
+                    "status": STATUS_UNCONFIGURED,
+                    "fallback": True,
+                    "loaded": False,
+                }
+                continue
+            assistant_candidates = _assistant_model_candidates(root, purpose)
+            if not assistant_candidates:
+                reason = "detection/ 中缺少与 ONNX 同名的 .classes.json"
+                self._set_state(root, purpose, STATE_UNAVAILABLE, reason)
+                result[purpose] = {
+                    "state": STATE_UNAVAILABLE,
+                    "status": STATUS_UNAVAILABLE,
+                    "fallback": True,
+                    "loaded": False,
+                    "error": reason,
+                }
+                continue
+            model_path = assistant_candidates[0]
+            entry: Dict[str, Any] = {
+                "state": STATE_FOUND,
+                "status": STATUS_FOUND,
+                "fallback": False,
+                "loaded": False,
+                "model": model_path.name,
+            }
+            version = file_version(model_path, include_digest=_digest_is_cheap(model_path))
+            if version:
+                entry["model_version"] = version
+            self._set_state(root, purpose, STATE_FOUND)
+            result[purpose] = entry
+        return result
+
+    def probe(
+        self,
+        model_root: Union[str, Path],
+        *,
+        deep: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
+        return self.probe_models(model_root, deep=deep)
 
     def warmup(self, model_root: Union[str, Path], purpose: str, strict: bool = False) -> Dict[str, Any]:
         normalized = _normal_purpose(purpose)
@@ -727,11 +810,13 @@ __all__ = [
     "get_model_service",
     "model_candidates",
     "STATE_FALLBACK",
+    "STATE_FOUND",
     "STATE_LOADING",
     "STATE_READY",
     "STATE_UNAVAILABLE",
     "STATE_UNCONFIGURED",
     "STATUS_FALLBACK",
+    "STATUS_FOUND",
     "STATUS_LOADING",
     "STATUS_READY",
     "STATUS_UNAVAILABLE",

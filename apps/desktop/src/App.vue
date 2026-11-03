@@ -89,6 +89,7 @@ interface ModelDiagnostic {
   status?: string
   error?: string
   fallback?: boolean
+  loaded?: boolean
   model?: string
   model_version?: { path?: string; sha256?: string; size?: number; mtime_ns?: number }
 }
@@ -241,7 +242,6 @@ const preflightWarnings = ref<string[]>([])
 const classificationRunning = ref(false)
 const generationRequestId = ref<string>()
 const classificationRequestId = ref<string>()
-const modelProbeRequestId = ref<string>()
 const cancelRequestId = ref<string>()
 const cancelTargetRequestId = ref<string>()
 let worker: WorkerClient | undefined
@@ -250,8 +250,9 @@ let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let settingsSnapshot: SettingsSnapshot | undefined
 let settingsWindowReady = false
 let settingsReadyListener: Promise<void> = Promise.resolve()
-let modelProbeRoot = ''
 let modelProbeRetryTimer: number | undefined
+let modelProbeHeartbeat: number | undefined
+const modelProbePending = new Map<string, string>()
 let modelProbeReadyHandled = false
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
@@ -304,7 +305,11 @@ const expectedModels = {
 const requiredModelKeys = ['pose', 'segmentation'] as const
 const modelFallbackWarning = computed(() => {
   if (!localModelEnabled.value || !localModelPath.value.trim() || modelTesting.value) return false
-  return requiredModelKeys.some((key) => modelDiagnostics.value[key]?.state !== '已就绪')
+  // 已找到 来自轻量探测（只看文件），已就绪 来自「加载测试」；两者都不算缺失。
+  return requiredModelKeys.some((key) => {
+    const state = modelDiagnostics.value[key]?.state
+    return state !== '已就绪' && state !== '已找到'
+  })
 })
 const modelDiagnosticRows = computed(() => (['pose', 'segmentation', 'detection'] as const).map((key) => ({ key, ...expectedModels[key], diagnostic: modelDiagnostics.value[key] })))
 const modelConfirmFallbackWarning = computed(() => localModelEnabled.value && materials.value.some((material) => material.metadata?.fallback === true || material.metadata?.model_status === 'fallback'))
@@ -952,40 +957,64 @@ function claimModelProbe(root: string): boolean {
 }
 
 function releaseModelProbe(root: string) {
+  stopModelProbeHeartbeat()
   try {
     const current = readModelProbeLock()
     if (current?.owner === modelProbeOwner && current.root === root) localStorage.removeItem(modelProbeLockKey)
   } catch { /* optional storage */ }
 }
 
-function scheduleModelProbeRetry(root: string) {
+// Deep loads can outlast the lease, so the owner refreshes it while waiting.
+// A crashed window still expires after modelProbeLockTtlMs instead of blocking
+// the other window forever.
+function startModelProbeHeartbeat(root: string) {
+  if (modelProbeHeartbeat !== undefined) return
+  modelProbeHeartbeat = window.setInterval(() => {
+    const current = readModelProbeLock()
+    if (current?.owner !== modelProbeOwner || current.root !== root) return
+    try {
+      localStorage.setItem(modelProbeLockKey, JSON.stringify({ owner: modelProbeOwner, root, startedAt: Date.now() }))
+    } catch { /* optional storage */ }
+  }, 10_000)
+}
+
+function stopModelProbeHeartbeat() {
+  if (modelProbeHeartbeat === undefined) return
+  window.clearInterval(modelProbeHeartbeat)
+  modelProbeHeartbeat = undefined
+}
+
+function scheduleModelProbeRetry(root: string, deep = false) {
   if (modelProbeRetryTimer !== undefined) return
   modelProbeRetryTimer = window.setTimeout(() => {
     modelProbeRetryTimer = undefined
     if (localModelPath.value.trim() !== root) return
     const current = readModelProbeLock()
     if (current && Date.now() - current.startedAt < modelProbeLockTtlMs) {
-      scheduleModelProbeRetry(root)
+      scheduleModelProbeRetry(root, deep)
       return
     }
-    probeModels()
+    probeModels(deep)
   }, 250)
 }
 
-function probeModels() {
+// deep = false only inspects the model files; deep = true loads them, which is
+// the only way to prove a model works but can take tens of seconds.
+function probeModels(deep = false) {
   if (!worker) { modelStatus.value = '状态：Worker 未连接，无法检测模型'; return }
   if (!localModelPath.value.trim()) { modelStatus.value = '状态：请先选择外部模型总目录'; return }
-  if (modelProbeRequestId.value && modelTesting.value) return
+  if (modelProbePending.size) return
   const root = localModelPath.value.trim()
   if (!claimModelProbe(root)) {
     modelStatus.value = '状态：正在检测外部模型…'
-    scheduleModelProbeRetry(root)
+    scheduleModelProbeRetry(root, deep)
     return
   }
   modelTesting.value = true
-  modelStatus.value = '状态：正在检测外部模型…'
-  modelProbeRoot = root
-  modelProbeRequestId.value = worker.request('probe_models', { model_root: localModelPath.value })
+  modelStatus.value = deep ? '状态：正在加载模型…（首次可能需要几十秒）' : '状态：正在检测外部模型…'
+  startModelProbeHeartbeat(root)
+  const requestId = worker.request('probe_models', { model_root: localModelPath.value, deep })
+  modelProbePending.set(requestId, root)
 }
 
 async function discoverDefaultModelPath() {
@@ -1182,7 +1211,7 @@ async function copyOutputPath() {
 }
 function modelShaLabel(key: keyof typeof expectedModels, diagnostic?: ModelDiagnostic) {
   const actual = diagnostic?.model_version?.sha256
-  if (!actual) return 'Worker 未提供校验信息'
+  if (!actual) return diagnostic?.loaded === false ? '未校验（点「加载测试」生成）' : 'Worker 未提供校验信息'
   if (actual === expectedModels[key].sha256) return `匹配 · ${actual.slice(0, 8)}`
   return `不匹配 · ${actual.slice(0, 8)}`
 }
@@ -1730,10 +1759,13 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskDetail.value = status.value
     void openConfirmWindow()
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
-  } else if (message.type === 'done' && message.request_id === modelProbeRequestId.value) {
-    const root = modelProbeRoot
-    modelProbeRoot = ''
-    modelTesting.value = false
+  } else if (message.type === 'done' && modelProbePending.has(message.request_id)) {
+    const root = modelProbePending.get(message.request_id) || ''
+    modelProbePending.delete(message.request_id)
+    if (!modelProbePending.size) {
+      modelTesting.value = false
+      releaseModelProbe(root)
+    }
     const models = payload.models as Record<string, ModelDiagnostic> | undefined
     modelDiagnostics.value = models || {}
     const modelLabel = (key: string) => {
@@ -1741,8 +1773,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       return `${model?.state || '未配置'}${model?.error ? `（${model.error.split('\n')[0]}）` : ''}`
     }
     modelStatus.value = `状态：Pose ${modelLabel('pose')}；Seg ${modelLabel('segmentation')}；Detection ${modelLabel('detection')}`
-    releaseModelProbe(root)
-  } else if (message.type === 'status' && message.request_id === modelProbeRequestId.value) {
+  } else if (message.type === 'status' && modelProbePending.has(message.request_id)) {
     modelTesting.value = true
     modelStatus.value = `状态：${String(payload.message || '正在检测外部模型…')}`
   } else if (message.type === 'done' && message.request_id.startsWith('main-') && 'cleared' in payload) {
@@ -1793,13 +1824,15 @@ function handleWorkerMessage(message: WorkerMessage) {
       settleCancellation('取消请求失败', String(payload.message || 'Worker 未接受取消请求'), '任务失败')
       return
     }
-    if (message.request_id === modelProbeRequestId.value) {
-      modelTesting.value = false
+    if (modelProbePending.has(message.request_id)) {
       const messageText = String(payload.message || '请检查模型目录')
+      const root = modelProbePending.get(message.request_id) || ''
+      modelProbePending.delete(message.request_id)
       modelStatus.value = `状态：模型检测失败；${messageText}`
-      const root = modelProbeRoot
-      modelProbeRoot = ''
-      releaseModelProbe(root)
+      if (!modelProbePending.size) {
+        modelTesting.value = false
+        releaseModelProbe(root)
+      }
       return
     }
     if (message.request_id !== 'worker' && message.request_id !== generationRequestId.value && message.request_id !== classificationRequestId.value) return
@@ -1811,10 +1844,10 @@ function handleWorkerMessage(message: WorkerMessage) {
       if (modelTesting.value) {
         modelTesting.value = false
         modelStatus.value = '状态：Worker 已中断，模型检测未完成'
-        const root = modelProbeRoot
-        modelProbeRoot = ''
+        const roots = Array.from(modelProbePending.values())
+        modelProbePending.clear()
         modelProbeReadyHandled = false
-        releaseModelProbe(root)
+        roots.forEach((root) => releaseModelProbe(root))
       }
       if (taskId) taskDetail.value = `任务 ${taskId} 已中断，可重试未完成项。`
       updateResumePhase('interrupted')
@@ -2366,7 +2399,7 @@ function startGeneration() {
             <p class="settings-status">{{ modelStatus }}</p>
             <div class="model-diagnostics"><div v-for="row in modelDiagnosticRows" :key="row.key" class="model-diagnostic-row"><div><strong>{{ row.label }}</strong><small>期望文件：{{ row.filename }}</small><small>期望 SHA-256：{{ row.sha256.slice(0, 8) }}…</small><small>检测文件：{{ modelFileLabel(row.diagnostic) }}</small></div><span>{{ row.diagnostic?.state || '未检测' }} · SHA-256 {{ modelShaLabel(row.key, row.diagnostic) }}</span></div></div>
             <p v-if="modelFallbackWarning" class="settings-status settings-status-warning">模特图将使用保守构图，建议配置模型</p>
-            <div class="settings-actions"><button class="text-button" :disabled="modelTesting" @click="probeModels">{{ modelTesting ? '检测中…' : '测试模型' }}</button></div>
+            <div class="settings-actions"><button class="text-button" :disabled="modelTesting" @click="probeModels()">{{ modelTesting ? '检测中…' : '测试模型' }}</button><button class="text-button" :disabled="modelTesting" @click="probeModels(true)">加载测试</button></div>
           </template>
           <template v-else>
             <SettingsAboutView

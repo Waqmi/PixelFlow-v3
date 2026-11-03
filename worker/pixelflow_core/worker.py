@@ -395,11 +395,11 @@ class WorkerRuntime:
             thread.join(timeout=max(0.0, timeout))
         return not self.busy
 
-    def probe_models(self, model_root: str) -> dict[str, dict[str, str]]:
-        """Probe optional models without starting inference when none exist."""
+    def probe_models(self, model_root: str, *, deep: bool = False) -> dict[str, dict[str, object]]:
+        """Report optional models; ``deep`` also loads them to prove they work."""
         from .model_service import get_model_process_service
 
-        return get_model_process_service().probe(Path(model_root).expanduser())
+        return get_model_process_service().probe(Path(model_root).expanduser(), deep=deep)
 
     def clear_cache(self) -> dict[str, int]:
         if self.busy:
@@ -603,11 +603,23 @@ def main() -> int:
                 should_exit = stopped
             elif message.type == "probe_models":
                 model_root = str(message.payload.get("model_root", ""))
-                emit(message.request_id, "status", {"state": "loading", "message": "正在检测外部模型…"})
+                deep = bool(message.payload.get("deep"))
+                emit(
+                    message.request_id,
+                    "status",
+                    {
+                        "state": "loading",
+                        "message": "正在加载模型…（首次可能需要几十秒）" if deep else "正在检测外部模型…",
+                    },
+                )
 
-                def probe_models_async(request_id: str = message.request_id, root: str = model_root) -> None:
+                def probe_models_async(
+                    request_id: str = message.request_id,
+                    root: str = model_root,
+                    deep: bool = deep,
+                ) -> None:
                     try:
-                        emit(request_id, "done", {"models": runtime.probe_models(root)})
+                        emit(request_id, "done", {"models": runtime.probe_models(root, deep=deep)})
                     except Exception as error:  # noqa: BLE001 - return probe failures through the protocol
                         emit(request_id, "error", {"code": "model_probe_failed", "message": str(error)})
 

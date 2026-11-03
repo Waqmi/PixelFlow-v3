@@ -19,6 +19,7 @@ from pixelflow_core.model_cache import (
 )
 from pixelflow_core.model_service import (
     STATE_FALLBACK,
+    STATE_FOUND,
     STATE_READY,
     STATE_UNCONFIGURED,
     STATUS_FALLBACK,
@@ -229,7 +230,13 @@ class ModelServiceTests(unittest.TestCase):
             ):
                 service = ModelProcessService(timeout=1)
                 try:
-                    result = service.probe_models(root)
+                    # The fast probe only reads the filesystem; it must never
+                    # start the model process.
+                    fast = service.probe_models(root)
+                    self.assertEqual(fast["pose"]["state"], STATE_FOUND)
+                    self.assertEqual(fast["segmentation"]["state"], STATE_FOUND)
+                    self.assertIsNone(service._process)
+                    result = service.probe_models(root, deep=True)
                     self.assertEqual(result["pose"]["state"], STATE_READY)
                     self.assertEqual(result["segmentation"]["state"], STATE_READY)
                     self.assertIsNone(service._process)
