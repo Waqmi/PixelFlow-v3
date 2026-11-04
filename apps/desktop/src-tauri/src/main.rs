@@ -1074,6 +1074,18 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building PixelFlow")
         .run(|app, event| {
+            // Closing the main window has to end the app. The auxiliary windows
+            // (settings / report / confirm) are hidden instead of destroyed so
+            // they can be reused, and a hidden window still counts as open:
+            // Tauri only exits once the window list is empty. Without this the
+            // process survives with no window and no taskbar entry while it keeps
+            // the worker alive, which on Windows leaves both executables locked
+            // and makes the install directory impossible to delete.
+            if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
+                if label.as_str() == "main" {
+                    app.exit(0);
+                }
+            }
             if matches!(event, RunEvent::Exit) {
                 let state = app.state::<WorkerState>();
                 if let Ok(mut guard) = state.0.lock() {

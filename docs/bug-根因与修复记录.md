@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-04 | **Windows 退出 App 后删不掉安装目录**，任务管理器里残留 2 个进程（`PixelFlow.exe` + `pixelflow-worker.exe`） | 窗口生命周期 | 辅助窗口关闭时只 `hide()` 不销毁，隐藏窗口仍占窗口表；Tauri 只在窗口表为空时才退出，于是主窗口关了进程却不退，Worker 跟着活，两个 exe 一直被锁 | 见 3.7 |
 | 2026-11-03 | 设置窗口关掉后再点没反应（三端） | Tauri ACL | 复用窗口要调 `show()`/`setFocus()`，但 capability 从未授予这两个权限 | `8b1278c` |
 | 2026-11-03 | Windows 打包图标是旧版 | 资源同步 | 换品牌只换了 `icns`/`png`，`icon.ico` 停留在 09-13 的旧图 | `a6ece63` |
 | 2026-11-03 | Windows 打开输出文件夹打开错目录 | 跨平台路径 | 前端用 `/` 拼 Windows 路径得到混合分隔符，原样交给 explorer | `8b1278c` |
@@ -81,6 +82,11 @@
 
 22. **协议流必须显式声明 UTF-8，不能依赖进程 locale**。Worker 侧 `reconfigure(encoding="utf-8")` 或 `PYTHONIOENCODING=utf-8` 二选一，最好都做；Rust 侧按 UTF-8 读。`Message.to_json()` 用的是 `ensure_ascii=False`，中文是真实字节，管道场景下 Windows 会按 cp936 输出。详见 3.6。
 23. **读取端不要用 `.lines().flatten()` 这类静默容错**。解码失败要留痕（写 `worker.log`）并转成前端可见的 `error`，否则"传输失败"会被误判成"对方没回"，排查方向直接跑偏。同理，前端等待响应的 Map 必须有超时释放，不能让一次丢行永久卡死界面。
+
+### 进程与退出
+
+24. **辅助窗口用 `hide()` 复用，就必须显式处理「主窗口关闭后退出」**。Tauri 只在窗口表为空时才退出，隐藏窗口仍在表里。验收动作固定为：打开设置页 → 关闭设置页 → 关闭主窗口 → **进程必须消失**（任务管理器 / `pgrep` 各看一次）。只看「窗口关了」不算通过。
+25. **`os._exit()` 跳过所有 `atexit`**。凡是靠 `atexit` 注册的清理——包括 `multiprocessing` 的 daemon 子进程回收——在 `os._exit` 前都要显式调用，否则子进程会被孤儿化并锁住产物。
 
 ## 三、重点案例
 
@@ -199,6 +205,34 @@
 
 > 不要把这个修复只放在 Windows 分支：编码是协议契约的一部分，三端共用同一份 Rust 与 Worker 代码。控制台黑窗（3.4）就是"修在侧分支、从未合回"的直接后果，别让同一剧本演第三次。
 
+### 3.7 Windows 退出 App 后删不掉安装目录（进程常驻）
+
+现象：Windows 上关掉 App 后想删安装目录，提示文件被占用；任务管理器里还剩 2 个进程——`PixelFlow.exe`（主程序本身）和 `pixelflow-worker.exe`。macOS 从未有人报过。
+
+**结论：主程序压根没退出，Worker 只是因为它还活着所以活着。** 触发条件是「开过设置页 / 报告页 / 确认页」中的任意一个，所以只要用过「测试模型」就必然踩到。
+
+证据链：
+
+1. `App.vue:1407-1412` 辅助窗口（settings / report / confirm）在 `onCloseRequested` 里 `event.preventDefault()`，然后调 `closeSettings()` / `dismissMaterialConfirmation()` / `closeReport()`。窗口的关闭被取消了。
+2. `App.vue:616-635` 这几个函数最终都走 `hideOwnWindow()` → `getCurrentWindow().hide()`。**窗口只是隐藏，从不销毁。**
+3. `tauri-runtime-wry-2.11.4/src/lib.rs:4310-4324`：Tauri 只在 `TaoWindowEvent::Destroyed` 时把窗口从 `windows` 表里移除，并且只有 `windows.0.borrow().is_empty()` 为真才发 `ExitRequested`。`hide()` 不会移除表项。
+4. 于是关掉主窗口后，表里还剩一个隐藏的设置窗口 → `is_empty()` 为 false → **`ExitRequested` 永不触发**。`main.rs:1077-1094` 的 Worker shutdown 挂在 `RunEvent::Exit` 上，自然也不会执行。
+5. 进程就这么常驻：没有窗口、没有任务栏图标，看着像已经退出。Worker 因为宿主 stdin 还开着，继续正常运行。Windows 上两个 exe 都被占用 → 安装目录删不掉。
+
+为什么另外两端没暴露：
+
+- **macOS 行为完全相同**，但 Dock 里有图标，看起来像正常的「应用还在后台」；而且 macOS 允许把正在运行的 `.app` 拖进废纸篓。所以同样的缺陷在 macOS 上不可见。**注意：用 SIGTERM 杀进程无法复现**（直接终止，绕过整个退出判定），只能靠「关窗口」触发——这一点让 macOS 侧的排查很容易走空。
+- **Linux** 逻辑一致，但 CI 只构建 macOS arm64 / macOS x64 / Windows 三端，不发版。
+
+为什么之前没发现：窗口复用改造（`729f623`、`314e59f`、`8b1278c`）都在解决「关掉再点打不开」，验收动作只到「设置页能不能重新打开」为止，**没有人关完主窗口再去任务管理器看进程**。3.1 那张四轮表里，四轮都盯着「能不能打开」，没一轮验证「能不能退出」。
+
+修复（两处，同一笔提交）：
+
+- `main.rs`：`.run()` 闭包里监听 `RunEvent::WindowEvent { label, event: WindowEvent::Destroyed }`，`label == "main"` 时 `app.exit(0)`。走的是 `Message::RequestExit` 路径（`tauri-runtime-wry` lib.rs:4354-4366），**不受窗口表是否为空影响**，并且会完整触发 `ExitRequested` → `Exit`，既有的 Worker shutdown + 10 秒等待 + kill 逻辑照常执行。三端统一为「关主窗口即退出」。
+- `worker_entry.py`：`os._exit(code)` 之前显式关掉模型子进程。这是同一场景下**被掩盖的第二个缺陷**：Worker 退出走 `os._exit`，会跳过 `atexit`，而 `model_service.py:792` 的 `atexit.register(_SHARED_SERVICE.close)` 是模型子进程唯一的回收点（`close()` 全库只在 `clear_cache` 里另调过一次）。Windows / Linux 用 `multiprocessing` spawn 出第二个 `pixelflow-worker.exe`，`daemon=True` 也救不了——`multiprocessing` 的回收同样挂在 `atexit` 上。macOS 因为 `_direct = sys.platform == "darwin"` 不派生子进程，天然免疫。主程序不退出的情况下这个坑不会触发，所以之前只看到 2 个进程而不是 3 个；**退出修好后它会立刻暴露**，因此两处必须一起改。
+
+验证：`cargo test` 14 项通过；Worker 测试 215 项通过 1 项跳过；`protocol:check` 与 `npm run build` 通过。Windows 实机复测待做。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
@@ -209,6 +243,7 @@
 | 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
 | 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
 | **Windows 点「测试模型」完全没反应** | 根因已定位到代码级：协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。侧分支 `5106baf` 有 2026-10-18 的旧修复，从未合回 | 等 Intel 实机测完再改；改法见 3.6 待修清单 |
+| **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
 
 ## 五、命令速查
 

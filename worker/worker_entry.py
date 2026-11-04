@@ -29,6 +29,13 @@ from pixelflow_core.worker import main  # noqa: E402
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     code = main()
+    # os._exit skips atexit, so the model subprocess that Windows and Linux
+    # spawn would outlive the worker and keep the bundled executables locked.
+    # Close it explicitly; on macOS the model work runs in-process, so this is
+    # a no-op. Imported lazily because the module may never have been loaded.
+    model_service = sys.modules.get("pixelflow_core.model_service")
+    if model_service is not None:
+        model_service.get_model_process_service().close()
     # Skip native teardown: onnxruntime's telemetry thread can abort the
     # process while static objects are destroyed.
     import logging
