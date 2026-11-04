@@ -18,7 +18,8 @@
 | 2026-11-03 | Windows 打包图标是旧版 | 资源同步 | 换品牌只换了 `icns`/`png`，`icon.ico` 停留在 09-13 的旧图 | `a6ece63` |
 | 2026-11-03 | Windows 打开输出文件夹打开错目录 | 跨平台路径 | 前端用 `/` 拼 Windows 路径得到混合分隔符，原样交给 explorer | `8b1278c` |
 | 2026-11-03 | Windows 打开 App 附带控制台黑窗，关掉黑窗 App 一起退出 | Windows 子系统 | 主 exe 是控制台子系统（PE `Subsystem=3`）；`windows_subsystem` 属性 11-02 才进主仓，用户手上的 10-31 包早于它 | `314e59f` + CI 断言 |
-| 2026-11-03 | 设置页「测试模型」等很久 / 检测不到 / 一直"检测中"（Intel、Windows） | 探测成本 | `probe` 会真正加载三个 ONNX 会话并对每个模型全量算 SHA-256；macOS 在 Worker 进程内跑、Windows 还要 spawn 冻结子进程；前端互斥锁 30s 短于后端 180s 超时 | 未提交（`model_service.py`、`worker.py`、`App.vue`） |
+| 2026-11-03 | 设置页「测试模型」等很久 / 检测不到 / 一直"检测中"（Intel、Windows） | 探测成本 | `probe` 会真正加载三个 ONNX 会话并对每个模型全量算 SHA-256；macOS 在 Worker 进程内跑、Windows 还要 spawn 冻结子进程；前端互斥锁 30s 短于后端 180s 超时 | `0ef9bf1`（两级探测）；编码问题另见 3.6 |
+| 2026-11-03 | **Windows 点「测试模型」完全没反应**，等多久都没结果（ARM 正常） | 协议编码 | Worker 按系统代码页（cp936）输出中文，Rust 按 UTF-8 读取失败后被 `.lines().flatten()` 静默丢弃，前端永远收不到 `done`/`error` | 待修（侧分支 `5106baf` 有 10-18 的旧修复，从未合回） |
 | 2026-11-02 | 设置窗口保存后重开空白/失败 | 窗口生命周期 | 复用隐藏窗口时依赖 `isVisible()`，跨 WebView 事件存在竞态 | `314e59f` |
 | 2026-11-02 | macOS 关闭辅助窗口时崩溃 | 窗口生命周期 | 在窗口自己的 JS 里 `close()`，WebKit 在 dealloc 时访问已释放页面 | `8f64c00` |
 | 2026-11-01 | 生成进度会往回跳 | 进度语义 | 不同阶段 `completed/total` 会重置，前端插值器还接受更低目标 | `0ce3e2e`、`beedb34`、`134883e` |
@@ -75,6 +76,11 @@
 ### 模型与推理
 
 21. **设置页的"检测/测试"不能做重活**。`probe_models` 的默认路径只做 `glob` + `.classes.json` + 文件大小/时间（状态 `已找到`）；真正加载模型是 `deep=True` 的「加载测试」。别再往默认路径里塞会话创建或全量哈希。
+
+### 跨进程通信（Worker 协议）
+
+22. **协议流必须显式声明 UTF-8，不能依赖进程 locale**。Worker 侧 `reconfigure(encoding="utf-8")` 或 `PYTHONIOENCODING=utf-8` 二选一，最好都做；Rust 侧按 UTF-8 读。`Message.to_json()` 用的是 `ensure_ascii=False`，中文是真实字节，管道场景下 Windows 会按 cp936 输出。详见 3.6。
+23. **读取端不要用 `.lines().flatten()` 这类静默容错**。解码失败要留痕（写 `worker.log`）并转成前端可见的 `error`，否则"传输失败"会被误判成"对方没回"，排查方向直接跑偏。同理，前端等待响应的 Map 必须有超时释放，不能让一次丢行永久卡死界面。
 
 ## 三、重点案例
 
@@ -134,7 +140,7 @@
 3. **时间预算不匹配**。`_request` 的超时是 `180s`；前端 `modelProbeLockTtlMs = 30_000`。主窗口在 Worker ready 时也会自动 probe 一次（`App.vue:1665`）。设置页的 probe 超过 30s 还没回来时，另一侧会抢到锁再发一次，而 Worker 侧 `_request` 用 `self._lock` 串行化，第二个只能排在第一个后面 → 等待翻倍；且 `modelProbeRequestId` 被覆盖后，第一个请求的 `done` 会被当成无关消息丢弃，界面上就是"一直检测中"。
 4. **`detection` 也在 probe 里加载**，但设置页状态行只需要 pose/seg。这一步在慢机器上是纯浪费。
 
-修复（未提交）：
+修复（`0ef9bf1`）：
 
 - `probe_models(model_root, *, deep=False)` 拆两级。默认 `deep=False` 走 `_probe_presence()`：只做 `glob`、`.classes.json` 检查、文件大小/时间，**不导入推理运行时**，状态是新的 `已找到`（`loaded: false`）。`deep=True` 才走原来的加载路径，状态是 `已就绪`/`不可用`（`loaded: true`）。
 - 轻量探测**不加载 detection**，只报 `已找到`；deep 才加载。
@@ -145,7 +151,53 @@
 
 验证：`worker/tests/test_model_service.py` 5 项新增用例（轻量探测不建会话、空目录报未配置、detection 缺 `.classes.json` 报不可用、小模型仍有摘要、deep 标记 `loaded`）；`test_model_cache.py` 的 macOS 进程内用例改为分别断言轻量探测不 spawn、deep 探测仍走进程内。
 
-未闭环：需要在 Intel / Windows 实机点一次「测试模型」与「加载测试」，确认状态与耗时符合预期。
+未闭环：ARM 已实机验证正常（2026-11-03）。Windows 实机点「测试模型」仍然没有结果，但那是**另一个根因**——协议行编码，见 3.6。Intel 尚未实机验证。
+
+### 3.6 Windows：中文协议行被静默丢弃（「测试模型」点了没反应）
+
+现象：Windows 设置页添加模型目录后点「测试模型」，界面一直停在"测试中"，等多久都没有结果；重开设置页再点也一样。ARM 正常，Intel 尚未测。
+
+**结论：不是模型文件、不是目录、不是锁，是协议行的编码。** Worker 按系统代码页（cp936）写出中文，Rust 按 UTF-8 读失败后把整行静默丢掉，前端永远收不到 `done` / `error`。
+
+证据链（逐环都能在代码里核对）：
+
+1. `contracts.py` 的 `Message.to_json()` 用 `ensure_ascii=False` —— 中文是**真实 UTF-8 字节**，不是 `\uXXXX` 转义。这是前提：如果转义成 ASCII，编码问题根本不存在。
+2. `worker.py:570` 用 `print(line, flush=True)` 直接写 `sys.stdout`。
+3. `spawn_worker`（`main.rs:986-998`）没有设置 `PYTHONIOENCODING`；`worker_entry.py` 也没有 `reconfigure(encoding="utf-8")`。
+4. Worker 的 stdout 是**管道**（`Stdio::piped()`）。Python 对管道不使用控制台代码页，而是 `locale.getpreferredencoding(False)`：简体中文 Windows 上是 `cp936`。
+5. Rust 侧 `read_line` 按 UTF-8 解码 → `Err(InvalidData)`。
+6. `main.rs:1002` 是 `for line in BufReader::new(stdout).lines().flatten()` —— `flatten()` 把 `Err` 静默跳过。这行连 `append_worker_event` 都到不了，**日志里没有任何痕迹**。
+
+本机实测（macOS 上手工构造同一条消息）：`ensure_ascii=False` 的 `done` JSON 在 cp936 下是 101 字节，UTF-8 解码在第 89 字节失败——正是「已」字的第一个字节；用 GBK 能完整还原。macOS 管道下 `sys.stdout.encoding` 是 `utf-8`，所以三端只有 Windows 会踩到。
+
+**为什么时好时坏**：Windows 若开启「Beta: 使用 Unicode UTF-8 提供全球语言支持」，ANSI 代码页会变成 65001，问题消失；系统语言是英文同理。所以这个 bug 依赖机器的区域设置，不是每次必现。
+
+**为什么上一轮（3.5）没修好**：3.5 改的是**探测要花多久**，没碰**结果怎么传回来**。`probe_models` 的 `done` 里 `state` 就是「已找到」/「已就绪」，中文，整行照旧被丢。改错了层。
+
+**加重因素（3.5 引入）**：`App.vue:1006` 的 `if (modelProbePending.size) return`。`done` 收不到 → 这个 Map 永不清空 → 之后每次点击在第一行就 return，**请求根本发不出去**。只有重载页面或重启 App 能恢复（30s 的 localStorage 租约到期也没用，内存里的 Map 先拦住了）。所以现在用户看到的是"点了完全没反应"，而不是"转圈很久"。
+
+**侧分支已有修复（2026-10-18，从未合回 main）**：
+
+- `5106baf fix: force UTF-8 worker protocol on Windows` —— `worker_entry.py` 强制 UTF-8；Rust 改成 `read_line` 循环、读取失败不再静默；测试用 `PYTHONIOENCODING=cp936` + 中文目录名「模型目录-」复现本场景。
+- `761411b fix: keep model probe independent from inference lock` —— 探测不走推理锁。3.5 的两级改造已覆盖快速路径（`_probe_presence` 直接读文件、不拿锁），但 `deep` 路径仍走 `_request` 拿锁。
+
+**现场确认（不改代码）**：点「测试模型」后立刻看 `%LOCALAPPDATA%\PixelFlow\logs\worker-events.jsonl`：
+
+- 该 `request_id` **一条记录都没有**（连 `status` 都没有）→ 编码问题坐实。因为 `status` 文案「正在检测外部模型…」也是中文，同样被丢。
+- 有 `status` 但没有 `done` → 那是另一个问题（Worker 端抛异常），排查方向不同。
+- `worker.log` 干净得反常，本身就是信号：编码错误不产生 Python 异常。
+
+**教训**：**协议流必须显式声明编码，不能依赖进程 locale**。跨进程通信里"默认编码"等于"随机器而变"；而读取端的 `flatten()`、`unwrap_or_default()` 这类静默容错，会把传输故障伪装成"对方没回"，让人往模型、锁、超时的方向查——这次就是绕了整整一圈。
+
+待修（等 Intel 实机测完再动手，避免同时改动多端）：
+
+1. `worker_entry.py` 无条件 reconfigure stdin/stdout 为 UTF-8（macOS 本就是 UTF-8，无副作用）
+2. `main.rs` 读取失败写进 `worker.log`，并向前端发一条 `error`，杜绝"永远转圈"
+3. `spawn_worker` 在 Windows 上补 `PYTHONIOENCODING=utf-8` 作双保险
+4. `App.vue` 给 `modelProbePending` 加超时释放（60s）并明确报错
+5. 移植 `5106baf` 的 cp936 + 中文路径回归测试
+
+> 不要把这个修复只放在 Windows 分支：编码是协议契约的一部分，三端共用同一份 Rust 与 Worker 代码。控制台黑窗（3.4）就是"修在侧分支、从未合回"的直接后果，别让同一剧本演第三次。
 
 ## 四、已知未闭环
 
@@ -153,9 +205,10 @@
 |---|---|---|
 | Intel Big Sur 保存设置闪退 | 当前源码保存只 `hide()` 不销毁；崩溃栈指向 WebView dealloc。用户测试包的 Worker 哈希 `c5f28e36` 与当前 CI x64 产物 `5c2f6c25`、10-31 包 `1ed4a45d`、10-30 包 `2744fda9` 均不一致 | 用当前 x64 包在 Big Sur 复测；若仍崩溃，取 crash report 并核对二进制 UUID |
 | Intel 设置窗口上下蓝色横线 | `8f64c00` 已加 `[role="dialog"][tabindex="-1"]:focus{outline:none}`，当前源码无其他规则能画出该效果 | 同上，先确认测试包版本 |
-| Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`v3.yml` 新增 PE `Subsystem` 断言（本地未提交） | 推送后看 CI 的 `Assert GUI subsystem` 步骤是否通过 |
-| 设置/报告窗口二次打开 | 权限已补 | ARM 与 Windows 实机点验 |
-| Windows / Intel 设置页「测试模型」等很久、检测不到或一直"检测中" | 已改为两级探测 + 心跳锁（未提交，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | Intel / Windows 实机点一次两个按钮，确认状态与耗时 |
+| Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`2745635` 加了 PE `Subsystem` 断言，`5958038` 修正偏移后 CI 实测 `subsystem = 2` | 已闭环；遗留盲区：断言只查打包前的 `target/.../release/*.exe`，未查 NSIS 载荷内的 exe |
+| 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
+| 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
+| **Windows 点「测试模型」完全没反应** | 根因已定位到代码级：协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。侧分支 `5106baf` 有 2026-10-18 的旧修复，从未合回 | 等 Intel 实机测完再改；改法见 3.6 待修清单 |
 
 ## 五、命令速查
 
