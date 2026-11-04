@@ -237,7 +237,7 @@
 
 | 问题 | 现状 | 下一步 |
 |---|---|---|
-| Intel Big Sur 保存设置闪退 | 当前源码保存只 `hide()` 不销毁；崩溃栈指向 WebView dealloc。用户测试包的 Worker 哈希 `c5f28e36` 与当前 CI x64 产物 `5c2f6c25`、10-31 包 `1ed4a45d`、10-30 包 `2744fda9` 均不一致 | 用当前 x64 包在 Big Sur 复测；若仍崩溃，取 crash report 并核对二进制 UUID |
+| Intel Big Sur 保存设置闪退 | 当前源码保存只 `hide()` 不销毁；崩溃栈指向 WebView dealloc。用户测试包的 Worker 哈希 `c5f28e36` 与 `5958038` x64 包实测的 `37c32cb2`、10-31 包 `1ed4a45d`、10-30 包 `2744fda9` 均不一致 | 用当前 x64 包在 Big Sur 复测；若仍崩溃，取 crash report 并核对二进制 UUID |
 | Intel 设置窗口上下蓝色横线 | `8f64c00` 已加 `[role="dialog"][tabindex="-1"]:focus{outline:none}`，当前源码无其他规则能画出该效果 | 同上，先确认测试包版本 |
 | Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`2745635` 加了 PE `Subsystem` 断言，`5958038` 修正偏移后 CI 实测 `subsystem = 2` | 已闭环；遗留盲区：断言只查打包前的 `target/.../release/*.exe`，未查 NSIS 载荷内的 exe |
 | 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
