@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-04 | **Windows 点「开始生成」完全没反应**、设置页「测试模型」一直检测中 | 错误关联 | Worker 解析失败时回 `request_id: "unknown"`，前端无法匹配就丢弃整条错误，`isRunning` / `modelProbePending` 永远不清空，后续点击被「已在运行」守卫静默拦下 | 见 3.8 |
 | 2026-11-04 | **Windows 退出 App 后删不掉安装目录**，任务管理器里残留 2 个进程（`PixelFlow.exe` + `pixelflow-worker.exe`） | 窗口生命周期 | 辅助窗口关闭时只 `hide()` 不销毁，隐藏窗口仍占窗口表；Tauri 只在窗口表为空时才退出，于是主窗口关了进程却不退，Worker 跟着活，两个 exe 一直被锁 | 见 3.7 |
 | 2026-11-03 | 设置窗口关掉后再点没反应（三端） | Tauri ACL | 复用窗口要调 `show()`/`setFocus()`，但 capability 从未授予这两个权限 | `8b1278c` |
 | 2026-11-03 | Windows 打包图标是旧版 | 资源同步 | 换品牌只换了 `icns`/`png`，`icon.ico` 停留在 09-13 的旧图 | `a6ece63` |
@@ -87,6 +88,9 @@
 
 24. **辅助窗口用 `hide()` 复用，就必须显式处理「主窗口关闭后退出」**。Tauri 只在窗口表为空时才退出，隐藏窗口仍在表里。验收动作固定为：打开设置页 → 关闭设置页 → 关闭主窗口 → **进程必须消失**（任务管理器 / `pgrep` 各看一次）。只看「窗口关了」不算通过。
 25. **`os._exit()` 跳过所有 `atexit`**。凡是靠 `atexit` 注册的清理——包括 `multiprocessing` 的 daemon 子进程回收——在 `os._exit` 前都要显式调用，否则子进程会被孤儿化并锁住产物。
+
+26. **错误响应必须能被关联回原请求**。回 `request_id: "unknown"` 等于把错误丢进黑洞：前端匹配不上就整条丢弃，等待中的状态永远不会复位。解析失败时也要尽力从原始文本里抠出 `request_id`，并把原始行截断回显——否则这类问题只能靠猜。
+27. **前端每个「等待中」标记都要有超时释放**，包括 `isRunning` 这种看似不会丢的。守卫写成 `if (running) return` 时，一次丢失的响应就等于永久禁用，而且**不报错、不改状态**，用户只会说「点了没反应」。
 
 ## 三、重点案例
 
@@ -233,6 +237,32 @@
 
 验证：`cargo test` 14 项通过；Worker 测试 215 项通过 1 项跳过；`protocol:check` 与 `npm run build` 通过。Windows 实机复测待做。
 
+### 3.8 Windows 点「开始生成」完全没反应（错误无法关联导致状态卡死）
+
+现象：Windows 上选好目录点「开始生成」，界面停在「生成失败」后再点毫无反应——不报错、状态文字不变、进度不动。设置页「测试模型」同样一直停在「检测中」。
+
+**结论：不是路径、不是模型、不是锁，是错误响应关联不上，前端把错误丢了。** 一次失败之后界面就永久禁用，只有重启能恢复。
+
+证据链（`PixelFlow-诊断包(2).zip`，Windows，`ddfeebf` 构建）：
+
+1. `worker-events.jsonl` 里有 **9 条 `request_id: "unknown"` 的 error**（事件 13-19、24、25、30），`code: invalid_message`，`message: invalid JSON: Invalid escape`。
+2. `worker.py` 原来的异常分支写死 `_event("unknown", "error", ...)`——Worker 解析不了这行，就不知道是谁发的，于是回了个前端认不出的 id。
+3. `App.vue:1838` 的错误入口按 id 过滤：`request_id !== 'worker' && !== generationRequestId && !== classificationRequestId` 就直接 `return`。`"unknown"` 三条都不匹配，**整条错误被丢弃**。
+4. 于是 `isRunning` / `classificationRunning` / `modelProbePending` 都不会复位。下一次点击在 `classifyMaterials` 的 `if (classificationRunning.value || isRunning.value) return` 或 `probeModels` 的 `if (modelProbePending.size) return` 被静默拦下——**不报错、不改状态**，表现就是「点了没反应」。
+5. `classificationRunning` 有 120s 看门狗兜底，`isRunning` **没有**，所以生成侧是真的永久锁死。
+
+同源的第 4 条（重开仍显示上次路径）：`App.vue:1418-1426` 在启动时无条件用恢复快照覆盖 `inputRoot` / `outputRoot`，用户改过的路径会被旧快照压回去。
+
+修复（`4e917fb`）：
+
+- `worker.py`：解析失败时用正则从原始行抠 `request_id`（`_salvage_request_id`），并在 message 里附带截断 200 字符的原始行（`_raw_line_excerpt`）。错误因此能回到原请求，锁能释放，坏在哪也直接看得见。
+- `App.vue`：`isRunning` 增加**停滞看门狗**——每收到一次 `progress` 续期，180s 无事件则释放并报「生成超时」。用「无事件」而不是固定总时长，避免误杀正常的长任务。
+- `App.vue`：`modelProbePending` 增加 60s 超时释放并报错。
+
+验证：Worker 测试 216 项通过 1 项跳过（新增 `test_salvage_request_id_reads_the_id_from_broken_json`）；`vue-tsc --noEmit` + `vite build` 通过。
+
+**仍未闭环**：什么把 JSON 弄成非法转义，尚未定。已排除的方向——不是 cp936 误解码（用真实路径 `C:\Users\admin\Desktop\跑步运动棉马甲v2` 实测，cp936 会抛 `UnicodeDecodeError` 并解出 `璺戞` 乱码，而 Worker 报错里的中文是完好的），也不是路径尾随空格（用户确认没有）。下次复现时 error 的 `message` 会带上原始行，可直接定位。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
@@ -244,6 +274,7 @@
 | 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
 | **Windows 点「测试模型」完全没反应** | 根因已定位到代码级：协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。侧分支 `5106baf` 有 2026-10-18 的旧修复，从未合回 | 等 Intel 实机测完再改；改法见 3.6 待修清单 |
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
+| **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id 并回显原始行，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，下次复现时 error message 会带原始行 |
 
 ## 五、命令速查
 
