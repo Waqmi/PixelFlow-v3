@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import base64
+import re
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
@@ -560,6 +561,26 @@ def handle_message(message: Message) -> tuple[str, bool]:
     ), False
 
 
+_REQUEST_ID_PATTERN = re.compile(r'"request_id"\s*:\s*"([^"]{1,120})"')
+_RAW_LINE_LIMIT = 200
+
+
+def _salvage_request_id(line: str) -> str:
+    """Recover the request id from a line that is not valid JSON.
+
+    Reporting the failure as request_id "unknown" leaves the host unable to
+    correlate the error with the request it sent, so the UI waits forever and
+    every later click is swallowed by the "already running" guard.
+    """
+    match = _REQUEST_ID_PATTERN.search(line)
+    return match.group(1) if match else "unknown"
+
+
+def _raw_line_excerpt(line: str) -> str:
+    text = line.strip()
+    return text if len(text) <= _RAW_LINE_LIMIT else f"{text[:_RAW_LINE_LIMIT]}…"
+
+
 def main() -> int:
     output_lock = threading.Lock()
     preview_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pixelflow-preview")
@@ -649,7 +670,11 @@ def main() -> int:
             else:
                 response, should_exit = handle_message(message)
         except ProtocolError as error:
-            response = _event("unknown", "error", {"code": "invalid_message", "message": str(error)})
+            response = _event(
+                _salvage_request_id(line),
+                "error",
+                {"code": "invalid_message", "message": f"{error}; raw={_raw_line_excerpt(line)}"},
+            )
             should_exit = False
         except Exception as error:
             response = _event(message.request_id if "message" in locals() else "unknown", "error", {"code": "invalid_request", "message": str(error)})

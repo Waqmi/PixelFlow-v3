@@ -278,5 +278,23 @@ class WorkerProcessTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0)
 
 
+class MalformedRequestTests(unittest.TestCase):
+    """A request the worker cannot parse must still name the request it broke.
+
+    Replying with request_id "unknown" leaves the host unable to match the error
+    to the request it sent, so the UI keeps waiting and every later click is
+    swallowed by the "already running" guard.
+    """
+
+    def test_salvage_request_id_reads_the_id_from_broken_json(self) -> None:
+        from pixelflow_core.worker import _raw_line_excerpt, _salvage_request_id
+
+        broken = '{"protocol":1,"request_id":"main-7","type":"classify_materials","payload":{"product_root":"C:\\pftest"}}'
+        self.assertEqual(_salvage_request_id(broken), "main-7")
+        self.assertEqual(_salvage_request_id('{"type":"ping"}'), "unknown")
+        self.assertIn("C:", _raw_line_excerpt(broken))
+        self.assertLessEqual(len(_raw_line_excerpt("x" * 500)), 201)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -247,12 +247,16 @@ const cancelTargetRequestId = ref<string>()
 let worker: WorkerClient | undefined
 let classificationWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
+let generationStallWatchdog: ReturnType<typeof window.setTimeout> | undefined
+const generationStallMs = 180_000
 let settingsSnapshot: SettingsSnapshot | undefined
 let settingsWindowReady = false
 let settingsReadyListener: Promise<void> = Promise.resolve()
 let modelProbeRetryTimer: number | undefined
 let modelProbeHeartbeat: number | undefined
 const modelProbePending = new Map<string, string>()
+const modelProbeTimers = new Map<string, number>()
+const modelProbeTimeoutMs = 60_000
 let modelProbeReadyHandled = false
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
@@ -853,6 +857,28 @@ function armClassificationWatchdog() {
   }, 120_000)
 }
 
+// A generation that stops emitting events looks exactly like one that finished,
+// and an error reply the host cannot correlate would leave isRunning stuck: every
+// later click then returns at the "already running" guard without any feedback.
+function clearGenerationStallWatchdog() {
+  if (generationStallWatchdog !== undefined) window.clearTimeout(generationStallWatchdog)
+  generationStallWatchdog = undefined
+}
+
+function armGenerationStallWatchdog() {
+  clearGenerationStallWatchdog()
+  generationStallWatchdog = window.setTimeout(() => {
+    generationStallWatchdog = undefined
+    if (!isRunning.value) return
+    isRunning.value = false
+    isCancelling.value = false
+    taskPhase.value = '生成失败'
+    taskDetail.value = '长时间没有收到 Worker 的进度，任务可能已经中断。'
+    status.value = '生成超时：长时间没有收到 Worker 进度'
+    updateResumePhase('failed')
+  }, generationStallMs)
+}
+
 function clearCancelWatchdog() {
   if (cancelWatchdog !== undefined) window.clearTimeout(cancelWatchdog)
   cancelWatchdog = undefined
@@ -931,6 +957,38 @@ async function pickDirectory(target: 'input' | 'output' | 'model') {
 }
 
 type ModelProbeLock = { owner: string; root: string; startedAt: number }
+
+// A probe whose reply never arrives must not disable the button forever: the
+// pending map is checked before every request, so a single lost reply (or one
+// the host cannot correlate) leaves 「测试模型」 dead until the window reloads.
+function settleModelProbe(requestId: string): string {
+  const timer = modelProbeTimers.get(requestId)
+  if (timer !== undefined) window.clearTimeout(timer)
+  modelProbeTimers.delete(requestId)
+  const root = modelProbePending.get(requestId) || ''
+  modelProbePending.delete(requestId)
+  return root
+}
+
+function trackModelProbe(requestId: string, root: string) {
+  modelProbePending.set(requestId, root)
+  const timer = window.setTimeout(() => {
+    modelProbeTimers.delete(requestId)
+    if (!modelProbePending.has(requestId)) return
+    const pendingRoot = settleModelProbe(requestId)
+    modelStatus.value = '状态：模型检测超时，请重试'
+    if (!modelProbePending.size) {
+      modelTesting.value = false
+      releaseModelProbe(pendingRoot)
+    }
+  }, modelProbeTimeoutMs)
+  modelProbeTimers.set(requestId, timer)
+}
+
+function clearModelProbeTimers() {
+  modelProbeTimers.forEach((timer) => window.clearTimeout(timer))
+  modelProbeTimers.clear()
+}
 
 function readModelProbeLock(): ModelProbeLock | undefined {
   try {
@@ -1014,7 +1072,7 @@ function probeModels(deep = false) {
   modelStatus.value = deep ? '状态：正在加载模型…（首次可能需要几十秒）' : '状态：正在检测外部模型…'
   startModelProbeHeartbeat(root)
   const requestId = worker.request('probe_models', { model_root: localModelPath.value, deep })
-  modelProbePending.set(requestId, root)
+  trackModelProbe(requestId, root)
 }
 
 async function discoverDefaultModelPath() {
@@ -1297,6 +1355,7 @@ function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   setProgress(0, true)
   const payload = { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true }
   generationRequestId.value = worker.request('retry_failed', payload)
+  armGenerationStallWatchdog()
   persistGenerationResume(payload)
   status.value = `准备重试 ${sourceFilter.length} 项失败素材`
 }
@@ -1382,6 +1441,7 @@ function resumeTask() {
   taskDetail.value = '已生成的输出会自动复用，继续处理未完成素材。'
   const requestPayload = { ...payload, material_confirmation_completed: true, force_rerender: false }
   generationRequestId.value = worker.request('start_generation', requestPayload)
+  armGenerationStallWatchdog()
   persistGenerationResume(requestPayload)
 }
 
@@ -1760,8 +1820,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     void openConfirmWindow()
     safeSetWindowTitle(`确认素材分类 · ${materials.value.length} 张`)
   } else if (message.type === 'done' && modelProbePending.has(message.request_id)) {
-    const root = modelProbePending.get(message.request_id) || ''
-    modelProbePending.delete(message.request_id)
+    const root = settleModelProbe(message.request_id)
     if (!modelProbePending.size) {
       modelTesting.value = false
       releaseModelProbe(root)
@@ -1779,6 +1838,7 @@ function handleWorkerMessage(message: WorkerMessage) {
   } else if (message.type === 'done' && message.request_id.startsWith('main-') && 'cleared' in payload) {
     settingsNotice.value = '缓存已清理'
   } else if (message.type === 'progress' && message.request_id === generationRequestId.value) {
+    armGenerationStallWatchdog()
     const total = Number(payload.total || 0)
     const completed = Number(payload.completed || 0)
     const detail = String(payload.phase || '处理中')
@@ -1788,6 +1848,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     taskDetail.value = `${completed} / ${total} · ${detail}`
     status.value = taskDetail.value
   } else if (message.type === 'done' && message.request_id === generationRequestId.value) {
+    clearGenerationStallWatchdog()
     isRunning.value = false
     isCancelling.value = false
     setProgress(1000, true)
@@ -1801,6 +1862,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     showReport()
   } else if (message.type === 'cancelled' && message.request_id === generationRequestId.value) {
     clearCancelWatchdog()
+    clearGenerationStallWatchdog()
     isRunning.value = false
     isCancelling.value = false
     lastResult.value = (payload.result as Record<string, unknown>) || {}
@@ -1826,8 +1888,7 @@ function handleWorkerMessage(message: WorkerMessage) {
     }
     if (modelProbePending.has(message.request_id)) {
       const messageText = String(payload.message || '请检查模型目录')
-      const root = modelProbePending.get(message.request_id) || ''
-      modelProbePending.delete(message.request_id)
+      const root = settleModelProbe(message.request_id)
       modelStatus.value = `状态：模型检测失败；${messageText}`
       if (!modelProbePending.size) {
         modelTesting.value = false
@@ -1845,6 +1906,7 @@ function handleWorkerMessage(message: WorkerMessage) {
         modelTesting.value = false
         modelStatus.value = '状态：Worker 已中断，模型检测未完成'
         const roots = Array.from(modelProbePending.values())
+        clearModelProbeTimers()
         modelProbePending.clear()
         modelProbeReadyHandled = false
         roots.forEach((root) => releaseModelProbe(root))
@@ -1855,6 +1917,7 @@ function handleWorkerMessage(message: WorkerMessage) {
       updateResumePhase('failed')
     }
     clearClassificationWatchdog()
+    clearGenerationStallWatchdog()
     isRunning.value = false
     isCancelling.value = false
     if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
@@ -2315,6 +2378,7 @@ function startGeneration() {
   taskDetail.value = '正在整理生成任务……'
   const payload = generationPayload()
   generationRequestId.value = worker.request('start_generation', payload)
+  armGenerationStallWatchdog()
   persistGenerationResume(payload)
 }
 </script>
