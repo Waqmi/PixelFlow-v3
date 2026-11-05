@@ -169,7 +169,11 @@ fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String
         .map_err(|error| format!("worker write failed: {error}"))
 }
 
-#[tauri::command]
+// Runs off the main thread: a plain command executes on the main thread, so
+// waiting for the user to pick a folder froze the whole window until the
+// dialog closed.  native_open_panel already hops to the main thread itself,
+// so moving this off-main is safe on every platform.
+#[tauri::command(async)]
 fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
         if let Some(path) = &path {
