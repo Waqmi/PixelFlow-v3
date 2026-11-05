@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **Windows 交互动画全部消失**，但设置里的「关闭动画」未勾选 | 样式与状态脱节 | 两条 `@media(prefers-reduced-motion:reduce)` 全局规则强制清零动画；App 开关只读 localStorage，两者不通 | 见 3.13 |
 | 2026-11-05 | **Windows 确认素材页一片空白**，但生成正常 | 渲染依赖 | 卡片默认 `opacity:0`，只靠 IntersectionObserver 置 `data-visible` 才显示；隐藏窗口里观察器判定全不可见且不重算 | 见 3.12 |
 | 2026-11-05 | **Windows「加载测试」失败 / 生成卡在 Pose**（安装路径含中文） | 冻结包子进程 | `spawn` 的子进程死在 `pyiboot01_bootstrap`：中文路径把 `base_library.zip` 的路径塌缩成 `Cbase_library.zip`，stdlib 读不到 | 见 3.11 |
 | 2026-11-05 | **macOS Intel 确认页底部出现灰色遮挡带**（ARM 正常） | 渲染兼容 | 底部滚动提示的 `linear-gradient(..., transparent)` 在旧 WebKit 上向黑色插值，渐变变成灰色纱罩 | 见 3.10 |
@@ -371,6 +372,25 @@ FileNotFoundError: [Errno 2] No such file or directory: 'Cbase_library.zip'
 `data-visible` 由 `IntersectionObserver` 在进入视口时置为 `true`。Windows 上确认窗口是先以隐藏状态创建、再 `show()` 出来的：观察器在窗口不可见时判定全部卡片不进入视口，而窗口显示后尺寸没变、不触发重新计算，于是没有任何一张卡片被标记 → 整页 `opacity: 0`。
 
 修复：卡片默认 `opacity: 1`，动画只作为增强。内容不应该依赖 JS 才可见——这是「空白页」这类故障的共同形态。
+
+### 3.13 Windows：交互动画全部消失（设置里的开关却是关的）
+
+现象：Windows 上界面没有任何过渡动画，但设置 → 通用 → 「关闭动画」并没有勾选。
+
+**根因**：样式表里有两条全局降级规则，只要系统偏好是「减少动效」，就把所有动画和过渡强制清零：
+
+```css
+@media(prefers-reduced-motion:reduce){*{animation-duration:1ms!important;transition-duration:1ms!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+```
+
+而 App 自己的开关只读 `localStorage`，两者互不相通。Windows Server 2022（远程桌面）默认关闭「显示动画」，WebView2 如实上报 `reduce`，于是动画全灭，开关却显示未勾选——用户无法从界面上得知原因，也关不掉。
+
+**修复**：
+
+- 删掉两条 `@media(prefers-reduced-motion:reduce)` 全局规则，让 `.reduce-motion` 类成为唯一开关。内容层的动效偏好由 App 自己负责，用户有明确可操作的入口。
+- 初始化时若本地没有存过偏好，就读一次系统偏好作为初值（`readInitialReducedMotion`），让勾选状态和实际表现一致。
+- 诊断包新增 `reduced_motion` 与 `os_reduced_motion` 两个字段，下次这类问题可以直接从包里读，不用再猜。
 
 ## 四、已知未闭环
 
