@@ -189,7 +189,7 @@ fn pick_directory(app: AppHandle, state: State<'_, WorkerState>) -> Result<Optio
     }
     #[cfg(target_os = "windows")]
     {
-        return Ok(remember(windows_dialog("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }")?));
+        return Ok(remember(windows_dialog("$d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($owner) -eq 'OK') { $d.SelectedPath }")?));
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     { Ok(None) }
@@ -245,7 +245,7 @@ fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Resu
     }
     #[cfg(target_os = "windows")]
     {
-        let path = windows_dialog("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'PNG 图片 (*.png)|*.png'; if ($d.ShowDialog() -eq 'OK') { $d.FileName }")?;
+        let path = windows_dialog("$d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'PNG 图片 (*.png)|*.png'; if ($d.ShowDialog($owner) -eq 'OK') { $d.FileName }")?;
         if let Some(path) = &path { validate_logo(path, &key)?; }
         return Ok(remember(path));
     }
@@ -282,7 +282,16 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn windows_dialog(script: &str) -> Result<Option<String>, String> {
-    let script = windows_utf8_script(script);
+    // An ownerless dialog can open behind the app window, which looks exactly
+    // like a frozen UI: the user sees nothing and the click appears to do
+    // nothing. Show a 1x1 transparent topmost form first and hand it to
+    // ShowDialog as the owner so the dialog comes to the front.
+    const OWNER: &str = "Add-Type -AssemblyName System.Windows.Forms; \
+        $owner = New-Object System.Windows.Forms.Form; \
+        $owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; \
+        $owner.Opacity = 0; $owner.ShowInTaskbar = $false; $owner.TopMost = $true; \
+        $owner.Show(); ";
+    let script = windows_utf8_script(&format!("{OWNER}{script}"));
     let mut command = Command::new("powershell");
     command
         .arg("-NoProfile")
