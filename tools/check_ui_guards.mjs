@@ -61,9 +61,27 @@ if (!/_salvage_request_id/.test(worker)) {
   fail('worker.py', 'parse failures no longer recover request_id; the UI cannot settle them')
 }
 
+// 3.9 — restoring a snapshot wrote the old directories back into the form on
+// every start, so a new run silently inherited a path nobody chose.
+if (/inputRoot\.value\s*=\s*savedResume\.input_root/.test(app)) {
+  fail('App.vue', 'startup overwrites the input path from the resume snapshot again')
+}
+
+// 3.13 — the checkbox is the only switch; an OS media query overrides it
+// without the user being able to tell why.
+if (/prefers-reduced-motion/.test(css)) {
+  fail('styles.css', 'an OS motion preference is honoured directly, bypassing the checkbox')
+}
+
+// 3.15 — silent WebView2 installs look like a hung installer.
+const conf = read('apps/desktop/src-tauri/tauri.conf.json')
+if (/"webviewInstallMode"[\s\S]{0,120}?"silent"\s*:\s*true/.test(conf)) {
+  fail('tauri.conf.json', 'WebView2 installs silently; the install page shows no progress')
+}
+
 if (failures.length) {
   console.error('UI guards failed:')
   for (const failure of failures) console.error(`  - ${failure}`)
   process.exit(1)
 }
-console.log(`UI guards passed (${[css, app, host, worker].length} files checked)`)
+console.log('UI guards passed')
