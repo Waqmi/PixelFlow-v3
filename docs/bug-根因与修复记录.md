@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **点「选择模型目录」卡死，随后双击打不开 App** | 线程与窗口 | 同步命令占主线程起 PowerShell 弹窗；无 owner 的对话框落到窗口后面；强制退出留下孤儿 WebView2 锁住用户数据目录 | 见 3.16 |
 | 2026-11-05 | **Windows 首次安装 WebView2 无进度**，看起来像卡死 | 打包配置 | `webviewInstallMode` 未配置，默认 `silent: true`，微软 bootstrapper 在后台静默跑 | 见 3.15 |
 | 2026-11-05 | **分类进度条与实际进度不成比例**，快结束时才一半 | 进度权重 | 权重按阶段写死（40/30/29），与实测耗时（9%/89%/0%）完全错位 | 见 3.14 |
 | 2026-11-05 | **Windows 交互动画全部消失**，但设置里的「关闭动画」未勾选 | 样式与状态脱节 | 两条 `@media(prefers-reduced-motion:reduce)` 全局规则强制清零动画；App 开关只读 localStorage，两者不通 | 见 3.13 |
@@ -423,6 +424,25 @@ ExecWait "$6 ${WEBVIEW2INSTALLERARGS} /install" $1
 `silent: true` 让微软的 bootstrapper 在后台跑，安装期间安装页只有一行 DetailPrint，没有进度。
 
 修复：显式配置 `webviewInstallMode: { type: "downloadBootstrapper", silent: false }`。安装时会出现微软自己的进度窗口，安装包体积不变（仍只下载 ~2MB bootstrapper）。
+
+### 3.16 点「选择模型目录」界面卡死，随后打不开 App
+
+现象：设置页点「选择模型目录」，主窗口短暂显示「未响应」，对话框迟迟不出现，只能强制退出；强制退出后再双击图标没反应，要重启系统才能再打开。
+
+**根因链**：
+
+1. `pick_directory` 是普通 `#[tauri::command]`。Tauri 官方文档写得很明确：**不带 `async` 的命令跑在主线程**。它在主线程上起 PowerShell 弹 `FolderBrowserDialog`，冷启动 1–3 秒，这段时间主线程被占住 → Windows 判定「未响应」。
+2. 对话框没有 owner（`$d.ShowDialog()` 不带参数），Win32 上这种模态框不抢焦点，容易落在应用窗口后面 → 用户看不到，只能强制退出。
+3. 强制退出只杀主进程，`msedgewebview2.exe` 子进程变孤儿，继续占着 `%LOCALAPPDATA%\com.pixelflow.desktop\EBWebView`。新实例初始化 WebView2 失败，窗口建不出来 → 「双击没反应」。重启清掉孤儿才恢复。
+
+三步是串联的：**卡住是因，强制退出是果，打不开是果的果**。
+
+修复（`66f1c7a` + `5529fda`）：
+
+- 命令加 `(async)`，跑在独立任务上，不再占主线程。macOS 安全，因为 `native_open_panel` 内部本来就 `run_on_main_thread` + channel 自己切回主线程。
+- PowerShell 先建一个 1×1 透明置顶窗体作为 owner，`ShowDialog($owner)` 让对话框出现在应用前面。目录选择和 Logo 文件选择两个调用点都改了。
+
+**排查依据**：用户复测时观察到「点按钮后主窗口短暂未响应」——这条直接坐实了主线程被占住，而不是对话框加载慢。
 
 ## 四、已知未闭环
 
