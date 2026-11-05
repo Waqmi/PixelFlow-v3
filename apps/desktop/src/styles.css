@@ -567,16 +567,3 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .reduce-motion .confirm-grid-scroll-hint {
   transition: opacity 0.15s ease;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  button:hover:not(:disabled),
-  button:active:not(:disabled),
-  .option-card:hover,
-  .option-card:active { transform: none !important; }
-  .option-card::before { display: none; }
-  .progress-track span,
-  .progress-bar-bottom span { transition: width 0.2s linear !important; }
-  .progress-track span[data-complete="true"],
-  .progress-bar-bottom span[data-complete="true"] { animation: none !important; }
-  .confirmation-dialog .confirm-card { animation: none !important; }
-}
