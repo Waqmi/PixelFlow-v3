@@ -1,4 +1,4 @@
-:root{font-family:"PingFang SC",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#20242b;background:#f5f7fa;font-synthesis:none;--bg:#f5f7fa;--panel:#fff;--field:#fbfcfe;--line:#e3e7ed;--field-line:#d9dfe7;--text:#20242b;--muted:#6f7783;--accent:#2878e8;--selected:#eef5fb;--selected-border:#9fc5ef;--confirm-grid-bg:#eef1f5}
+:root{font-family:"PingFang SC",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#20242b;background:#f5f7fa;font-synthesis:none;--bg:#f5f7fa;--panel:#fff;--field:#fbfcfe;--line:#e3e7ed;--field-line:#d9dfe7;--text:#20242b;--muted:#6f7783;--accent:#2878e8;--selected:#eef5fb;--selected-border:#9fc5ef;--confirm-grid-bg:#eef1f5;--confirm-grid-bg-fade:rgba(238,241,245,0)}
 *{box-sizing:border-box}
 html,body,#app{margin:0;min-width:0;min-height:100%}
 html{scrollbar-color:#d9dfe7 #f5f7fa;scrollbar-width:thin}
@@ -14,7 +14,7 @@ body{overflow-y:auto;background:var(--bg)}
 button,input,select{font:inherit}
 button{cursor:pointer}
 .app-shell{width:100%;height:100vh;display:grid;grid-template-rows:minmax(76px,1fr) minmax(104px,1fr) auto minmax(108px,1fr) auto;gap:12px;padding:26px 0 24px;overflow:hidden;background:var(--bg)}
-.theme-dark{--bg:#1b1f24;--panel:#242a31;--field:#2a3038;--line:#3a444f;--field-line:#4a5563;--text:#eef2f7;--muted:#aeb8c6;--accent:#2878e8;--selected:#243b52;--selected-border:#78a9dc;--confirm-grid-bg:#30343a;background:var(--bg);color:var(--text)}
+.theme-dark{--bg:#1b1f24;--panel:#242a31;--field:#2a3038;--line:#3a444f;--field-line:#4a5563;--text:#eef2f7;--muted:#aeb8c6;--accent:#2878e8;--selected:#243b52;--selected-border:#78a9dc;--confirm-grid-bg:#30343a;--confirm-grid-bg-fade:rgba(48,52,58,0);background:var(--bg);color:var(--text)}
 .theme-dark{color-scheme:dark}
 .topbar,.folder-panel,.options-section,.progress-panel{width:calc(100% - 96px);margin-left:auto;margin-right:auto}
 .topbar{min-height:76px;display:flex;align-items:center;justify-content:space-between}
@@ -510,7 +510,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   z-index: 10;
   height: 60px;
   pointer-events: none;
-  background: linear-gradient(to top, var(--confirm-grid-bg), transparent);
+  background: linear-gradient(to top, var(--confirm-grid-bg), var(--confirm-grid-bg-fade));
   opacity: 1;
   transition: opacity .3s ease;
 }
