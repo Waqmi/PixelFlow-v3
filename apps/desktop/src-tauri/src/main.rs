@@ -850,6 +850,13 @@ fn worker_log_path() -> PathBuf {
     }
 }
 
+fn append_worker_log(message: &str) {
+    use std::io::Write;
+    if let Ok(mut file) = open_worker_log() {
+        let _ = writeln!(file, "{message}");
+    }
+}
+
 fn open_worker_log() -> Result<File, String> {
     let path = worker_log_path();
     let parent = path
@@ -989,6 +996,10 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
         command.current_dir(directory);
     }
     hide_console(&mut command);
+    // The protocol is UTF-8 in both directions. Without this the worker writes
+    // its Chinese messages in the ANSI code page on Windows, and the host
+    // cannot decode them.
+    command.env("PYTHONIOENCODING", "utf-8").env("PYTHONUTF8", "1");
     let stderr = open_worker_log()?;
     let mut child = command
         .stdin(Stdio::piped())
@@ -999,10 +1010,52 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
     let stdout = child.stdout.take().ok_or_else(|| "worker stdout unavailable".to_string())?;
     let app = app.clone();
     thread::spawn(move || {
-        for line in BufReader::new(stdout).lines().flatten() {
-            append_worker_event(&line);
-            persist_task_event(&line);
-            if let Ok(message) = serde_json::from_str::<Value>(&line) {
+        let mut reader = BufReader::new(stdout);
+        let mut buffer = Vec::new();
+        loop {
+            buffer.clear();
+            match reader.read_until(b'\n', &mut buffer) {
+                Ok(0) => break,
+                Ok(_) => {}
+                Err(error) => {
+                    append_worker_log(&format!("worker stdout read failed: {error}"));
+                    break;
+                }
+            }
+            let text = match String::from_utf8(buffer.clone()) {
+                Ok(text) => text,
+                Err(error) => {
+                    // A line the host cannot decode used to disappear without a
+                    // trace, so the request that produced it never settled and
+                    // the UI waited until its timeout. Keep the bytes and tell
+                    // the UI instead of dropping them.
+                    let bytes = error.as_bytes();
+                    append_worker_log(&format!(
+                        "worker stdout is not valid UTF-8 ({} bytes): {}",
+                        bytes.len(),
+                        String::from_utf8_lossy(bytes)
+                    ));
+                    let notice = serde_json::json!({
+                        "protocol": 1,
+                        "request_id": "worker",
+                        "type": "error",
+                        "payload": {
+                            "code": "worker_encoding",
+                            "message": "Worker 输出无法按 UTF-8 解码，已记录到 worker.log",
+                        },
+                    })
+                    .to_string();
+                    let _ = app.emit("worker-line", notice);
+                    continue;
+                }
+            };
+            let line = text.trim_end_matches(|character| character == '\n' || character == '\r');
+            if line.is_empty() {
+                continue;
+            }
+            append_worker_event(line);
+            persist_task_event(line);
+            if let Ok(message) = serde_json::from_str::<Value>(line) {
                 let request_id = message.get("request_id").and_then(Value::as_str);
                 let event_type = message.get("type").and_then(Value::as_str);
                 let state = app.state::<WorkerState>();
@@ -1014,7 +1067,7 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
                     }
                 };
             }
-            let _ = app.emit("worker-line", line);
+            let _ = app.emit("worker-line", line.to_string());
         }
         let state = app.state::<WorkerState>();
         let (task_id, should_restart) = if let Ok(mut guard) = state.0.lock() {

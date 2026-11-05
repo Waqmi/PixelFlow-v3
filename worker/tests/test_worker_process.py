@@ -310,6 +310,62 @@ class MalformedRequestTests(unittest.TestCase):
         self.assertLessEqual(len(context), 260)
         self.assertIn("len=7", _failure_context('{"a":1}'))
 
+    def test_worker_writes_utf8_even_when_the_locale_is_not(self) -> None:
+        """A cp936 stdout turns every Chinese line into bytes the host drops."""
+        import os
+        import threading
+        import time
+
+        worker_root = Path(__file__).resolve().parents[1]
+        request = json.dumps(
+            {
+                "protocol": 1,
+                "request_id": "enc-1",
+                "type": "probe_models",
+                "payload": {"model_root": str(worker_root / "模型目录"), "deep": False},
+            },
+            ensure_ascii=False,
+        )
+        env = dict(os.environ, PYTHONPATH=str(worker_root), PYTHONIOENCODING="cp936")
+        env.pop("PYTHONUTF8", None)
+        process = subprocess.Popen(
+            [sys.executable, "-m", "pixelflow_core.worker"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        collected: list[bytes] = []
+
+        def drain() -> None:
+            for raw in process.stdout:  # type: ignore[union-attr]
+                collected.append(raw)
+
+        reader = threading.Thread(target=drain, daemon=True)
+        reader.start()
+        try:
+            process.stdin.write((request + "\n").encode("utf-8"))  # type: ignore[union-attr]
+            process.stdin.flush()  # type: ignore[union-attr]
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                replies = [json.loads(raw.decode("utf-8")) for raw in collected if raw.strip()]
+                probe = [message for message in replies if message.get("request_id") == "enc-1"]
+                if any(message["type"] in ("done", "error") for message in probe):
+                    break
+                time.sleep(0.05)
+        finally:
+            process.stdin.close()  # type: ignore[union-attr]
+            reader.join(timeout=30)
+            process.wait(timeout=30)
+            stderr_text = process.stderr.read().decode("utf-8", "replace")  # type: ignore[union-attr]
+            process.stderr.close()  # type: ignore[union-attr]
+        lines = [raw for raw in collected if raw.strip()]
+        self.assertTrue(lines, stderr_text[-500:])
+        replies = [json.loads(raw.decode("utf-8")) for raw in lines]
+        probe = [message for message in replies if message["request_id"] == "enc-1"]
+        self.assertTrue(probe, "probe_models never replied")
+        self.assertIn("done", [message["type"] for message in probe])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -599,7 +599,31 @@ def _failure_context(line: str) -> str:
         return f"{prefix}{line[start:end]}{suffix} (len={len(line)}, pos={error.pos})"
 
 
+def _configure_stdio() -> None:
+    """Force UTF-8 on the protocol pipes.
+
+    The host writes and reads UTF-8. On Windows the default is the ANSI code
+    page (cp936 on a Simplified Chinese install), so every Chinese message is
+    written as bytes the host cannot decode — and the host drops those lines
+    without a trace, leaving the request that produced them unanswered.
+    """
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(
+                encoding="utf-8",
+                errors="backslashreplace" if stream is sys.stderr else "strict",
+            )
+        except (OSError, ValueError):
+            # A stream that cannot be reconfigured keeps its default; the host
+            # side still writes and reads UTF-8 explicitly.
+            continue
+
+
 def main() -> int:
+    _configure_stdio()
     output_lock = threading.Lock()
     preview_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pixelflow-preview")
 
