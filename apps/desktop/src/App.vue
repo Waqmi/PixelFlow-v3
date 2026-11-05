@@ -94,6 +94,21 @@ interface ModelDiagnostic {
   model_version?: { path?: string; sha256?: string; size?: number; mtime_ns?: number }
 }
 
+function readInitialReducedMotion(): boolean {
+  try {
+    const stored = localStorage.getItem('pixelflow.reduced-motion')
+    if (stored !== null) return stored === 'true'
+    const savedSettings = JSON.parse(localStorage.getItem('pixelflow.output-settings') || 'null') as { reducedMotion?: unknown } | null
+    if (typeof savedSettings?.reducedMotion === 'boolean') return savedSettings.reducedMotion
+  } catch {
+    // Storage is optional in embedded webviews.
+  }
+  // Seed from the OS once so the checkbox matches what the user sees. The
+  // stylesheet no longer overrides it, so animations can be turned back on.
+  return typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 function readInitialTheme(): Theme {
   try {
     const storedTheme = localStorage.getItem('pixelflow.theme')
@@ -523,6 +538,9 @@ function diagnosticsSnapshot() {
     worker_status: workerReadyState.value,
     model_root: diagnosticPath(localModelPath.value) || null,
     models: sanitizeDiagnosticValue(modelDiagnostics.value),
+    reduced_motion: reducedMotion.value,
+    os_reduced_motion: typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     input_root: diagnosticPath(inputRoot.value) || null,
     output_root: diagnosticPath(outputRoot.value) || null,
     task_state: {
@@ -1496,7 +1514,7 @@ onMounted(() => {
   }
   try {
     theme.value = readInitialTheme()
-    reducedMotion.value = localStorage.getItem('pixelflow.reduced-motion') === 'true'
+    reducedMotion.value = readInitialReducedMotion()
     classificationConcurrency.value = localStorage.getItem('pixelflow.classification-concurrency') || 'auto'
     const savedSettings = localStorage.getItem('pixelflow.output-settings')
     if (savedSettings) {
