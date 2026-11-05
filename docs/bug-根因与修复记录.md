@@ -14,6 +14,8 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **Windows 首次安装 WebView2 无进度**，看起来像卡死 | 打包配置 | `webviewInstallMode` 未配置，默认 `silent: true`，微软 bootstrapper 在后台静默跑 | 见 3.15 |
+| 2026-11-05 | **分类进度条与实际进度不成比例**，快结束时才一半 | 进度权重 | 权重按阶段写死（40/30/29），与实测耗时（9%/89%/0%）完全错位 | 见 3.14 |
 | 2026-11-05 | **Windows 交互动画全部消失**，但设置里的「关闭动画」未勾选 | 样式与状态脱节 | 两条 `@media(prefers-reduced-motion:reduce)` 全局规则强制清零动画；App 开关只读 localStorage，两者不通 | 见 3.13 |
 | 2026-11-05 | **Windows 确认素材页一片空白**，但生成正常 | 渲染依赖 | 卡片默认 `opacity:0`，只靠 IntersectionObserver 置 `data-visible` 才显示；隐藏窗口里观察器判定全不可见且不重算 | 见 3.12 |
 | 2026-11-05 | **Windows「加载测试」失败 / 生成卡在 Pose**（安装路径含中文） | 冻结包子进程 | `spawn` 的子进程死在 `pyiboot01_bootstrap`：中文路径把 `base_library.zip` 的路径塌缩成 `Cbase_library.zip`，stdlib 读不到 | 见 3.11 |
@@ -391,6 +393,36 @@ FileNotFoundError: [Errno 2] No such file or directory: 'Cbase_library.zip'
 - 删掉两条 `@media(prefers-reduced-motion:reduce)` 全局规则，让 `.reduce-motion` 类成为唯一开关。内容层的动效偏好由 App 自己负责，用户有明确可操作的入口。
 - 初始化时若本地没有存过偏好，就读一次系统偏好作为初值（`readInitialReducedMotion`），让勾选状态和实际表现一致。
 - 诊断包新增 `reduced_motion` 与 `os_reduced_motion` 两个字段，下次这类问题可以直接从包里读，不用再猜。
+
+### 3.14 分类进度条与实际进度不成比例
+
+现象：素材分类快结束时，底部进度条才走到一半左右，最后一段直接跳到底。
+
+**根因**：进度条按阶段给固定权重，而权重和真实耗时无关。一次 57 张的实测：
+
+| 阶段 | 耗时 | 占总时长 | 原权重 |
+|---|---|---|---|
+| 规则分类 | 6.2s | 9% | **40%** |
+| Pose | 59.4s | 89% | **30%** |
+| Seg | 0.0s | 0% | **29%** |
+
+规则分类是纯规则、几秒跑完，却先吃掉 40% 的进度条；真正占 89% 时间的 Pose 只有 30%，所以整段 Pose 期间进度条几乎不动，看起来"卡在一半"。Seg 结束时再一跳到底。
+
+修复：按实测耗时重新分配权重——规则分类 0–15%、Pose 15–85%、Seg 85–99%，`Pose/Seg` 合并阶段按 15–99% 插值。
+
+### 3.15 Windows 首次安装 WebView2 时静默等待，没有进度
+
+现象：没装 WebView2 的机器第一次安装 App，界面停在安装页很久，没有任何进度，看起来像卡死。
+
+**根因**：`tauri.conf.json` 未配置 `bundle.windows.webviewInstallMode`，走 Tauri 默认的 `downloadBootstrapper`，其 `silent` 默认为 `true`。NSIS 模板里对应这一条：
+
+```nsis
+ExecWait "$6 ${WEBVIEW2INSTALLERARGS} /install" $1
+```
+
+`silent: true` 让微软的 bootstrapper 在后台跑，安装期间安装页只有一行 DetailPrint，没有进度。
+
+修复：显式配置 `webviewInstallMode: { type: "downloadBootstrapper", silent: false }`。安装时会出现微软自己的进度窗口，安装包体积不变（仍只下载 ~2MB bootstrapper）。
 
 ## 四、已知未闭环
 
