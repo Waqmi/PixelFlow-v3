@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **macOS Intel 确认页底部出现灰色遮挡带**（ARM 正常） | 渲染兼容 | 底部滚动提示的 `linear-gradient(..., transparent)` 在旧 WebKit 上向黑色插值，渐变变成灰色纱罩 | 见 3.10 |
 | 2026-11-05 | **重启后仍显示上次未完成任务的路径**，改路径再点开始也不生效 | 状态恢复 | 启动时无条件把恢复快照的 `input_root`/`output_root` 写进输入框，旧路径覆盖用户选择，且「旧值」与「刚选的值」在界面上无法区分 | 见 3.9 |
 | 2026-11-04 | **Windows 点「开始生成」完全没反应**、设置页「测试模型」一直检测中 | 错误关联 | Worker 解析失败时回 `request_id: "unknown"`，前端无法匹配就丢弃整条错误，`isRunning` / `modelProbePending` 永远不清空，后续点击被「已在运行」守卫静默拦下 | 见 3.8 |
 | 2026-11-04 | **Windows 退出 App 后删不掉安装目录**，任务管理器里残留 2 个进程（`PixelFlow.exe` + `pixelflow-worker.exe`） | 窗口生命周期 | 辅助窗口关闭时只 `hide()` 不销毁，隐藏窗口仍占窗口表；Tauri 只在窗口表为空时才退出，于是主窗口关了进程却不退，Worker 跟着活，两个 exe 一直被锁 | 见 3.7 |
@@ -22,7 +23,7 @@
 | 2026-11-03 | Windows 打开输出文件夹打开错目录 | 跨平台路径 | 前端用 `/` 拼 Windows 路径得到混合分隔符，原样交给 explorer | `8b1278c` |
 | 2026-11-03 | Windows 打开 App 附带控制台黑窗，关掉黑窗 App 一起退出 | Windows 子系统 | 主 exe 是控制台子系统（PE `Subsystem=3`）；`windows_subsystem` 属性 11-02 才进主仓，用户手上的 10-31 包早于它 | `314e59f` + CI 断言 |
 | 2026-11-03 | 设置页「测试模型」等很久 / 检测不到 / 一直"检测中"（Intel、Windows） | 探测成本 | `probe` 会真正加载三个 ONNX 会话并对每个模型全量算 SHA-256；macOS 在 Worker 进程内跑、Windows 还要 spawn 冻结子进程；前端互斥锁 30s 短于后端 180s 超时 | `0ef9bf1`（两级探测）；编码问题另见 3.6 |
-| 2026-11-03 | **Windows 点「测试模型」完全没反应**，等多久都没结果（ARM 正常） | 协议编码 | Worker 按系统代码页（cp936）输出中文，Rust 按 UTF-8 读取失败后被 `.lines().flatten()` 静默丢弃，前端永远收不到 `done`/`error` | 待修（侧分支 `5106baf` 有 10-18 的旧修复，从未合回） |
+| 2026-11-03 | **Windows 点「测试模型」完全没反应**，等多久都没结果（ARM 正常） | 协议编码 | Worker 按系统代码页（cp936）输出中文，Rust 按 UTF-8 读取失败后被 `.lines().flatten()` 静默丢弃，前端永远收不到 `done`/`error` | 已修（见 3.6） |
 | 2026-11-02 | 设置窗口保存后重开空白/失败 | 窗口生命周期 | 复用隐藏窗口时依赖 `isVisible()`，跨 WebView 事件存在竞态 | `314e59f` |
 | 2026-11-02 | macOS 关闭辅助窗口时崩溃 | 窗口生命周期 | 在窗口自己的 JS 里 `close()`，WebKit 在 dealloc 时访问已释放页面 | `8f64c00` |
 | 2026-11-01 | 生成进度会往回跳 | 进度语义 | 不同阶段 `completed/total` 会重置，前端插值器还接受更低目标 | `0ce3e2e`、`beedb34`、`134883e` |
@@ -200,13 +201,21 @@
 
 **教训**：**协议流必须显式声明编码，不能依赖进程 locale**。跨进程通信里"默认编码"等于"随机器而变"；而读取端的 `flatten()`、`unwrap_or_default()` 这类静默容错，会把传输故障伪装成"对方没回"，让人往模型、锁、超时的方向查——这次就是绕了整整一圈。
 
-待修（等 Intel 实机测完再动手，避免同时改动多端）：
+已修（2026-11-05）。五项全部落地：
 
-1. `worker_entry.py` 无条件 reconfigure stdin/stdout 为 UTF-8（macOS 本就是 UTF-8，无副作用）
-2. `main.rs` 读取失败写进 `worker.log`，并向前端发一条 `error`，杜绝"永远转圈"
-3. `spawn_worker` 在 Windows 上补 `PYTHONIOENCODING=utf-8` 作双保险
-4. `App.vue` 给 `modelProbePending` 加超时释放（60s）并明确报错
-5. 移植 `5106baf` 的 cp936 + 中文路径回归测试
+1. `worker.py` 新增 `_configure_stdio()`，在 `main()` 第一行把 stdin/stdout/stderr 全部 `reconfigure(encoding="utf-8")`。放在 `worker.py` 而不是 `worker_entry.py`，是因为它同时覆盖打包产物和源码模式（`python -m pixelflow_core.worker`），本地调试也能复现。
+2. `main.rs` 的读取循环从 `lines().flatten()` 改成 `read_until` + `String::from_utf8`：解码失败时把原始字节写进 `worker.log`，并向前端发一条 `request_id: "worker"` 的 error，不再静默丢行。
+3. `spawn_worker` 补 `PYTHONIOENCODING=utf-8` + `PYTHONUTF8=1`，覆盖 Worker 派生的模型子进程。
+4. `modelProbePending` 的 60s 超时（`4e917fb`）保留作兜底。
+5. 回归测试 `test_worker_writes_utf8_even_when_the_locale_is_not`：用 `PYTHONIOENCODING=cp936` 起 Worker，断言探测回执可按 UTF-8 解码且含 `done`。
+
+**2026-11-05 的现场证据（Windows，`bff0605`）**：
+
+- `worker.log` 里出现 `<_io.TextIOWrapper name='<stdout>' mode='w' encoding='gbk'>` —— 直接读到 stdout 的编码。
+- 该包 `worker-events.jsonl` 里，探测的 `status` 事件（文案「正在检测外部模型…」）一条都没有，而 `done` 有；`diagnostics.json` 的 `models` 为空、`model_status` 停在「模型检测超时，请重试」。
+- 本机复现：同一条 `probe_models` 请求，`PYTHONIOENCODING=gbk` 时 stdout 在第 331 字节出现 `0xd5`（非法 UTF-8 续字节），`PYTHONIOENCODING=utf-8` 时两行全部合法。
+
+**为什么之前一次复核会误判**：同一台机器上，19 小时前的会话里中文事件是完好的（115~139 条）。差别不在构建，而在**启动方式**——从终端启动时控制台代码页可能是 65001，双击启动则是 cp936。这正好印证了 3.6 的结论：编码依赖进程环境，而不是代码。凡是「同一版本时好时坏」的编码问题，都应该先看启动上下文。
 
 > 不要把这个修复只放在 Windows 分支：编码是协议契约的一部分，三端共用同一份 Rust 与 Worker 代码。控制台黑窗（3.4）就是"修在侧分支、从未合回"的直接后果，别让同一剧本演第三次。
 
@@ -266,7 +275,7 @@
 
 2026-11-05 复核补充：
 
-- 同一个包里 **15 条含中文事件全部完好落盘**。Rust 只在 UTF-8 解码成功后才写 `worker-events.jsonl`，解码失败的行会被 `.lines().flatten()` 跳过——所以这台机器上 stdout 是 UTF-8，3.6 描述的「cp936 输出」机制**没有发生**。
+- ~~同一个包里 15 条含中文事件全部完好落盘，所以该机器 stdout 是 UTF-8、3.6 未发生~~。**这条 2026-11-05 已推翻**：那 15 条来自「从终端启动」的会话（控制台代码页为 65001），而当天双击启动的会话里中文事件为 0，`worker.log` 明确写着 `encoding='gbk'`。编码取决于启动上下文，不能拿一次会话的结果否定机制。详见 3.6 的现场证据。
 - 包里 `probe_models` 的 `status` 事件为 **0 条**。`worker.py` 在起探测线程前一定会先发一条 status，没有它就说明探测请求**从未被解析**。方向指向请求侧，不是响应侧。
 - `privacy_text` 会把 `message` 里的 `\` 归一成 `/`。实测 Python 3.14 原文是 `Invalid \escape`，日志里只剩 `Invalid escape`——**唯一能判断非法转义的字符恰好被脱敏抹掉**。因此新增 `51789c0`：把出错位置前后 60/140 字符写进 stderr，`worker.log` 原样进诊断包。
 
@@ -300,6 +309,22 @@ if (savedResume) {
 
 验证：`protocol:check` + `vue-tsc` + `vite build` 通过。待 Windows 实机确认：重启后输入框应为空、提示可见；点「继续未完成」后路径才出现；直接选新目录开始生成时提示消失。
 
+### 3.10 macOS Intel：确认页底部出现灰色遮挡带
+
+现象：Intel Mac 上「确认素材分类」窗口，最后一行卡片的**下半部分被一条灰色半透明带盖住**，卡片仍隐约可见；ARM 正常。
+
+**根因（高度可能，待实机确认）**：`.confirm-grid-scroll-hint` 是贴在网格底部的 60px 滚动提示，样式为
+
+```css
+background: linear-gradient(to top, var(--confirm-grid-bg), transparent);
+```
+
+`transparent` 在部分 WebKit 版本里按 `rgba(0,0,0,0)` 参与插值，渐变末端会向**黑色**过渡，而不是向背景色淡出——于是本该"渐隐"的一层变成了灰色纱罩。ARM 的 WebKit 版本插值正确，所以只有 Intel 出现。
+
+修复：新增 `--confirm-grid-bg-fade`（浅色 `rgba(238,241,245,0)`、深色 `rgba(48,52,58,0)`），渐变终点改用它，让两端同色、只有 alpha 变化。
+
+**注意**：这条判断基于截图几何（遮挡带正好压在滚动提示的位置、卡片透出）与样式实现，尚未在 Intel 实机复现确认。若复测仍有遮挡，说明不是这一层，需要重新取元素。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
@@ -309,7 +334,7 @@ if (savedResume) {
 | Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`2745635` 加了 PE `Subsystem` 断言，`5958038` 修正偏移后 CI 实测 `subsystem = 2` | 已闭环；遗留盲区：断言只查打包前的 `target/.../release/*.exe`，未查 NSIS 载荷内的 exe |
 | 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
 | 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
-| **Windows 点「测试模型」完全没反应** | 原判为协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。**2026-11-05 复核推翻了这个方向**：同一个包里 15 条含中文事件完好落盘，说明该机器 stdout 是 UTF-8；且 `probe_models` 的 status 事件为 0 条，说明请求从未被解析 | 降级为防御性加固，不作为阻断项；先等 `worker.log` 的 `near=` 定性，再决定 3.6 往哪个方向合 |
+| **Windows 点「测试模型」完全没反应** | 已修复（详见 3.6）：Worker 按 cp936 输出中文，Host 按 UTF-8 读失败后静默丢行。现已双端强制 UTF-8，Host 解码失败会留痕并报错 | 待 Windows 复测：探测应返回真实模型状态；若仍失败，`worker.log` 会有明确记录 |
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
 | **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，`51789c0` 已把出错位置写进 `worker.log` |
 | **重启后仍显示上次任务路径 / 改路径不生效** | 已修复（详见 3.9）：启动时无条件用恢复快照覆盖输入框，旧路径压回用户选择 | 待 Windows 实机确认：重启后输入框为空、提示可见，点「继续未完成」才填入 |
