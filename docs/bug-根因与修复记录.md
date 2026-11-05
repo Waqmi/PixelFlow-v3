@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **重启后仍显示上次未完成任务的路径**，改路径再点开始也不生效 | 状态恢复 | 启动时无条件把恢复快照的 `input_root`/`output_root` 写进输入框，旧路径覆盖用户选择，且「旧值」与「刚选的值」在界面上无法区分 | 见 3.9 |
 | 2026-11-04 | **Windows 点「开始生成」完全没反应**、设置页「测试模型」一直检测中 | 错误关联 | Worker 解析失败时回 `request_id: "unknown"`，前端无法匹配就丢弃整条错误，`isRunning` / `modelProbePending` 永远不清空，后续点击被「已在运行」守卫静默拦下 | 见 3.8 |
 | 2026-11-04 | **Windows 退出 App 后删不掉安装目录**，任务管理器里残留 2 个进程（`PixelFlow.exe` + `pixelflow-worker.exe`） | 窗口生命周期 | 辅助窗口关闭时只 `hide()` 不销毁，隐藏窗口仍占窗口表；Tauri 只在窗口表为空时才退出，于是主窗口关了进程却不退，Worker 跟着活，两个 exe 一直被锁 | 见 3.7 |
 | 2026-11-03 | 设置窗口关掉后再点没反应（三端） | Tauri ACL | 复用窗口要调 `show()`/`setFocus()`，但 capability 从未授予这两个权限 | `8b1278c` |
@@ -245,7 +246,7 @@
 
 证据链（`PixelFlow-诊断包(2).zip`，Windows，`ddfeebf` 构建）：
 
-1. `worker-events.jsonl` 里有 **9 条 `request_id: "unknown"` 的 error**（事件 13-19、24、25、30），`code: invalid_message`，`message: invalid JSON: Invalid escape`。
+1. `worker-events.jsonl` 里有 **10 条 `request_id: "unknown"` 的 error**（事件 13-19、24、25、30），`code: invalid_message`，`message: invalid JSON: Invalid escape`。
 2. `worker.py` 原来的异常分支写死 `_event("unknown", "error", ...)`——Worker 解析不了这行，就不知道是谁发的，于是回了个前端认不出的 id。
 3. `App.vue:1838` 的错误入口按 id 过滤：`request_id !== 'worker' && !== generationRequestId && !== classificationRequestId` 就直接 `return`。`"unknown"` 三条都不匹配，**整条错误被丢弃**。
 4. 于是 `isRunning` / `classificationRunning` / `modelProbePending` 都不会复位。下一次点击在 `classifyMaterials` 的 `if (classificationRunning.value || isRunning.value) return` 或 `probeModels` 的 `if (modelProbePending.size) return` 被静默拦下——**不报错、不改状态**，表现就是「点了没反应」。
@@ -261,7 +262,43 @@
 
 验证：Worker 测试 216 项通过 1 项跳过（新增 `test_salvage_request_id_reads_the_id_from_broken_json`）；`vue-tsc --noEmit` + `vite build` 通过。
 
-**仍未闭环**：什么把 JSON 弄成非法转义，尚未定。已排除的方向——不是 cp936 误解码（用真实路径 `C:\Users\admin\Desktop\跑步运动棉马甲v2` 实测，cp936 会抛 `UnicodeDecodeError` 并解出 `璺戞` 乱码，而 Worker 报错里的中文是完好的），也不是路径尾随空格（用户确认没有）。下次复现时 error 的 `message` 会带上原始行，可直接定位。
+**仍未闭环**：什么把 JSON 弄成非法转义，尚未定。已排除的方向——不是 cp936 误解码（用真实路径 `C:\Users\admin\Desktop\跑步运动棉马甲v2` 实测，cp936 会抛 `UnicodeDecodeError` 并解出 `璺戞` 乱码，而 Worker 报错里的中文是完好的），也不是路径尾随空格（用户确认没有），也不是 Rust 侧手工拼 JSON（全仓只有两处写 Worker stdin：`worker_send` 和退出时的 `host_shutdown`，后者是硬编码合法 JSON）。
+
+2026-11-05 复核补充：
+
+- 同一个包里 **15 条含中文事件全部完好落盘**。Rust 只在 UTF-8 解码成功后才写 `worker-events.jsonl`，解码失败的行会被 `.lines().flatten()` 跳过——所以这台机器上 stdout 是 UTF-8，3.6 描述的「cp936 输出」机制**没有发生**。
+- 包里 `probe_models` 的 `status` 事件为 **0 条**。`worker.py` 在起探测线程前一定会先发一条 status，没有它就说明探测请求**从未被解析**。方向指向请求侧，不是响应侧。
+- `privacy_text` 会把 `message` 里的 `\` 归一成 `/`。实测 Python 3.14 原文是 `Invalid \escape`，日志里只剩 `Invalid escape`——**唯一能判断非法转义的字符恰好被脱敏抹掉**。因此新增 `51789c0`：把出错位置前后 60/140 字符写进 stderr，`worker.log` 原样进诊断包。
+
+### 3.9 重启后仍显示上次任务的路径，改路径也不生效
+
+现象：Windows 上关掉 App 再打开，输入/输出框里还是上一次未完成任务的目录；手动改成新目录、点「开始生成」，界面上没有任何变化。
+
+**根因**：`App.vue:1476-1487` 在 `onMounted` 里无条件用恢复快照覆盖表单：
+
+```js
+if (savedResume) {
+  resumeSnapshot.value = savedResume
+  inputRoot.value = savedResume.input_root      // 无条件写回
+  outputRoot.value = savedResume.output_root
+}
+```
+
+`pixelflow.output-settings` 里不含输入/输出路径，所以这是启动时唯一的覆盖点。它有两个后果：
+
+1. 只要本地还有未完成快照，用户上次选的目录就会被旧值压回去，看起来像「改不动」；
+2. 「这是上次的值」和「这是我刚选的值」在界面上长得完全一样，用户无法分辨该信哪个。
+
+注意这条与 3.8 是两件事：3.8 解释「点了没反应」（守卫静默拦截），这里解释「路径为什么是旧的」。两个现象叠在一起时，用户看到的就是「改路径也没用」。
+
+修复（`bff0605`，按「只在点继续时恢复」方案）：
+
+- 启动时只保留 `resumeSnapshot`，**不写** `inputRoot`/`outputRoot`；
+- 顶部提示改为「检测到未完成任务，可点「继续未完成」恢复」，明确路径没有被自动填入；
+- 路径只在 `resumeTask()` 里写回（原本就是这个行为），「继续未完成」按钮已由 `resumeAvailable` 控制显隐；
+- 用户直接选新目录开始新任务时，`classifyMaterials()` 会 `clearResumeTask()`，提示随之消失。
+
+验证：`protocol:check` + `vue-tsc` + `vite build` 通过。待 Windows 实机确认：重启后输入框应为空、提示可见；点「继续未完成」后路径才出现；直接选新目录开始生成时提示消失。
 
 ## 四、已知未闭环
 
@@ -272,9 +309,10 @@
 | Windows release EXE 的 GUI 子系统 | `314e59f` 已加属性；`2745635` 加了 PE `Subsystem` 断言，`5958038` 修正偏移后 CI 实测 `subsystem = 2` | 已闭环；遗留盲区：断言只查打包前的 `target/.../release/*.exe`，未查 NSIS 载荷内的 exe |
 | 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
 | 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
-| **Windows 点「测试模型」完全没反应** | 根因已定位到代码级：协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。侧分支 `5106baf` 有 2026-10-18 的旧修复，从未合回 | 等 Intel 实机测完再改；改法见 3.6 待修清单 |
+| **Windows 点「测试模型」完全没反应** | 原判为协议行按 cp936 输出、Rust 按 UTF-8 读失败被静默丢弃（详见 3.6）。**2026-11-05 复核推翻了这个方向**：同一个包里 15 条含中文事件完好落盘，说明该机器 stdout 是 UTF-8；且 `probe_models` 的 status 事件为 0 条，说明请求从未被解析 | 降级为防御性加固，不作为阻断项；先等 `worker.log` 的 `near=` 定性，再决定 3.6 往哪个方向合 |
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
-| **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id 并回显原始行，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，下次复现时 error message 会带原始行 |
+| **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，`51789c0` 已把出错位置写进 `worker.log` |
+| **重启后仍显示上次任务路径 / 改路径不生效** | 已修复（详见 3.9）：启动时无条件用恢复快照覆盖输入框，旧路径压回用户选择 | 待 Windows 实机确认：重启后输入框为空、提示可见，点「继续未完成」才填入 |
 
 ## 五、命令速查
 
