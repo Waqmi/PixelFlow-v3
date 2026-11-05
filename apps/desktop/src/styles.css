@@ -445,9 +445,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   65% { opacity: 1; transform: scaleX(.995); }
 }
 
-/* 4️⃣ 列表项懒加载动画 - 只在进入视口后淡入，前 20 张错开 */
+/* 4️⃣ 列表项懒加载动画 - 进入视口后淡入，前 20 张错开
+   卡片默认可见：显隐只由 IntersectionObserver 驱动，而 Windows 上窗口先以
+   隐藏状态渲染，观察器判定全部不可见且不再重算，整页就变成空白。动画只作
+   为增强，内容不能依赖 JS 才出现。 */
 .confirmation-dialog .confirm-card {
-  opacity: 0;
+  opacity: 1;
   animation: none;
 }
 

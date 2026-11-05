@@ -249,6 +249,11 @@ let classificationWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let cancelWatchdog: ReturnType<typeof window.setTimeout> | undefined
 let generationStallWatchdog: ReturnType<typeof window.setTimeout> | undefined
 const generationStallMs = 180_000
+// Classification reports no progress while the first Pose call loads its
+// sessions; a cold Windows machine took 168s for that, so 120s cancelled work
+// that was still running. Generation stays at 180s because classification has
+// already warmed the models by then.
+const classificationStallMs = 300_000
 let settingsSnapshot: SettingsSnapshot | undefined
 let settingsWindowReady = false
 let settingsReadyListener: Promise<void> = Promise.resolve()
@@ -257,6 +262,9 @@ let modelProbeHeartbeat: number | undefined
 const modelProbePending = new Map<string, string>()
 const modelProbeTimers = new Map<string, number>()
 const modelProbeTimeoutMs = 60_000
+// Loading three ONNX sessions for the first time took 168s on a cold Windows
+// machine, so the light-probe budget reports a failure that is really success.
+const modelProbeDeepTimeoutMs = 300_000
 let modelProbeReadyHandled = false
 let appliedConfirmSnapshotKey = ''
 let systemMedia: MediaQueryList | undefined
@@ -854,7 +862,7 @@ function armClassificationWatchdog() {
     taskPhase.value = '分析失败'
     taskDetail.value = 'Worker 在限定时间内没有返回分类结果；已请求停止当前任务。'
     updateResumePhase('failed')
-  }, 120_000)
+  }, classificationStallMs)
 }
 
 // A generation that stops emitting events looks exactly like one that finished,
@@ -970,7 +978,7 @@ function settleModelProbe(requestId: string): string {
   return root
 }
 
-function trackModelProbe(requestId: string, root: string) {
+function trackModelProbe(requestId: string, root: string, timeoutMs = modelProbeTimeoutMs) {
   modelProbePending.set(requestId, root)
   const timer = window.setTimeout(() => {
     modelProbeTimers.delete(requestId)
@@ -981,7 +989,7 @@ function trackModelProbe(requestId: string, root: string) {
       modelTesting.value = false
       releaseModelProbe(pendingRoot)
     }
-  }, modelProbeTimeoutMs)
+  }, timeoutMs)
   modelProbeTimers.set(requestId, timer)
 }
 
@@ -1069,10 +1077,10 @@ function probeModels(deep = false) {
     return
   }
   modelTesting.value = true
-  modelStatus.value = deep ? '状态：正在加载模型…（首次可能需要几十秒）' : '状态：正在检测外部模型…'
+  modelStatus.value = deep ? '状态：正在加载模型…（首次可能需要两分钟以上）' : '状态：正在检测外部模型…'
   startModelProbeHeartbeat(root)
   const requestId = worker.request('probe_models', { model_root: localModelPath.value, deep })
-  trackModelProbe(requestId, root)
+  trackModelProbe(requestId, root, deep ? modelProbeDeepTimeoutMs : modelProbeTimeoutMs)
 }
 
 async function discoverDefaultModelPath() {
