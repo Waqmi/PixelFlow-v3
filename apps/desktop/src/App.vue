@@ -1476,13 +1476,14 @@ onMounted(() => {
   if (savedResume) {
     resumeSnapshot.value = savedResume
     if (!isSettingsWindow && !isReportWindow && !isConfirmWindow) {
-      inputRoot.value = savedResume.input_root
-      outputRoot.value = savedResume.output_root
+      // Only the snapshot is kept, not the paths. Writing them into the form
+      // made a new run inherit a directory the user never chose, and a stale
+      // path was indistinguishable from one they had just picked.
       const sizes = savedResume.generation_payload?.selected_sizes
       if (Array.isArray(sizes) && sizes.every((value) => typeof value === 'string')) selectedSizes.value = sizes as string[]
-      status.value = '检测到未完成任务，可继续处理'
+      status.value = '检测到未完成任务，可点「继续未完成」恢复'
       taskPhase.value = '任务可恢复'
-      taskDetail.value = '已完成的输出会自动复用。'
+      taskDetail.value = '继续后会用上次的输入/输出目录重新开始。'
     }
   }
   try {
