@@ -14,6 +14,8 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-05 | **Windows 确认素材页一片空白**，但生成正常 | 渲染依赖 | 卡片默认 `opacity:0`，只靠 IntersectionObserver 置 `data-visible` 才显示；隐藏窗口里观察器判定全不可见且不重算 | 见 3.12 |
+| 2026-11-05 | **Windows「加载测试」失败 / 生成卡在 Pose**（安装路径含中文） | 冻结包子进程 | `spawn` 的子进程死在 `pyiboot01_bootstrap`：中文路径把 `base_library.zip` 的路径塌缩成 `Cbase_library.zip`，stdlib 读不到 | 见 3.11 |
 | 2026-11-05 | **macOS Intel 确认页底部出现灰色遮挡带**（ARM 正常） | 渲染兼容 | 底部滚动提示的 `linear-gradient(..., transparent)` 在旧 WebKit 上向黑色插值，渐变变成灰色纱罩 | 见 3.10 |
 | 2026-11-05 | **重启后仍显示上次未完成任务的路径**，改路径再点开始也不生效 | 状态恢复 | 启动时无条件把恢复快照的 `input_root`/`output_root` 写进输入框，旧路径覆盖用户选择，且「旧值」与「刚选的值」在界面上无法区分 | 见 3.9 |
 | 2026-11-04 | **Windows 点「开始生成」完全没反应**、设置页「测试模型」一直检测中 | 错误关联 | Worker 解析失败时回 `request_id: "unknown"`，前端无法匹配就丢弃整条错误，`isRunning` / `modelProbePending` 永远不清空，后续点击被「已在运行」守卫静默拦下 | 见 3.8 |
@@ -325,6 +327,51 @@ background: linear-gradient(to top, var(--confirm-grid-bg), transparent);
 
 **注意**：这条判断基于截图几何（遮挡带正好压在滚动提示的位置、卡片透出）与样式实现，尚未在 Intel 实机复现确认。若复测仍有遮挡，说明不是这一层，需要重新取元素。
 
+### 3.11 Windows：模型子进程起不来（安装路径含中文）
+
+现象：模型检测（轻量）能出「已找到」，但点「加载测试」失败；直接开始生成会在 `Pose 0/46` 之后卡死，120 秒后前端看门狗报超时。把 App 挪到纯英文路径（`C:\PixelFlow\`）后全部正常。
+
+**根因**：`model_service.py:315` 里 `_direct = sys.platform == "darwin"`，Windows 走 `multiprocessing.get_context("spawn")`，子进程要重新执行冻结后的 exe。子进程死在 PyInstaller 的第一引导阶段：
+
+```
+pyiboot01_bootstrap.py:95 → _pyi_bootstrap
+  → pyimod03_ctypes.install → ctypes/util.py → subprocess.py
+  → zipimport._get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'Cbase_library.zip'
+```
+
+`base_library.zip` 是 PyInstaller 打包的 stdlib 归档。它要找的路径是 `Cbase_library.zip`——**盘符和文件名之间什么都没了**。安装目录是 `...\image\魏大恒1号-Windows-x64 v2\`，路径含中文，bootloader 用 ANSI 代码页拼路径时中文的 UTF-8 字节把反斜杠吃掉，整条路径塌缩。这和 3.6 是同一个字节级机制，只是发生在 bootloader 里，跑在任何业务代码之前。
+
+同一份日志里的连带现象：`ModuleNotFoundError: No module named 'collections.abc'`、`'unicodedata'`（这两个模块就住在 `base_library.zip` 里）、`PermissionError: [WinError 5] 拒绝访问`。
+
+**为什么补 hiddenimports 没用**：模块本来就在包里，坏的是归档路径。补进去只治表象。
+
+修复：`_direct` 改为 `sys.platform in ("darwin", "win32")`，Windows 也在 Worker 进程内推理，**不再派生子进程**。子进程不出现，`base_library.zip` 路径、`WinError 5`、孤儿进程、`os._exit` 这几类问题一次性消失。
+
+并行度不受影响：`_model_parallelism` 用 `os.sysconf` 取内存，Windows 上没有这个函数 → `AttributeError` → 返回 1，仍是串行。代价是失去崩溃隔离，但 Worker 本就有 3 次重启预算。
+
+**顺带修掉的两个误判**：
+
+- 冷启动实测 **168 秒**（三台 ONNX 会话，Windows Server 2022 虚拟机）。前端 deep 探测的超时是 60 秒，所以「加载成功」被报成「检测超时」。deep 超时改为 300 秒，提示文案改成「首次可能需要两分钟以上」。
+- 分类停滞看门狗是 120 秒，而首次 Pose 调用要冷加载 168 秒、期间没有任何 progress → 工作还在跑就被取消。分类看门狗改为 300 秒；生成侧保持 180 秒（那时模型已被分类预热）。
+
+验证：Worker 218 项通过 1 项跳过；`protocol:check` + `vite build` 通过。待 Windows 实机复测。
+
+### 3.12 Windows：素材确认页一片空白（生成正常）
+
+现象：确认素材分类窗口只有顶部摘要和底部按钮，中间网格全空；点「确认并开始」后生成与输出都正常。
+
+**根因**：卡片显隐完全由 JS 驱动。
+
+```css
+.confirmation-dialog .confirm-card { opacity: 0; }
+.confirmation-dialog .confirm-card[data-visible="true"] { animation: fade-in-up .3s ease-out forwards; }
+```
+
+`data-visible` 由 `IntersectionObserver` 在进入视口时置为 `true`。Windows 上确认窗口是先以隐藏状态创建、再 `show()` 出来的：观察器在窗口不可见时判定全部卡片不进入视口，而窗口显示后尺寸没变、不触发重新计算，于是没有任何一张卡片被标记 → 整页 `opacity: 0`。
+
+修复：卡片默认 `opacity: 1`，动画只作为增强。内容不应该依赖 JS 才可见——这是「空白页」这类故障的共同形态。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
@@ -335,6 +382,8 @@ background: linear-gradient(to top, var(--confirm-grid-bg), transparent);
 | 设置/报告窗口二次打开 | 权限已补（`8b1278c`） | ARM 已实机确认正常（2026-11-03）；Windows 设置页正常 |
 | 设置页「测试模型」等很久 / 检测不到 | 两级探测 + 心跳锁已合入（`0ef9bf1`，详见 3.5）：轻量探测毫秒级返回「已找到」，只有「加载测试」才真正建会话 | ARM 已确认正常；Intel 未测 |
 | **Windows 点「测试模型」完全没反应** | 已修复（详见 3.6）：Worker 按 cp936 输出中文，Host 按 UTF-8 读失败后静默丢行。现已双端强制 UTF-8，Host 解码失败会留痕并报错 | 待 Windows 复测：探测应返回真实模型状态；若仍失败，`worker.log` 会有明确记录 |
+| **Windows「加载测试」失败 / 生成卡在 Pose** | 已修复（详见 3.11）：冻结包子进程在中文安装路径下死在 `pyiboot01_bootstrap`。Windows 改为进程内推理，不再派生子进程；deep 超时 60s→300s，分类看门狗 120s→300s | 待 Windows 复测：中文路径下「加载测试」应成功（冷启动约 2–3 分钟）；分类应能跑完 Pose |
+| **Windows 确认素材页空白** | 已修复（详见 3.12）：卡片默认 `opacity:0`，靠观察器置位才显示，隐藏窗口里观察器不重算 | 待 Windows 复测：确认页应直接显示 57 张卡片 |
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
 | **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，`51789c0` 已把出错位置写进 `worker.log` |
 | **重启后仍显示上次任务路径 / 改路径不生效** | 已修复（详见 3.9）：启动时无条件用恢复快照覆盖输入框，旧路径压回用户选择 | 待 Windows 实机确认：重启后输入框为空、提示可见，点「继续未完成」才填入 |
