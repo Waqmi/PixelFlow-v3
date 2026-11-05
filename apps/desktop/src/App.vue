@@ -1802,17 +1802,20 @@ function handleWorkerMessage(message: WorkerMessage) {
     const source = String(payload.source || '').split(/[\\/]/).pop() || '当前素材'
     const decision = payload.decision as { source_type?: string } | undefined
     const typeLabels: Record<string, string> = { main_product: '商品白底图', detail: '细节图', model: '模特图', model_detail: '模特细节图' }
+    // Weights follow measured wall-clock share, not item count: on a 57-image
+    // run the rule pass took 6.2s, Pose 59.4s and Seg 0.0s. Giving rules 40%
+    // left the bar sitting near half for the whole Pose phase.
     if (phase === 'Pose') {
-      setClassificationProgress(total ? 400 + Math.min(300, Math.round((completed / total) * 300)) : 400)
+      setClassificationProgress(total ? 150 + Math.min(700, Math.round((completed / total) * 700)) : 150)
       taskDetail.value = `${completed} / ${total} · Pose 分析：${source}`
     } else if (phase === 'Seg') {
-      setClassificationProgress(total ? 700 + Math.min(290, Math.round((completed / total) * 290)) : 700)
+      setClassificationProgress(total ? 850 + Math.min(140, Math.round((completed / total) * 140)) : 850)
       taskDetail.value = `${completed} / ${total} · Seg 疑难图：${source}`
     } else if (phase === 'Pose/Seg') {
-      setClassificationProgress(total ? 400 + Math.min(590, Math.round((completed / total) * 590)) : 400)
+      setClassificationProgress(total ? 150 + Math.min(840, Math.round((completed / total) * 840)) : 150)
       taskDetail.value = `${completed} / ${total} · Pose/Seg 分析：${source}`
     } else {
-      setClassificationProgress(total ? Math.min(400, Math.round((completed / total) * 400)) : 0)
+      setClassificationProgress(total ? Math.min(150, Math.round((completed / total) * 150)) : 0)
       taskDetail.value = `${completed} / ${total} · 素材识别：${source} → ${typeLabels[decision?.source_type || ''] || '其他'}`
     }
     taskPhase.value = '识别分类'
