@@ -312,7 +312,14 @@ class ModelProcessService:
         # macOS TCC treats a multiprocessing-spawned frozen worker as a new
         # file-access identity.  Keep model reads in the already-authorized
         # Worker process there; other platforms retain the isolated process.
-        self._direct = sys.platform == "darwin"
+        #
+        # Windows joins macOS: a spawned child of the frozen build fails in
+        # pyiboot01_bootstrap because the stdlib archive path is built with the
+        # ANSI code page, so any non-ASCII component collapses it to
+        # "Cbase_library.zip".  The child then dies before user code runs and
+        # the request waits for its timeout.  Running in-process avoids the
+        # second interpreter entirely.
+        self._direct = sys.platform in ("darwin", "win32")
         self._context = multiprocessing.get_context("spawn")
         self._request_queue: Any = None
         self._response_queue: Any = None

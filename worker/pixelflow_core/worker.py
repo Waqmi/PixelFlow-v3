@@ -672,7 +672,7 @@ def main() -> int:
                     "status",
                     {
                         "state": "loading",
-                        "message": "正在加载模型…（首次可能需要几十秒）" if deep else "正在检测外部模型…",
+                        "message": "正在加载模型…（首次可能需要两分钟以上）" if deep else "正在检测外部模型…",
                     },
                 )
 
