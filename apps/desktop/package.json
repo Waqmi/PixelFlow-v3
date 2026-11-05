@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "protocol:check": "python3 ../../tools/check_protocol_schema.py",
+    "protocol:check": "python3 ../../tools/check_protocol_schema.py && node ../../tools/check_ui_guards.mjs",
     "worker:build": "../../tools/build_worker.sh",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
