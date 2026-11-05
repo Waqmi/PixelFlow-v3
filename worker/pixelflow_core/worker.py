@@ -581,6 +581,24 @@ def _raw_line_excerpt(line: str) -> str:
     return text if len(text) <= _RAW_LINE_LIMIT else f"{text[:_RAW_LINE_LIMIT]}…"
 
 
+def _failure_context(line: str) -> str:
+    """Return the part of an unparseable line around the JSON error.
+
+    The event log rewrites every backslash on its way through the host, which
+    hides the one character that matters here, so the window is written to
+    stderr instead: worker.log reaches the diagnostics bundle untouched.
+    """
+    try:
+        json.loads(line)
+        return f"{_raw_line_excerpt(line)} (len={len(line)})"
+    except json.JSONDecodeError as error:
+        start = max(0, error.pos - 60)
+        end = min(len(line), error.pos + 140)
+        prefix = "…" if start else ""
+        suffix = "…" if end < len(line) else ""
+        return f"{prefix}{line[start:end]}{suffix} (len={len(line)}, pos={error.pos})"
+
+
 def main() -> int:
     output_lock = threading.Lock()
     preview_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pixelflow-preview")
@@ -670,6 +688,10 @@ def main() -> int:
             else:
                 response, should_exit = handle_message(message)
         except ProtocolError as error:
+            # worker.log reaches the diagnostics bundle untouched. The event log
+            # runs every message through privacy_text, which rewrites each
+            # backslash and would hide the escape that broke this line.
+            print(f"invalid_message: {error}; near={_failure_context(line)}", file=sys.stderr, flush=True)
             response = _event(
                 _salvage_request_id(line),
                 "error",

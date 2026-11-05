@@ -295,6 +295,21 @@ class MalformedRequestTests(unittest.TestCase):
         self.assertIn("C:", _raw_line_excerpt(broken))
         self.assertLessEqual(len(_raw_line_excerpt("x" * 500)), 201)
 
+    def test_failure_context_centres_on_the_offending_character(self) -> None:
+        """A prefix-only excerpt hides the escape when the payload is long."""
+        from pixelflow_core.worker import _failure_context
+
+        padding = "x" * 400
+        broken = (
+            '{"protocol":1,"request_id":"main-7","type":"classify_materials","payload":'
+            f'{{"note":"{padding}","product_root":"C:\\pftest"}}}}'
+        )
+        context = _failure_context(broken)
+        self.assertIn("pftest", context)
+        self.assertIn("pos=", context)
+        self.assertLessEqual(len(context), 260)
+        self.assertIn("len=7", _failure_context('{"a":1}'))
+
 
 if __name__ == "__main__":
     unittest.main()
