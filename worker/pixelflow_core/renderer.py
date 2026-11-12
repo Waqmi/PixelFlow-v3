@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from io import BytesIO
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 from statistics import median
@@ -39,6 +40,13 @@ TRANSPARENT_SIZES: dict[str, tuple[int, int]] = {
 # 11.3% larger than L9+optimize (2026-10-05), so a candidate whose L6 misses
 # the limit by more than 20% is not expected to fit at L9 and is deferred.
 PNG_PROBE_MARGIN = 0.20
+# Alpha above this counts as product when measuring the subject box; below it is
+# fringe or a soft shadow (2026-11-12: only 1 of 16 shoe PNGs was affected).
+ALPHA_BBOX_THRESHOLD = 64
+# A detail edge counts as cut when more than this share of its border strip
+# differs from the sampled background by more than the difference limit.
+DETAIL_CUT_DIFFERENCE = 32
+DETAIL_CUT_SHARE = 0.15
 
 
 @dataclass(frozen=True)
@@ -360,15 +368,91 @@ def _template_config(resource_root: Path, category: str | None, size: str) -> tu
         return None
 
 
-def _template_crop(image: Image.Image, target: tuple[int, int], template: tuple[float, float, float], transparent: bool, background: tuple[int, int, int]) -> Image.Image:
+@lru_cache(maxsize=32)
+def _template_normalization(resource_root: Path, category: str | None) -> tuple[float, float] | None:
+    """Read the optional orientation-normalisation block from a category template."""
+    if not category:
+        return None
+    try:
+        payload = json.loads((resource_root / "templates" / "category_templates.json").read_text(encoding="utf-8"))
+        raw = payload.get(category)
+        if not isinstance(raw, dict):
+            return None
+        normalize = raw.get("normalize")
+        if not isinstance(normalize, dict) or normalize.get("enabled") is not True:
+            return None
+        reference_aspect = float(normalize["reference_aspect"])
+        strength = float(normalize.get("strength", 1.0))
+        if not math.isfinite(reference_aspect) or not math.isfinite(strength):
+            return None
+        if reference_aspect <= 0 or not 0.0 <= strength <= 1.0:
+            return None
+        return reference_aspect, strength
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+
+def _orientation_factor(
+    box_width: float,
+    box_height: float,
+    target: tuple[int, int],
+    reference_aspect: float,
+    strength: float,
+) -> float:
+    """Scale a subject down towards the category's reference visual weight.
+
+    Subjects wider than the reference are already lighter than the reference
+    and stay untouched, so the factor never exceeds 1.0.
+    """
+    canvas = target[0] / target[1]
+    subject = max(1.0, float(box_width)) / max(1.0, float(box_height))
+
+    def fill(aspect: float) -> float:
+        return min(aspect / canvas, canvas / aspect)
+
+    reference_fill = fill(reference_aspect)
+    subject_fill = fill(subject)
+    if reference_fill <= 0.0 or subject_fill <= 0.0:
+        return 1.0
+    return min(1.0, (reference_fill / subject_fill) ** (strength / 2))
+
+
+def _subject_alpha_box(image: Image.Image) -> tuple[int, int, int, int] | None:
+    """Alpha bounds of the product itself, ignoring near-transparent fringe.
+
+    ``getbbox()`` counts any non-zero alpha, so a soft drop shadow widens the
+    box until the subject looks flatter than it is; a 2026-11-12 sample
+    (BIMAI 1060.png) measured 44% too wide.  Values at or below the threshold
+    are dropped, and the plain box is kept when nothing survives.
+    """
+    alpha = image.getchannel("A")
+    trimmed = alpha.point(lambda value: 255 if value > ALPHA_BBOX_THRESHOLD else 0).getbbox()
+    return trimmed or alpha.getbbox()
+
+
+def _template_crop(
+    image: Image.Image,
+    target: tuple[int, int],
+    template: tuple[float, float, float],
+    transparent: bool,
+    background: tuple[int, int, int],
+    normalization: tuple[float, float] | None = None,
+) -> Image.Image:
     scale, position_x, position_y = template
     working = image.convert("RGBA")
-    alpha_box = working.getchannel("A").getbbox()
+    # Transparent outputs and categories without normalisation keep the plain
+    # bounds, so their pixels stay byte-identical to the previous behaviour.
+    if normalization is not None and not transparent:
+        alpha_box = _subject_alpha_box(working)
+    else:
+        alpha_box = working.getchannel("A").getbbox()
     if alpha_box:
         left, top, right, bottom = alpha_box
         margin_x = round((right - left) * 0.01)
         margin_y = round((bottom - top) * 0.01)
         working = working.crop((max(0, left - margin_x), max(0, top - margin_y), min(working.width, right + margin_x), min(working.height, bottom + margin_y)))
+    if normalization is not None:
+        scale *= _orientation_factor(working.width, working.height, target, *normalization)
     working.thumbnail((max(1, round(target[0] * scale)), max(1, round(target[1] * scale))), Image.Resampling.LANCZOS)
     center = (round(target[0] * position_x), round(target[1] * position_y))
     position = (center[0] - working.width // 2, center[1] - working.height // 2)
@@ -379,6 +463,86 @@ def _template_crop(image: Image.Image, target: tuple[int, int], template: tuple[
     canvas = Image.new("RGB", target, background)
     canvas.paste(working, position, working)
     return canvas
+
+
+def _detail_cut_sides(image: Image.Image) -> dict[str, bool]:
+    """Which source edges run off the frame (the strip is product, not background)."""
+    array = np.asarray(image.convert("RGB"), dtype=np.int16)
+    height, width = array.shape[:2]
+    band = max(2, min(24, round(min(width, height) * 0.01)))
+    strips = {
+        "top": array[:band, :, :],
+        "bottom": array[-band:, :, :],
+        "left": array[:, :band, :],
+        "right": array[:, -band:, :],
+    }
+    samples = {name: strip.reshape(-1, 3) for name, strip in strips.items()}
+    pool = np.concatenate([values[:: max(1, len(values) // 500)] for values in samples.values()])
+    background = np.median(pool, axis=0)
+    cut: dict[str, bool] = {}
+    for name, values in samples.items():
+        step = max(1, len(values) // 2000)
+        difference = np.abs(values[::step] - background).max(axis=1)
+        cut[name] = bool((difference > DETAIL_CUT_DIFFERENCE).mean() > DETAIL_CUT_SHARE)
+    return cut
+
+
+def _detail_background_color(image: Image.Image, cut: dict[str, bool]) -> tuple[int, int, int]:
+    """Edge colour of the sides that still show background, not product."""
+    array = np.asarray(image.convert("RGB"), dtype=np.int16)
+    height, width = array.shape[:2]
+    band = max(2, min(24, round(min(width, height) * 0.01)))
+    strips = {
+        "top": array[:band, :, :],
+        "bottom": array[-band:, :, :],
+        "left": array[:, :band, :],
+        "right": array[:, -band:, :],
+    }
+    usable = [name for name in strips if not cut.get(name)]
+    pool = np.concatenate(
+        [strips[name].reshape(-1, 3)[:: max(1, strips[name].size // 1500)] for name in (usable or list(strips))]
+    )
+    return tuple(int(value) for value in np.median(pool, axis=0))
+
+
+def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: float) -> Image.Image:
+    """Shrink a detail shot while the edges that run off frame stay flush.
+
+    An axis whose two sides both run off frame cannot shrink without exposing a
+    cut edge, so the request falls back to cover; a fully bleeding close-up is
+    therefore unaffected by the slider.
+    """
+    rgb = image.convert("RGB")
+    scale = max(0.05, min(1.0, float(scale)))
+    if scale >= 1.0:
+        return _resize_cover(rgb, target)
+    cut = _detail_cut_sides(rgb)
+    if (cut["left"] and cut["right"]) or (cut["top"] and cut["bottom"]):
+        return _resize_cover(rgb, target)
+    size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
+    resized = rgb.resize(size, Image.Resampling.LANCZOS)
+    canvas = Image.new("RGB", target, _detail_background_color(rgb, cut))
+    left = 0 if cut["left"] else target[0] - resized.width if cut["right"] else (target[0] - resized.width) // 2
+    top = 0 if cut["top"] else target[1] - resized.height if cut["bottom"] else (target[1] - resized.height) // 2
+    canvas.paste(resized, (left, top), _detail_seam_mask(resized.size, cut))
+    return canvas
+
+
+def _detail_seam_mask(size: tuple[int, int], cut: dict[str, bool]) -> Image.Image:
+    """Feather only the sides that gained background; cut sides stay flush."""
+    width, height = size
+    band = max(1, round(min(width, height) * 0.01))
+    mask = np.full((height, width), 255, dtype=np.uint8)
+    ramp = np.linspace(0, 255, band).astype(np.uint8)
+    if not cut["top"]:
+        mask[:band, :] = ramp[:, None]
+    if not cut["bottom"]:
+        mask[-band:, :] = ramp[::-1][:, None]
+    if not cut["left"]:
+        mask[:, :band] = np.minimum(mask[:, :band], ramp[None, :])
+    if not cut["right"]:
+        mask[:, -band:] = np.minimum(mask[:, -band:], ramp[::-1][None, :])
+    return Image.fromarray(mask)
 
 
 def _corner_background_colors(
@@ -459,6 +623,7 @@ def _scaled_opaque_canvas(
         tuple[int, int, int],
     ] | None = None,
     scale_multiplier: float = 1.0,
+    normalization: tuple[float, float] | None = None,
 ) -> Image.Image:
     """Match the legacy light-background foreground extension path."""
     source = image.convert("RGB")
@@ -468,6 +633,8 @@ def _scaled_opaque_canvas(
     box_width = max(1, product_box[2] - product_box[0])
     box_height = max(1, product_box[3] - product_box[1])
     photo_scale = min(target[0] * base_scale / box_width, target[1] * base_scale / box_height)
+    if normalization is not None:
+        photo_scale *= _orientation_factor(box_width, box_height, target, *normalization)
     photo_scale *= max(0.05, _float(scale_multiplier, 1.0))
     scaled_size = (
         max(1, round(source.width * photo_scale)),
@@ -732,12 +899,14 @@ class Renderer:
             1.0 + _float(metadata.get("source_scale_adjustment"), 0.0) / 100.0,
         )
         category_template = None
+        normalization = None
         category = layout.category if layout.category != "产品主图" else str(metadata.get("category") or layout.category)
         enable_category_template = layout.enable_category_template or bool(metadata.get("enable_category_template"))
         if enable_category_template and category:
             template_size = {"800x800": "1440x1440", "1440x2160": "1440x1920"}.get(size_name, size_name)
             category_template = _template_config(self.resource_root, category, template_size)
             if category_template is not None:
+                normalization = _template_normalization(self.resource_root, category)
                 template_scale = plan.scale if plan is not None else 1.0
                 category_template = (
                     category_template[0] * template_scale,
@@ -768,6 +937,10 @@ class Renderer:
         protected = _plan_box(plan)
         anchored = plan is not None and plan.composition_mode == "anchor_crop" and plan.crop_box is not None
         if source_type in {"detail", "model_detail"} and not (source_type == "model_detail" and anchored):
+            # Detail shots are edge-to-edge by design; the manual slider may
+            # only shrink them, and only when a side is not cut by the frame.
+            if source_type == "detail" and source_scale < 1.0:
+                return _pinned_detail_shrink(image, target, source_scale)
             return _resize_cover(image.convert("RGB"), target)
         if source_type in {"model", "model_detail"}:
             scale = _float(plan.scale if plan else layout.scale if layout.scale != 1.0 else metadata.get("scale"), 1.0)
@@ -801,6 +974,7 @@ class Renderer:
                     (category_template[0] * source_scale, category_template[1], category_template[2]),
                     False,
                     background,
+                    normalization,
                 )
             composed = _resize_contain(image.convert("RGBA"), target, background, 0.05 if target[1] > target[0] else 0.04)
             return composed
@@ -820,6 +994,7 @@ class Renderer:
                     0.12 if size_name == "1125x1500" else 0.05,
                     analysis.corner_colors,
                     source_scale,
+                    normalization,
                 )
             return _resize_cover(image, target, focus, protected, source_scale)
         return _resize_cover(image, target, focus, protected, source_scale)

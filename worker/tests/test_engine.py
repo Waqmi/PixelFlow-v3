@@ -455,6 +455,40 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertEqual(calls[0].source_type, "main_product")
             self.assertFalse(calls[0].transparent)
 
+    def test_v3_clamps_detail_scale_adjustment_to_shrink_only(self) -> None:
+        calls = []
+
+        class StubRenderer:
+            def render(self, request):
+                calls.append(request)
+                output = Path(request.output_path)
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"typed-renderer-bridge")
+                return RenderResult(source=request.source, outputs=(str(output),), mode="v3")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            source = product_root / "sample.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+            for adjustment, expected in ((30.0, 0.0), (-60.0, -40.0), (-25.0, -25.0)):
+                calls.clear()
+                V3EngineAdapter(renderer=StubRenderer()).run(
+                    GenerationRequest(
+                        product_root=product_root,
+                        output_root=Path(temp_dir) / f"output{int(adjustment)}",
+                        selected_sizes=("1440x1440",),
+                        include_logo=False,
+                        source_type_overrides={str(source): "detail"},
+                        source_scale_adjustments={str(source): adjustment},
+                        mode="v3",
+                    )
+                )
+                detail_calls = [call for call in calls if call.source_type == "detail"]
+                self.assertTrue(detail_calls)
+                for call in detail_calls:
+                    self.assertEqual(call.metadata["source_scale_adjustment"], expected)
+
     def test_v3_source_type_override_wins_over_native_rules(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             source_root = Path(temp_dir) / "运动鞋"

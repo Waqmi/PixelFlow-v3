@@ -2,22 +2,32 @@ from __future__ import annotations
 
 from dataclasses import replace
 from io import BytesIO
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from pixelflow_core.contracts import CompositionPlan, ProtectedRegion, RenderRequest
+from pixelflow_core import renderer as renderer_module
+from pixelflow_core.contracts import CompositionPlan, ProtectedRegion, RenderLayout, RenderRequest
 from pixelflow_core.renderer import (
     RenderConfig,
     Renderer,
     _background_to_alpha,
     _encode_png,
     _light_foreground_touches_edge,
+    _orientation_factor,
+    _resize_cover,
+    _subject_alpha_box,
+    _template_config,
+    _template_normalization,
 )
+
+REPO_RESOURCES = Path(__file__).resolve().parents[1] / "resources"
+TEMPLATE_FILE = REPO_RESOURCES / "templates" / "category_templates.json"
 
 
 class RendererTests(unittest.TestCase):
@@ -463,6 +473,269 @@ class RendererTests(unittest.TestCase):
             self.assertGreater(widths[1], widths[0])
 
 
+def _template_root(directory: Path, mutate) -> Path:
+    """Copy the bundled templates into a temp resource root and patch them."""
+    root = directory / "resources"
+    (root / "templates").mkdir(parents=True, exist_ok=True)
+    payload = json.loads(TEMPLATE_FILE.read_text(encoding="utf-8"))
+    mutate(payload)
+    (root / "templates" / "category_templates.json").write_text(json.dumps(payload), encoding="utf-8")
+    return root
+
+
+def _product_source(
+    path: Path,
+    box: tuple[int, int, int, int],
+    *,
+    mode: str = "RGB",
+    size: tuple[int, int] = (500, 500),
+) -> None:
+    """White/transparent canvas with a dark subject, so the bbox probe is exact."""
+    fill = (0, 0, 0, 0) if mode == "RGBA" else "white"
+    subject = (30, 30, 30, 255) if mode == "RGBA" else (30, 30, 30)
+    image = Image.new(mode, size, fill)
+    image.paste(subject, box)
+    image.save(path)
+
+
+def _shadowed_product_source(
+    path: Path,
+    box: tuple[int, int, int, int],
+    *,
+    shadow: tuple[int, int, int, int],
+    alpha: int = 30,
+    size: tuple[int, int] = (1000, 1000),
+) -> None:
+    """Opaque product on top of a much larger, nearly transparent drop shadow."""
+    image = Image.new("RGBA", size, (0, 0, 0, 0))
+    image.paste((30, 30, 30, alpha), shadow)
+    image.paste((30, 30, 30, 255), box)
+    image.save(path)
+
+
+def _bottom_cut_source(path: Path) -> None:
+    """White canvas whose dark block runs off the bottom edge only."""
+    image = Image.new("RGB", (800, 600), "white")
+    ImageDraw.Draw(image).rectangle((100, 300, 700, 600), fill=(30, 30, 30))
+    image.save(path, quality=95)
+
+
+def _render_detail(source: Path, output_root: Path, adjustment: float):
+    return Renderer().render(
+        RenderRequest(
+            source=str(source),
+            output_root=str(output_root),
+            size="1440x1440",
+            mode="v3",
+            output_kind="main",
+            include_logo=False,
+            source_type="detail",
+            metadata={"source_scale_adjustment": adjustment},
+            layout=RenderLayout(category="产品主图", output_category="产品主图", filename="detail.jpg"),
+        )
+    )
+
+
+def _render_category(
+    source: Path,
+    output_root: Path,
+    resource_root: Path,
+    category: str,
+    *,
+    size: str = "1125x1500",
+    transparent: bool = False,
+):
+    return Renderer(resource_root=resource_root).render(
+        RenderRequest(
+            source=str(source),
+            output_root=str(output_root),
+            size=size,
+            mode="v3",
+            output_kind="transparent" if transparent else "main",
+            transparent=transparent,
+            include_logo=False,
+            layout=RenderLayout(category=category, enable_category_template=True),
+        )
+    )
+
+
+def _subject_height(path: Path) -> int:
+    with Image.open(path) as image:
+        array = np.asarray(image.convert("RGB"))
+    rows = np.where((array[:, :, 0] < 128).any(axis=1))[0]
+    return int(rows[-1] - rows[0] + 1)
+
+
+class OrientationNormalizationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _template_config.cache_clear()
+        _template_normalization.cache_clear()
+
+    def tearDown(self) -> None:
+        _template_config.cache_clear()
+        _template_normalization.cache_clear()
+
+    def test_orientation_factor_matches_reference_table(self) -> None:
+        cases = {
+            (1125, 1500): ((2.09, 1.0), (0.79, 0.6148), (0.58, 0.6812), (3.0, 1.0)),
+            (1440, 1920): ((2.09, 1.0), (0.79, 0.6148), (0.58, 0.6812), (3.0, 1.0)),
+            (1440, 1440): ((2.09, 1.0), (0.79, 0.7782), (0.58, 0.9083), (3.0, 1.0)),
+        }
+        for target, rows in cases.items():
+            for aspect, expected in rows:
+                with self.subTest(target=target, aspect=aspect):
+                    factor = _orientation_factor(round(aspect * 1000), 1000, target, 2.09, 1.0)
+                    self.assertAlmostEqual(factor, expected, places=4)
+
+    def test_orientation_factor_never_upscales_and_zero_strength_disables(self) -> None:
+        for target in ((1125, 1500), (1440, 1920), (1440, 1440)):
+            for aspect in (0.05, 0.33, 0.58, 0.79, 1.0, 2.09, 3.0, 9.0):
+                with self.subTest(target=target, aspect=aspect):
+                    box = (round(aspect * 1000), 1000)
+                    factor = _orientation_factor(*box, target, 2.09, 1.0)
+                    self.assertLessEqual(factor, 1.0)
+                    self.assertGreaterEqual(factor, 0.0)
+                    self.assertEqual(_orientation_factor(*box, target, 2.09, 0.0), 1.0)
+
+    def test_reference_aspect_output_is_byte_identical(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "shoe.png"
+            _product_source(source, (40, 100, 458, 300))  # 418x200 -> 2.09
+            enabled = _render_category(source, root / "enabled", REPO_RESOURCES, "shoes")
+            disabled_root = _template_root(root, lambda payload: payload["shoes"]["normalize"].update(enabled=False))
+            disabled = _render_category(source, root / "disabled", disabled_root, "shoes")
+            self.assertTrue(enabled.success, enabled.errors)
+            self.assertTrue(disabled.success, disabled.errors)
+            self.assertEqual(Path(enabled.outputs[0]).read_bytes(), Path(disabled.outputs[0]).read_bytes())
+
+    def test_vertical_subject_is_scaled_down_by_the_expected_factor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "vertical.png"
+            _product_source(source, (92, 50, 408, 450))  # 316x400 -> 0.79
+            enabled = _render_category(source, root / "enabled", REPO_RESOURCES, "shoes")
+            disabled_root = _template_root(root, lambda payload: payload["shoes"]["normalize"].update(enabled=False))
+            disabled = _render_category(source, root / "disabled", disabled_root, "shoes")
+            self.assertTrue(enabled.success, enabled.errors)
+            self.assertTrue(disabled.success, disabled.errors)
+            tall = _subject_height(Path(disabled.outputs[0]))
+            short = _subject_height(Path(enabled.outputs[0]))
+            self.assertAlmostEqual(short / tall, 0.6148, delta=2 / tall)
+
+    def test_soft_shadow_is_not_part_of_the_subject_box(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shadowed = root / "shadowed.png"
+            plain = root / "plain.png"
+            subject = (100, 60, 500, 540)
+            _shadowed_product_source(shadowed, subject, shadow=(40, 20, 940, 600))
+            _product_source(plain, subject, mode="RGBA", size=(1000, 1000))
+            self.assertEqual(_subject_alpha_box(Image.open(shadowed).convert("RGBA")), subject)
+
+            shadowed_output = _render_category(shadowed, root / "a", REPO_RESOURCES, "shoes")
+            plain_output = _render_category(plain, root / "b", REPO_RESOURCES, "shoes")
+            self.assertTrue(shadowed_output.success, shadowed_output.errors)
+            self.assertTrue(plain_output.success, plain_output.errors)
+            self.assertAlmostEqual(
+                _subject_height(Path(shadowed_output.outputs[0])),
+                _subject_height(Path(plain_output.outputs[0])),
+                delta=2 / 1500,
+            )
+
+            # Without normalisation the plain bounds stay in force, so the
+            # output must match a render that never trimmed the shadow.
+            disabled_root = _template_root(root, lambda payload: payload["shoes"]["normalize"].update(enabled=False))
+            disabled_output = _render_category(shadowed, root / "c", disabled_root, "shoes")
+            self.assertTrue(disabled_output.success, disabled_output.errors)
+            with patch.object(renderer_module, "_subject_alpha_box", lambda image: image.getchannel("A").getbbox()):
+                baseline = _render_category(shadowed, root / "d", disabled_root, "shoes")
+            self.assertEqual(
+                Path(disabled_output.outputs[0]).read_bytes(),
+                Path(baseline.outputs[0]).read_bytes(),
+            )
+
+    def test_rgba_main_output_is_normalized_while_transparent_output_is_not(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "product.png"
+            # Large enough that the template thumbnail actually shrinks it.
+            _product_source(source, (168, 0, 1432, 1600), mode="RGBA", size=(1600, 1600))  # 0.79
+            enabled = _render_category(source, root / "enabled", REPO_RESOURCES, "shoes")
+            disabled_root = _template_root(root, lambda payload: payload["shoes"]["normalize"].update(enabled=False))
+            disabled = _render_category(source, root / "disabled", disabled_root, "shoes")
+            self.assertTrue(enabled.success, enabled.errors)
+            self.assertTrue(disabled.success, disabled.errors)
+            self.assertLess(
+                _subject_height(Path(enabled.outputs[0])),
+                _subject_height(Path(disabled.outputs[0])) * 0.9,
+            )
+
+            transparent_enabled = _render_category(
+                source, root / "t-enabled", REPO_RESOURCES, "shoes", size="800x800", transparent=True
+            )
+            transparent_disabled = _render_category(
+                source, root / "t-disabled", disabled_root, "shoes", size="800x800", transparent=True
+            )
+            self.assertTrue(transparent_enabled.success, transparent_enabled.errors)
+            self.assertTrue(transparent_disabled.success, transparent_disabled.errors)
+            self.assertEqual(
+                Path(transparent_enabled.outputs[0]).read_bytes(),
+                Path(transparent_disabled.outputs[0]).read_bytes(),
+            )
+
+    def test_disabled_category_output_matches_config_without_normalize(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "shirt.png"
+            _product_source(source, (92, 50, 408, 450))  # 0.79, would shrink if enabled
+            with_normalize = _render_category(source, root / "with", REPO_RESOURCES, "shirt")
+            without_root = _template_root(root, lambda payload: payload["shirt"].pop("normalize"))
+            without_normalize = _render_category(source, root / "without", without_root, "shirt")
+            self.assertTrue(with_normalize.success, with_normalize.errors)
+            self.assertTrue(without_normalize.success, without_normalize.errors)
+            self.assertEqual(
+                Path(with_normalize.outputs[0]).read_bytes(),
+                Path(without_normalize.outputs[0]).read_bytes(),
+            )
+
+    def test_invalid_normalize_config_falls_back_to_current_output(self) -> None:
+        self.assertEqual(_template_normalization(REPO_RESOURCES, "shoes"), (2.09, 1.0))
+        self.assertIsNone(_template_normalization(REPO_RESOURCES, "hat"))
+        self.assertIsNone(_template_normalization(REPO_RESOURCES, "other"))
+
+        variants = {
+            "missing-aspect": lambda payload: payload["shoes"]["normalize"].pop("reference_aspect"),
+            "strength-out-of-range": lambda payload: payload["shoes"]["normalize"].update(strength=1.5),
+            "negative-aspect": lambda payload: payload["shoes"]["normalize"].update(reference_aspect=-1.0),
+            "enabled-string": lambda payload: payload["shoes"]["normalize"].update(enabled="true"),
+            "normalize-string": lambda payload: payload["shoes"].__setitem__("normalize", "on"),
+            "missing-normalize": lambda payload: payload["shoes"].pop("normalize"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "shoe.png"
+            _product_source(source, (92, 50, 408, 450))  # 0.79
+            baseline_root = _template_root(root, lambda payload: payload["shoes"].pop("normalize"))
+            baseline = _render_category(source, root / "baseline", baseline_root, "shoes")
+            self.assertTrue(baseline.success, baseline.errors)
+            expected = Path(baseline.outputs[0]).read_bytes()
+            for label, mutate in variants.items():
+                with self.subTest(label):
+                    _template_normalization.cache_clear()
+                    variant_root = _template_root(root / label, mutate)
+                    result = _render_category(source, root / f"out-{label}", variant_root, "shoes")
+                    self.assertTrue(result.success, result.errors)
+                    self.assertEqual(Path(result.outputs[0]).read_bytes(), expected)
+
+    def test_legacy_template_manager_loads_bundled_templates(self) -> None:
+        from pixelflow_core.legacy_engine.category_engine.category_template_manager import CategoryTemplateManager
+
+        manager = CategoryTemplateManager(TEMPLATE_FILE)
+        self.assertAlmostEqual(manager.get("shoes", "1125x1500").scale, 0.840, places=3)
+        self.assertAlmostEqual(manager.get("gloves").scale, 0.620, places=3)
+
+
 def _reference_background_to_alpha(image: Image.Image, background: tuple[int, int, int]) -> Image.Image:
     """Per-pixel implementation the vectorised version must match byte for byte."""
     rgba = image.convert("RGBA")
@@ -496,6 +769,60 @@ def _reference_encode_png(image: Image.Image, max_size_mb: float | None) -> byte
         if limit is None or len(payload) <= limit:
             return payload
     return best
+
+
+class DetailShrinkTests(unittest.TestCase):
+    def test_zero_adjustment_matches_cover_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "detail.jpg"
+            _bottom_cut_source(source)
+            rendered = _render_detail(source, root / "a", 0.0)
+            self.assertTrue(rendered.success, rendered.errors)
+            with patch.object(
+                renderer_module,
+                "_pinned_detail_shrink",
+                lambda image, target, scale: renderer_module._resize_cover(image, target),
+            ):
+                legacy = _render_detail(source, root / "b", 0.0)
+            self.assertTrue(legacy.success, legacy.errors)
+            self.assertEqual(
+                Path(rendered.outputs[0]).read_bytes(),
+                Path(legacy.outputs[0]).read_bytes(),
+            )
+
+    def test_bottom_cut_detail_keeps_its_bottom_edge_and_gains_background(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "detail.jpg"
+            _bottom_cut_source(source)
+            rendered = _render_detail(source, root / "a", -20.0)
+            self.assertTrue(rendered.success, rendered.errors)
+            image = Image.open(rendered.outputs[0]).convert("RGB")
+            bottom = image.getpixel((720, 1439))
+            top = image.getpixel((720, 0))
+            self.assertLess(sum(bottom) / 3, 100)  # product still runs off the bottom
+            self.assertGreater(sum(top) / 3, 200)  # the freed band is background
+
+    def test_fully_bleeding_detail_ignores_the_slider(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "texture.jpg"
+            Image.new("RGB", (800, 600), (30, 30, 30)).save(source)
+            base = _render_detail(source, root / "a", 0.0)
+            shrunk = _render_detail(source, root / "b", -40.0)
+            self.assertTrue(base.success, base.errors)
+            self.assertTrue(shrunk.success, shrunk.errors)
+            self.assertEqual(Path(base.outputs[0]).read_bytes(), Path(shrunk.outputs[0]).read_bytes())
+
+    def test_positive_adjustment_never_enlarges_a_detail_shot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "detail.jpg"
+            _bottom_cut_source(source)
+            base = _render_detail(source, root / "a", 0.0)
+            larger = _render_detail(source, root / "b", 30.0)
+            self.assertEqual(Path(base.outputs[0]).read_bytes(), Path(larger.outputs[0]).read_bytes())
 
 
 class EncodingParityTests(unittest.TestCase):

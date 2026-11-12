@@ -562,7 +562,11 @@ class V3EngineAdapter:
                 0.0,
             )
             metadata["source_scale_adjustment"] = (
-                float(source_scale_adjustment) if source_type == "main_product" else 0.0
+                float(source_scale_adjustment)
+                if source_type == "main_product"
+                else max(-40.0, min(0.0, float(source_scale_adjustment)))
+                if source_type == "detail"
+                else 0.0
             )
             diagnostic = self._diagnostic_source(source, source_type, metadata)
             diagnostics_by_source[str(source)] = diagnostic

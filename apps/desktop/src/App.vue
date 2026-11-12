@@ -2027,6 +2027,9 @@ function currentClassificationKey() {
 
 function setMaterialType(material: MaterialDecision, type: MaterialType) {
   material.source_type = type
+  if (type === 'detail' && Number(scaleAdjustments.value[material.source] || 0) > 0) {
+    scaleAdjustments.value[material.source] = 0
+  }
   if (type !== 'model' && type !== 'model_detail') excludedModelSources.value = excludedModelSources.value.filter((source) => source !== material.source)
   materialConfirmed.value = false
 }
@@ -2264,8 +2267,15 @@ function resetScale(source: string) {
   scaleAdjustments.value[source] = 0
 }
 
-function scaleTrack(source: string) {
-  const percent = Math.max(0, Math.min(100, (Number(scaleAdjustments.value[source] || 0) + 50)))
+function scaleBounds(material: MaterialDecision) {
+  // Detail shots may only shrink: enlarging a close-up crops it further.
+  return material.source_type === 'detail' ? { min: -40, max: 0 } : { min: -50, max: 50 }
+}
+
+function scaleTrack(material: MaterialDecision) {
+  const { min, max } = scaleBounds(material)
+  const value = Math.max(min, Math.min(max, Number(scaleAdjustments.value[material.source] || 0)))
+  const percent = ((value - min) / (max - min)) * 100
   return { '--slider-track': `linear-gradient(to right, var(--accent) ${percent}%, var(--line) ${percent}%)` }
 }
 
@@ -2520,7 +2530,7 @@ function startGeneration() {
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div class="confirm-grid-shell" :data-scroll-bottom="isConfirmGridScrolledToBottom" :data-has-overflow="confirmGridHasOverflow"><div ref="confirmGridElement" class="confirm-grid" @scroll="onConfirmGridScroll"><article v-for="(material, index) in materials" :key="material.source" :style="{ '--card-index': Math.min(index, 19) }" :data-visible="material.isVisible === true" :ref="(element) => { setPreviewElement(material, element); observeCard(element, material) }" class="confirm-card">
           <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
-          <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' }"><div class="scale-row"><span>主体大小 {{ (scaleAdjustments[material.source] || 0) >= 0 ? '+' : '' }}{{ scaleAdjustments[material.source] || 0 }}%</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong><input v-model.number="scaleAdjustments[material.source]" :style="scaleTrack(material.source)" type="range" min="-50" max="50" step="1" /></div></div>
+          <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' && material.source_type !== 'detail' }"><div class="scale-row"><span>{{ material.source_type === 'detail' ? `缩小 ${Math.abs(scaleAdjustments[material.source] || 0)}%` : `主体大小 ${(scaleAdjustments[material.source] || 0) >= 0 ? '+' : ''}${scaleAdjustments[material.source] || 0}%` }}</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><template v-if="material.source_type === 'detail'"><small>细节图只能缩小；四边贴边的特写无法调整</small></template><template v-else><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong></template><input v-model.number="scaleAdjustments[material.source]" :style="scaleTrack(material)" type="range" :min="scaleBounds(material).min" :max="scaleBounds(material).max" step="1" /></div></div>
         </article></div><div class="confirm-grid-scroll-hint" aria-hidden="true" /></div>
         <div class="page-actions"><button type="button" class="outline-button" @click="dismissMaterialConfirmation">取消</button><button type="button" class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>
       </section>

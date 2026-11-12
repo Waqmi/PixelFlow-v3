@@ -5,6 +5,7 @@
 ## 变更记录
 
 - 2026-10-02：初始化文档。
+- 2026-11-12：`category_templates.json` 新增品类级 `normalize`，修正白底全貌图非规范角度被放大的问题（详见 `docs/bug-根因与修复记录.md` 3.17）。
 
 ## 职责
 
@@ -55,8 +56,24 @@ worker/
 
 `anchor_crop_box(detections, image_size, target_size, category, segmentation, shoe_boxes, detector_boxes, allow_side_fill)` 返回裁剪窗口 dict，或 `None`（缺少脚踝/品类不支持时保持原构图）。`ANCHOR_CATEGORIES` = shoes、shirt、long_pants、pants、shorts、socks、hat、gloves、knee_pads、bag；`NEW_ANCHOR_CATEGORIES` = socks、hat、gloves、knee_pads、bag。bag 刻意复用 shirt 的锚点规则，且不使用检测框。检测模型（`LocalDetectionAssistant.boxes_for`）仅作为补充框。左右超出 0/1 的部分是 side fill，条带宽度存于 `plan.evidence["side_fill"]`，由 Renderer 合成。
 
-## 协议消息
+## 白底图尺度归一（normalize）
 
+产品白底全貌图走 `_scaled_opaque_canvas` / `_template_crop`，旧公式 `min(W*s/box_w, H*s/box_h)` 只约束主体的"限制边"，竖长主体会顶满高度，同组视觉重量差 3–4 倍。`category_templates.json` 因此在**品类层级**（与 `sizes` 同级）支持可选的 `normalize`：
+
+```json
+"shoes": {
+  "sizes": { "...": "..." },
+  "normalize": {"enabled": true, "reference_aspect": 2.09, "strength": 1.0}
+}
+```
+
+- `reference_aspect`：该品类规范图主体的宽高比（`~/Desktop/测试/主图规范/` 实测）。`strength` 为 γ，`0` 等于关闭，默认 `1.0`。
+- 生效条件：`enabled is true` + `reference_aspect > 0` + `0 <= strength <= 1`，任一不满足即保持原行为；解析失败返回 `None`，不抛错。
+- 补偿系数 `m = min(1, (fill(规范宽高比)/fill(主体宽高比))^(γ/2))`，**只缩不放**；主体宽高比等于规范时 `m = 1`，输出与改动前逐字节一致。
+- **`normalize` 必须放在品类层级，不能放进 `sizes`**：`legacy_engine/category_engine/category_template_manager.py` 会把 `sizes` 下每个键当尺寸解析，遇到非尺寸字典会抛错。
+- 只作用于模板路径；模特图、透明产品图、细节图铺满分支、无模板路径都不读它。当前只有 `shoes` 启用，其余品类写好参数但 `enabled = false`。
+
+## 协议消息
 请求（`SUPPORTED_REQUESTS`）：`ping`、`probe_models`、`classify_materials`、`start_generation`、`cancel_generation`、`retry_failed`、`clear_cache`、`read_preview`、`shutdown`。事件：`ready`（启动即发）、`status`、`progress`、`preview_ready`、`done`、`cancelled`、`error`。`probe_models`、`read_preview` 在后台线程/线程池处理；`start_generation` / `classify_materials` 由 `WorkerRuntime` 单任务执行。详见 [packages/protocol/CLAUDE.md](../packages/protocol/CLAUDE.md) 与 `docs/worker-protocol.md`。
 
 ## 测试
