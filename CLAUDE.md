@@ -8,7 +8,7 @@
 
 PixelFlow v3 beta 是 macOS 桌面应用（Tauri 2 + Vue 3 宿主，位于 `apps/desktop`），把电商商品图 / 模特图批量生成指定尺寸的主图（1440x1440、1125x1500、1440x1920、VIP 1440）。图像处理由 Python Worker（`worker/`，PyInstaller onedir 打包并随 App 分发）完成：素材分类 + 渲染。宿主与 Worker 通过 JSONL 协议通信（`packages/protocol/schema.json`、`apps/desktop/src/workerProtocol.ts`）。
 
-模特图使用按品类的“锚点构图”（shirt、shoes、long_pants/pants、shorts、socks、hat、gloves、knee_pads、bag），依赖外部 ONNX 模型（pose / segmentation / detection），不足的左右宽度由 `worker/pixelflow_core/side_fill.py` 合成背景补边。版本 `3.0.0-beta.1`。
+模特图使用按品类的“锚点构图”（shirt、shoes、long_pants/pants、shorts、socks、hat、gloves、knee_pads、bag），依赖外部 ONNX 模型（pose / segmentation / detection），不足的左右宽度由 `worker/pixelflow_core/side_fill.py` 合成背景补边。版本 `3.0.0`。
 
 ## 模块结构图
 
@@ -75,12 +75,12 @@ cd apps/desktop && npm run tauri:build  # worker:build 通过 tools/build_worker
 
 ## 关键约定与注意事项
 
-1. **规则版本必须四处同步**：字符串 `v3-composition-10` 同时出现在
+1. **规则版本必须四处同步**：字符串 `v3-composition-11` 同时出现在
    - `worker/pixelflow_core/worker.py`（`RULES_VERSION`，ready 事件的 `rules_version`）
    - `worker/pixelflow_core/model_cache.py`（`COMPOSITION_RULES_VERSION`，进入缓存 identity）
    - `apps/desktop/src/App.vue`（`expectedRulesVersion`，不一致时前端提示 Worker 规则版本不匹配）
    - `worker/tests/test_shoe_composition.py`（断言 evidence 中的版本）
-   修改构图规则后四处同改，否则旧缓存会被复用或前端报版本不匹配。（`docs/STATUS.md` 里仍写 `v3-composition-1`，已过期。）
+   修改构图规则后四处同改，否则旧缓存会被复用或前端报版本不匹配。
 2. **不得在没有回归的情况下改变 shirt / shoes / pants 的既有行为**；新增品类（socks、hat、gloves、knee_pads、bag 等）不得影响它们。
 3. **渲染结果必须以 100% 缩放目视检查**，尤其是 side fill（合成补边）的接缝与纹理。
 4. **`/tmp` 在 Finder 中不可见**：给用户看的图片放到 `~/Desktop/PixelFlow/05_测试素材与输出/`。

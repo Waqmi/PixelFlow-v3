@@ -8,7 +8,7 @@
 
 ## 职责
 
-PixelFlow 桌面宿主：Vue 3 + TypeScript + Vite 前端（`src/`）与 Tauri 2 Rust Host（`src-tauri/`）。前端负责设置、素材分类确认、任务进度、结果复核、主题；Host 负责拉起/监督 Python Worker、转发 JSONL、原生文件对话框、诊断包导出。包名 `pixelflow-desktop`，版本 `3.0.0-beta.1`，Tauri `identifier` 为 `com.pixelflow.desktop`。
+PixelFlow 桌面宿主：Vue 3 + TypeScript + Vite 前端（`src/`）与 Tauri 2 Rust Host（`src-tauri/`）。前端负责设置、素材分类确认、任务进度、结果复核、主题；Host 负责拉起/监督 Python Worker、转发 JSONL、原生文件对话框、诊断包导出。包名 `pixelflow-desktop`，版本 `3.0.0`，Tauri `identifier` 为 `com.pixelflow.desktop`。
 
 ## 入口
 
