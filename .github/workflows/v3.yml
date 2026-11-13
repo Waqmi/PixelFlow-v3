@@ -64,6 +64,8 @@ jobs:
       - run: mkdir -p worker/dist-ondir/pixelflow-worker
       - run: cargo check
         working-directory: apps/desktop/src-tauri
+      - run: cargo test
+        working-directory: apps/desktop/src-tauri
 
   build-macos-arm64:
     name: Build macOS arm64
@@ -476,7 +478,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: pixelflow-*-${{ github.sha }}
+          pattern: pixelflow-*-${{ github.sha }}-*
           path: release-assets
       - name: Verify all platform metadata use this commit
         shell: bash

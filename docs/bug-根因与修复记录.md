@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-13 | **推 `v*` tag 时 Release job 找不到任何产物**，Release 发不出来 | CI 配置 | 上传名带 `-<run_id>` 后缀，下载 pattern 只写到 `-<sha>`，整名 glob 匹配不上；该 job 一直 `skipped` 从未执行过 | 见 3.18 |
 | 2026-11-12 | **鞋类产品白底图部分被放得过大**，同组主体面积差 3–4 倍（正面/俯角鞋尤其明显） | 构图公式 | `photo_scale = min(W*s/box_w, H*s/box_h)` 只约束"限制边"，竖长主体顶满高度；模板 `s` 按侧面规范图校准，非规范角度必然失衡 | 见 3.17 |
 | 2026-11-05 | **点「选择模型目录」卡死，随后双击打不开 App** | 线程与窗口 | 同步命令占主线程起 PowerShell 弹窗；无 owner 的对话框落到窗口后面；强制退出留下孤儿 WebView2 锁住用户数据目录 | 见 3.16 |
 | 2026-11-05 | **Windows 首次安装 WebView2 无进度**，看起来像卡死 | 打包配置 | `webviewInstallMode` 未配置，默认 `silent: true`，微软 bootstrapper 在后台静默跑 | 见 3.15 |
@@ -487,6 +488,23 @@ m = min(1.0, (fill(reference_aspect) / fill(主体宽高比)) ** (strength / 2))
 **软阴影（同日补修）**：透明 PNG 若带半透明投影，`getbbox()` 会把投影算进包围盒，主体被误判成更扁的形状。`BIMAI 1060.png` 实测包围盒宽度被撑大 44%，归一化后面积只剩 0.171（其余同批 0.24 左右）。修法是取框时按 `ALPHA_BBOX_THRESHOLD = 64` 过滤掉近乎透明的像素（`_subject_alpha_box`），修后该图回到 0.244，与其余 PNG 完全一致。该阈值**只在 `normalization` 生效且非透明输出时启用**，未启用品类与透明产品图逐字节不变（长裤/长袖/帽子/袜子/手套 各 4 张实测全等）。
 
 **已知残留（不处理）**：1.38× 略高于方案目标 1.35×，来自"只缩不放"——比规范更扁的图保持原样，见方案文档 §6.5。差距 1.5%，肉眼无感。
+
+### 3.18 推 `v*` tag 时 Release job 会找不到任何产物
+
+**现象**：三个构建 job 都成功、artifact 都在，但 `release` job 在 `actions/download-artifact` 这一步就报找不到匹配项，Release 发不出来。
+
+**根因**：命名与匹配两端不一致。
+
+- 上传（`v3.yml:138 / 212 / 465`）：`name: pixelflow-<platform>-${{ github.sha }}-${{ github.run_id }}`
+- 下载（`v3.yml:479`）：`pattern: pixelflow-*-${{ github.sha }}`
+
+`download-artifact` 的 `pattern` 按整名 glob 匹配。名字尾部还留着 `-<run_id>`，而 pattern 在 `-<sha>` 处就结束了，`*` 又只在中间那一段起作用，所以一条都匹配不上。
+
+**为什么之前没发现**：`release` job 带 `if: startsWith(github.ref, 'refs/tags/v')`，而至今没推过 `v*` tag。从 10-30 落地多平台构建到现在，这个 job 一直是 `skipped`，从来没真正执行过一次下载——`skipped` 状态在 CI 列表里和"正常"长得一样，不会有人去点开看。
+
+**修复**：pattern 补上尾部通配 `pixelflow-*-${{ github.sha }}-*`。
+
+**同一轮附带**：`desktop-check` 之前只跑 `cargo check`，Rust 的 14 个单测从未在 CI 执行过（本地 `cargo test` 才跑）。已加 `cargo test` 步骤。注意它必须在 `mkdir -p worker/dist-ondir/pixelflow-worker` 之后——`tauri-build` 的构建脚本会校验该资源路径存在，缺目录直接失败。
 
 ## 四、已知未闭环
 
