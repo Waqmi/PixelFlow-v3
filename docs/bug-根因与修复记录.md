@@ -14,6 +14,10 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-13 | **确认窗不居中、切换深浅色时原生标题栏不跟随** | Tauri ACL | capabilities 缺 `core:window:allow-set-position` / `allow-set-theme`；`setPosition` / `setTheme` 被拒后被 `catch {}` 吞掉 | 见 3.25 |
+| 2026-11-13 | **结果页「跳过不适用」与「Seg 使用率」恒为 0** | 统计字段缺失 | `V3EngineAdapter._render_sources` 没统计跳过的模特图，也没返回 `segmentation_used` / `segmentation_ratio`；前端仍在读 V26 的字段 | 见 3.26 |
+| 2026-11-13 | **复核弹窗 Esc 关错窗口 / 文件大小限制被旧值覆盖 / 确认窗重开卡片不显示** | UI 状态残留 | `onGlobalKeydown` 漏 `reviewOpen`；`applyReportSnapshot` 没重置子弹窗；`onMounted` 用旧键覆盖 `maxSizeMb`；`applyConfirmSnapshot` 提前 return 没重跑 observer；取消设置没回滚 `logoPreviews` | 见 3.27 |
+| 2026-11-13 | **Windows 便携版缺 WebView2 时仍静默安装 1–3 分钟** | 打包配置 | 主安装包已改 `silent: false`，但 `v3.yml` 手写的便携版启动器仍是 `/silent /install` | 见 3.28 |
 | 2026-11-13 | **结果页按钮写「保守构图重跑」但实际只强制重跑** | 文案与行为不符 | 按钮只传 `force_rerender`，旧 `composition_plans` 与 `local_model_enabled` 原样照发，`engine.py:628` 读回旧计划 | 改名「强制重跑」 |
 | 2026-11-13 | **确认页快速加载预览时，偶发请求挂起直到超时** | 并发写 stdout | `emit()` 写 stdout 有 `output_lock`，主循环 L729 的 `print(response)` 裸写；后台线程的 base64 预览行与主线程响应在字节流中间交错，前端解析失败丢弃整帧 | 见 3.22 |
 | 2026-11-13 | **Windows 导出诊断包永远缺 `run-diagnostics.json`**，且在工作目录乱建 `PixelFlow\diagnostics` | 跨平台路径 | Rust `diagnostics_cache_root()` 非 macOS 只查 `XDG_CACHE_HOME` / `HOME`，Windows 两者都没有；fallback `"."` 与 Python 的 `Path.home()/.cache` 对不上 | 见 3.23 |
@@ -604,6 +608,55 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 2. `.github/workflows/v3.yml:39` 在跑单测前手动把 `worker/pixelflow_core/legacy_engine` 追加进 `PYTHONPATH`，把这类问题在 CI 里全部盖掉。
 
 **修复**：`clear_cache()` 导入前把 `legacy_root` 补进 `sys.path`（与 `_load_engine` 同一做法），并本地实测 `WorkerRuntime().clear_cache()` 返回 `{'manifest': 18, 'model_results': 40}`。
+
+### 3.25 确认窗不居中、深浅色切换原生标题栏不跟随：capabilities 少了两项写权限
+
+现象：确认素材窗口第一次打开时贴在屏幕角落而不是主窗口中央；切换浅色/夜间模式时，macOS/Windows 的原生标题栏底色不跟着变。两处都静默失败，控制台没有报错。
+
+**根因**：`capabilities/main.json` 的 `core:window:default` 只放行只读查询，修改类命令要显式列。当前清单里有 `allow-center`、`allow-set-size`、`allow-set-title`，但缺：
+
+- `core:window:allow-set-position`：`App.vue:819` 的 `centerWindowOnMain` 调 `window.setPosition(...)`，被 ACL 拒绝后落进 `catch {}`；
+- `core:window:allow-set-theme`：`App.vue:1680` 的 `syncNativeWindowTheme` 调 `getCurrentWindow().setTheme(...)`，同样被拒。
+
+确认窗创建时是 `center: false`（`App.vue:853`），位置完全依赖 `centerWindowOnMain`，权限一缺就退到平台默认角落。
+
+**为什么之前没发现**：Tauri 的权限失败在 JS 侧是 Promise reject，两处都写了 `.catch(() => {})` / `try/catch`，正好把错误吞干净；单测和 CI 也不会去点窗口。
+
+**修复**：`capabilities/main.json` 补 `core:window:allow-set-position` 与 `core:window:allow-set-theme`。`cargo test` 会触发 `tauri-build` 解析 capabilities，权限名不合法会直接编译失败，14 项通过说明名称有效。
+
+### 3.26 结果页「跳过不适用」和「Seg 使用率」恒为 0：v3 返回少了三个统计字段
+
+现象：v3 模式下结果页「跳过不适用」永远是 0；开启本地模型时「Seg 兜底」也永远显示 0（0.0%）。
+
+**根因**：前端读的是 v2.6 时代 `V26EngineAdapter` 返回的字段（`App.vue:411`、`:418-419`）：`skipped_model_sources`、`segmentation_used`、`segmentation_ratio`。切到 `V3EngineAdapter` 后，`_render_sources` 在 `engine.py:552` 直接 `continue` 跳过被排除/未启用的模特图，没有计数；返回字典（`engine.py:944`）也没有这三个键。`skipped_model_sources` 只在 legacy 桥接层 `engine.py:1292` 填，v3 路径走不到。
+
+**修复**：
+
+- `_render_sources` 维护 `skipped_model_sources`，在 `continue` 前 `+= 1`；
+- 遍历时读 `metadata["segmentation_evidence"]["status"]`，值为 `"ready"` 时 `seg_used += 1`（`"fallback"` / `"not_run"` 不计，与 legacy「真正调用成功才计数」一致）；
+- 返回字典补 `skipped_model_sources`、`segmentation_used`、`segmentation_ratio = seg_used / max(1, len(sources))`。
+
+**验证**：Worker 232 项不变。
+
+### 3.27 多窗口三处状态残留：Esc 关错窗、大小限制被旧键覆盖、确认窗重开卡片不显示
+
+**① 复核弹窗按 Esc 关错窗口**：`onGlobalKeydown`（`App.vue:1282`）只判断了 `failureOpen`，漏了 `reviewOpen`。在复核详情里按 Esc 会落到 `else if (reportOpen) closeReport()`，把整个报告窗隐藏，而 `reviewOpen` 仍是 `true`。另外 `applyReportSnapshot`（`App.vue:675`）没有重置 `reviewOpen` / `failureOpen` / `reportNotice`，下次报告窗打开会直接卡在上一次的子弹窗。修复：Esc 分支补 `reviewOpen`；`applyReportSnapshot` 重置这三个状态。
+
+**② 文件大小限制被旧键覆盖**：`saveSettings` 只写 `pixelflow.output-settings`，不再更新旧键 `pixelflow.max-size-mb`；但 `onMounted`（`App.vue:1533`）在 `applySettings` 之后又执行 `maxSizeMb.value = localStorage.getItem('pixelflow.max-size-mb') || maxSizeMb.value`。用户清空限制或改过值后，每次挂载都会被旧值/默认 `2` 盖回去。修复：删掉这行旧键读取，统一以 `output-settings` 为准。
+
+同一段还有 Logo 预览残留：`closeSettings(false)` 用 `applySettings(settingsSnapshot)` 回滚了 `logoOverrides`，但没回滚 `logoPreviews`，取消后重开设置页会看到刚选的假缩略图。修复：取消时清空并 revoke 当前 blob URL，再按恢复后的 `logoOverrides` 重新 `loadLogoPreview`。
+
+**③ 确认窗重开卡片不显示**：关闭确认窗会把 `confirmOpen` 置 `false`，`v-if` 销毁 DOM；不改任何东西再打开时，`applyConfirmSnapshot`（`App.vue:752`）因 `snapshotKey === appliedConfirmSnapshotKey` 提前 `return`，没有重跑 `setupCardObserver()`，观察器还挂在已销毁的旧节点上。修复：提前 return 分支里 `confirmOpen = true` 后 `void nextTick(() => setupCardObserver())`。
+
+### 3.28 Windows 便携版缺 WebView2 时仍静默安装 1–3 分钟
+
+现象：没装 WebView2 的 Windows 机器双击便携版 `.exe`，确认「现在安装吗？」后，有 1–3 分钟完全没有任何窗口，像卡死。主安装包（NSIS）已经显示进度条，便携版没有。
+
+**根因**：`tauri.conf.json` 的 `webviewInstallMode.silent` 在 `3a3b11a` 已改为 `false`（见 3.15），但便携版启动器是 `v3.yml` 手写生成的 NSIS 脚本，`ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install'` 仍带 `/silent`，安装期间没有任何 UI。
+
+**修复**：去掉 `/silent`，改为 `/install`，让 bootstrapper 显示自己的安装界面，与主安装包行为一致。
+
+**验证**：CI 下次构建便携版后需在无 WebView2 的 Windows 机器上双击复验；本次只改了脚本参数，未实机跑。
 
 ## 四、已知未闭环
 

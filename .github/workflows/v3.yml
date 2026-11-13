@@ -389,7 +389,7 @@ jobs:
             install:
             InitPluginsDir
             File "/oname=$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" "__WEBVIEW2__"
-            ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install' $R7
+            ExecWait '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /install' $R7
             Call DetectWebView2
             StrCmp $R5 1 ready
             MessageBox MB_OK|MB_ICONSTOP "WebView2 运行时安装失败（代码 $R7）。$\r$\n请联网后重试，或从 https://developer.microsoft.com/microsoft-edge/webview2/ 下载“常青版独立安装程序”安装后再打开 PixelFlow。"

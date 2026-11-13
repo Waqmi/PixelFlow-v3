@@ -533,6 +533,8 @@ class V3EngineAdapter:
         expected_outputs = 0
         expected_output_paths: set[Path] = set()
         diagnostics_by_source: dict[str, dict[str, object]] = {}
+        skipped_model_sources = 0
+        seg_used = 0
         main_count = model_count = transparent_count = vip_count = 0
         source_jobs: list[tuple[Path, list[tuple[RenderRequest, str, CompositionPlan | None, str, bool]]]] = []
         render_workers = 1 if len(sources) <= 1 else min(4, len(sources))
@@ -550,9 +552,13 @@ class V3EngineAdapter:
                 for key in (str(source), source.as_posix(), source.name)
             )
             if is_model_source and (excluded_model or not request.include_model_images):
+                skipped_model_sources += 1
                 continue
             metadata = dict((decision.metadata if decision else {}) or {})
             metadata.update(request.source_metadata_overrides.get(str(source), {}))
+            seg_evidence = metadata.get("segmentation_evidence")
+            if isinstance(seg_evidence, dict) and seg_evidence.get("status") == "ready":
+                seg_used += 1
             source_scale_adjustment = next(
                 (
                     request.source_scale_adjustments.get(key)
@@ -943,6 +949,9 @@ class V3EngineAdapter:
         output_inventory = _output_inventory(request.output_root, outputs)
         return {
             "sources": len(sources),
+            "skipped_model_sources": skipped_model_sources,
+            "segmentation_used": seg_used,
+            "segmentation_ratio": round(seg_used / max(1, len(sources)), 4),
             "main_images": main_count,
             "model_images": model_count,
             "transparent_images": transparent_count,

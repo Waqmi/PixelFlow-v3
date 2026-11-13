@@ -652,6 +652,11 @@ async function closeSettings(save = false) {
     applySettings(settingsSnapshot)
     try { localStorage.setItem('pixelflow.output-settings', JSON.stringify(settingsSnapshot)) } catch { /* optional */ }
     if (isSettingsWindow && window.__TAURI_INTERNALS__) await emit('settings-changed', settingsSnapshot)
+    // A Logo swap during this session created a blob URL that the restored
+    // overrides no longer point at; rebuild from the authoritative paths.
+    Object.values(logoPreviews.value).forEach((url) => URL.revokeObjectURL(url))
+    logoPreviews.value = {}
+    for (const [key, path] of Object.entries(logoOverrides.value)) void loadLogoPreview(key, path)
   }
   settingsSnapshot = undefined
   if (isSettingsWindow && window.__TAURI_INTERNALS__) {
@@ -676,6 +681,9 @@ function applyReportSnapshot(snapshot: ReportSnapshot) {
   lastResult.value = snapshot.result || {}
   outputRoot.value = snapshot.outputRoot || ''
   resumeSnapshot.value = snapshot.resume || null
+  reviewOpen.value = false
+  failureOpen.value = false
+  reportNotice.value = ''
   reportOpen.value = true
 }
 
@@ -751,6 +759,7 @@ function applyConfirmSnapshot(snapshot: ConfirmSnapshot) {
   })
   if (isConfirmWindow && appliedConfirmSnapshotKey === snapshotKey) {
     confirmOpen.value = true
+    void nextTick(() => setupCardObserver())
     return
   }
   if (isConfirmWindow) {
@@ -1285,6 +1294,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
   categoryOpen.value = false
   namingOpen.value = false
   if (failureOpen.value) failureOpen.value = false
+  else if (reviewOpen.value) reviewOpen.value = false
   else if (settingsOpen.value) closeSettings()
   else if (confirmOpen.value) dismissMaterialConfirmation()
   else if (reportOpen.value) closeReport()
@@ -1530,7 +1540,6 @@ onMounted(() => {
     }
     const savedSizes = JSON.parse(localStorage.getItem('pixelflow.selected-sizes') || 'null')
     if (Array.isArray(savedSizes) && savedSizes.every((item) => ['1440x1440', '1440x1920', '1125x1500'].includes(item))) selectedSizes.value = savedSizes
-    maxSizeMb.value = localStorage.getItem('pixelflow.max-size-mb') || maxSizeMb.value
   } catch {
     // Storage is optional in embedded webviews.
   }
