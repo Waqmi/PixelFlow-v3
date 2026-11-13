@@ -48,6 +48,7 @@ interface SettingsSnapshot {
   showMaterialOption: boolean
   outputNamingMode: string
   maxSizeMb: string
+  forceRerender: boolean
   logoOverrides: Record<string, string>
 }
 
@@ -182,6 +183,7 @@ const showLogoOption = ref(true)
 const showVipOption = ref(true)
 const showMaterialOption = ref(true)
 const outputNamingMode = ref('short')
+const forceRerenderDefault = ref(false)
 const modelStatus = ref('状态：当前使用规则判断；Seg 不可用（疑难图继续使用规则 + Pose）；Detection 未检测')
 const modelTesting = ref(false)
 const settingsNotice = ref('')
@@ -459,7 +461,8 @@ function currentSettings(): SettingsSnapshot {
     localModelPath: localModelPath.value, showLogoOption: showLogoOption.value,
   showVipOption: showVipOption.value, showMaterialOption: showMaterialOption.value,
     outputNamingMode: outputNamingMode.value,
-    maxSizeMb: maxSizeMb.value, logoOverrides: { ...logoOverrides.value },
+    maxSizeMb: maxSizeMb.value, forceRerender: forceRerenderDefault.value,
+    logoOverrides: { ...logoOverrides.value },
   }
 }
 
@@ -595,6 +598,7 @@ function applySettings(value: Partial<SettingsSnapshot>) {
   if (typeof value.showMaterialOption === 'boolean') showMaterialOption.value = value.showMaterialOption
   if (value.outputNamingMode === 'short' || value.outputNamingMode === 'original') outputNamingMode.value = value.outputNamingMode
   if (typeof value.maxSizeMb === 'string') maxSizeMb.value = value.maxSizeMb
+  if (typeof value.forceRerender === 'boolean') forceRerenderDefault.value = value.forceRerender
   if (value.logoOverrides && typeof value.logoOverrides === 'object') logoOverrides.value = { ...value.logoOverrides }
 }
 async function openSettings() {
@@ -1399,13 +1403,15 @@ function generationPayload(sourceFilter?: string[], forceRerender = false) {
     local_model_enabled: localModelEnabled.value, local_model_path: localModelPath.value || undefined,
     logo_overrides,
     enable_material_understanding: enableMaterialUnderstanding.value,
-    category_override: categoryTemplate.value === 'auto' || categoryTemplate.value === 'none' ? undefined : categoryTemplate.value,
+    category_override: categoryTemplate.value === 'auto'
+      ? categorySuggestion.value?.category
+      : categoryTemplate.value === 'none' ? undefined : categoryTemplate.value,
     enable_category_template: categoryTemplate.value !== 'none', max_size_mb: Number(maxSizeMb.value) > 0 ? Number(maxSizeMb.value) : undefined,
     naming_mode: outputNamingMode.value, material_confirmation_completed: materialConfirmed.value,
     source_type_overrides: Object.fromEntries(materials.value.map((item) => [item.source, item.source_type])),
     source_metadata_overrides: Object.fromEntries(materials.value.filter((item) => item.metadata).map((item) => [item.source, item.metadata])),
     excluded_model_sources: excludedModelSources.value, source_scale_adjustments: scaleAdjustments.value, source_filter: sourceFilter,
-    force_rerender: forceRerender,
+    force_rerender: forceRerender || forceRerenderDefault.value,
   }
 }
 
@@ -2504,6 +2510,7 @@ function startGeneration() {
             <div class="settings-option-row"><div><strong>生成唯品专享 1440</strong><small>在主页显示唯品图输出开关</small></div><input v-model="includeVip" aria-label="唯品图默认开启" type="checkbox" /><input v-model="showVipOption" aria-label="唯品图主页显示" type="checkbox" /></div>
             <div class="settings-option-row"><div><strong>启用素材理解层（规则识别）</strong><small>在主页显示素材分类开关</small></div><input v-model="enableMaterialUnderstanding" aria-label="素材理解默认开启" type="checkbox" /><input v-model="showMaterialOption" aria-label="素材理解主页显示" type="checkbox" /></div>
             <div class="settings-option-row"><div><strong>自动生成模特主图</strong><small>模特图开关仅在设置页控制</small></div><input v-model="includeModelImages" aria-label="模特主图默认开启" type="checkbox" /><span class="not-applicable">—</span></div>
+            <div class="settings-option-row"><div><strong>强制重跑</strong><small>开启后每次生成都重新渲染，忽略已存在的同名输出；关闭时复用已有输出</small></div><input v-model="forceRerenderDefault" aria-label="强制重跑" type="checkbox" /><span class="not-applicable">—</span></div>
             <div class="settings-naming-row"><span><strong>文件命名</strong><small>简短模式使用编号和性别+颜色名，原始完整路径会写入输出清单；同名输出默认复用，强制重跑覆盖原路径，不自动重命名</small></span><div class="settings-naming-select"><button type="button" :aria-expanded="namingOpen" aria-haspopup="listbox" @click.stop="namingOpen = !namingOpen">{{ namingLabel }}<span class="select-chevron" /></button><Transition name="dropdown"><div v-if="namingOpen" class="compact-menu" role="listbox"><button v-for="(label, value) in namingOptions" :key="value" type="button" role="option" :aria-selected="outputNamingMode === value" @click="selectNaming(value)">{{ label }}</button></div></Transition></div></div>
           </template>
           <template v-else-if="settingsTab === 'model'">

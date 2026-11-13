@@ -14,6 +14,9 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-13 | **macOS 点「替换 Logo」主线程死锁 5 分钟**，Windows 保存框落后台像卡死 | 线程与窗口 | 只给 `pick_directory` 加了 `(async)`，`pick_file` / `save_text_file` / `export_diagnostics` / `open_path` 仍是同步命令，主线程 `run_on_main_thread` + `recv_timeout(300s)` 自己等自己；`choose_save_path` 的 `ShowDialog()` 漏传 `$owner` | 见 3.19 |
+| 2026-11-13 | **品类保持「自动识别」时，商品白底图的品类模板与 shoes 归一化全部失效** | 参数断链 | 分类结果只写 `result.category`，没进 `decision.metadata["category"]`；生成时 `auto` 发 `category_override: undefined`，引擎回退 `"产品主图"`，而 `category_templates.json` 没有这个键 | 见 3.20 |
+| 2026-11-13 | **改了滑块 / Logo / 尺寸后点生成，输出仍是旧图**，界面还提示「已复用上次输出」 | 缓存判据 | 复用判断只有 `Path(output_path).is_file() and not force_rerender`，不校验原图 mtime/size 与参数；前端主流程也没有入口把 `force_rerender` 置 true | 见 3.21 |
 | 2026-11-13 | **推 `v*` tag 时 Release job 找不到任何产物**，Release 发不出来 | CI 配置 | 上传名带 `-<run_id>` 后缀，下载 pattern 只写到 `-<sha>`，整名 glob 匹配不上；该 job 一直 `skipped` 从未执行过 | 见 3.18 |
 | 2026-11-12 | **鞋类产品白底图部分被放得过大**，同组主体面积差 3–4 倍（正面/俯角鞋尤其明显） | 构图公式 | `photo_scale = min(W*s/box_w, H*s/box_h)` 只约束"限制边"，竖长主体顶满高度；模板 `s` 按侧面规范图校准，非规范角度必然失衡 | 见 3.17 |
 | 2026-11-05 | **点「选择模型目录」卡死，随后双击打不开 App** | 线程与窗口 | 同步命令占主线程起 PowerShell 弹窗；无 owner 的对话框落到窗口后面；强制退出留下孤儿 WebView2 锁住用户数据目录 | 见 3.16 |
@@ -505,6 +508,55 @@ m = min(1.0, (fill(reference_aspect) / fill(主体宽高比)) ** (strength / 2))
 **修复**：pattern 补上尾部通配 `pixelflow-*-${{ github.sha }}-*`。
 
 **同一轮附带**：`desktop-check` 之前只跑 `cargo check`，Rust 的 14 个单测从未在 CI 执行过（本地 `cargo test` 才跑）。已加 `cargo test` 步骤。注意它必须在 `mkdir -p worker/dist-ondir/pixelflow-worker` 之后——`tauri-build` 的构建脚本会校验该资源路径存在，缺目录直接失败。
+
+### 3.19 「替换 Logo」卡死 5 分钟：只修了一个命令，漏了同类的四个
+
+现象：macOS 设置页点「替换 Logo」，整个 App 彩虹球转满 5 分钟后才报 `native file picker timed out`；Windows 上保存报告 / 导出诊断包的对话框偶尔落在主窗口后面，看起来像点了没反应。
+
+**根因链**：
+
+1. 11-05 修「选择模型目录卡死」时，只给 `pick_directory` 加了 `#[tauri::command(async)]`（`main.rs:176`，注释还专门写了原因），但 `pick_file`、`save_text_file`、`export_diagnostics`、`open_path` 四个同类命令仍是普通 `#[tauri::command]`。
+2. Tauri 2 里不带 `async` 的命令默认在主线程执行。macOS 上 `native_open_panel` 先 `app.run_on_main_thread(...)` 把打开 `NSOpenPanel` 的闭包排进主线程队列，随后立刻在**同一条主线程**上 `receiver.recv_timeout(Duration::from_secs(300))` 阻塞等待——主线程在等自己队列里的闭包，闭包永远轮不到执行，直接死锁 300 秒。
+3. Windows 上 `save_text_file` / `export_diagnostics` 同步拉起 PowerShell WinForms 模态框，期间主窗口无法重绘；且 `choose_save_path` 的脚本写的是 `$d.ShowDialog()`，漏传 `$owner`（`pick_directory` / `pick_file` 都传了），保存框容易弹到后台。
+
+**为什么之前没发现**：3.16 的修复只覆盖了「选择目录」这一个入口，没有回头扫同类命令。`pick_file` 只在「替换 Logo」时触发，属于低频路径；macOS 上的表现又是「卡满 5 分钟才报超时」，容易被当成偶发卡顿。
+
+**修复**：
+
+- `pick_file`、`save_text_file`、`export_diagnostics`、`open_path` 全部加 `#[tauri::command(async)]`，与 `pick_directory` 一致。
+- 把 `windows_dialog` 里的 1×1 透明 owner 提取为模块级 `WINDOWS_DIALOG_OWNER`，`choose_save_path` 的保存框脚本改为 `$d.ShowDialog($owner)` 并复用同一段 owner 前缀。
+
+**验证**：`cargo test` 14 项通过；macOS 实机「替换 Logo」待用户复验。
+
+### 3.20 品类保持「自动识别」时，品类模板与 shoes 归一化全部失效
+
+现象：用户不手动下拉选品类、保持默认「自动识别」，生成出来的商品白底图没有按品类模板构图；11-12 刚修好的鞋类白底图尺度归一化（`shoes.normalize`）在正式 App 流程里完全不生效。单测全绿。
+
+**根因链**：
+
+1. 分类阶段 `worker.py:524-528` 用 `RuleCategoryClassifier` 识别出 `shoes` / `long_pants` 等，只写进返回值的顶层 `result["category"]`，**没有写进每张素材的 `decision.metadata["category"]`**；`V26ClassifierAdapter` 产出的 decision 只带 `source_type`，metadata 里没有 category。
+2. 前端 `App.vue:1402` 在 `categoryTemplate === 'auto'` 时发 `category_override: undefined`；确认弹窗又把每张素材的 `source_type_overrides` 填满，`engine.py:493` 判定 `confirmed_sources = True`，跳过二次分类。
+3. `engine.py:573` 于是执行 `category = str(request.category_override or metadata.get("category") or "产品主图")`——两个来源都空，退回 `"产品主图"`。
+4. `renderer.py:360` 拿这个值去 `category_templates.json` 取模板，而该文件的键只有 `shirt / pants / long_pants / shorts / shoes / knee_pads / hat / socks / gloves / bag / other`，**没有 `产品主图`**，`_template_config` 与 `_template_normalization` 双双返回 `None`。
+
+**为什么单测没测出来**：`test_shoe_composition.py` 等单测直接构造 `category_override="shoes"` 的请求，绕过了「前端 auto → 引擎回退」这条真实链路。
+
+**修复**：`App.vue:1402` 在 `auto` 时回退使用分类阶段已经拿到的 `categorySuggestion.value?.category`；`categorySuggestion` 为空时仍传 `undefined`，引擎行为与修复前一致，不影响未分类直接生成的边缘路径。
+
+**验证**：前端 `protocol:check` + `build` 通过；Worker 232 项（231 过 + 1 skip）不变。
+
+### 3.21 改了参数点生成，输出还是旧图：复用判据只看文件存在
+
+现象：用户跑完一轮发现某张图主体偏大，回确认页拉比例滑块，或去设置页换 Logo / 改文件大小限制 / 改品类，再点生成，Worker 直接跳过渲染复用磁盘旧图，结果页还提示「检测到素材和设置均未变化，本次已复用上次输出」。
+
+**根因**：
+
+- `V3EngineAdapter._render_sources` 的复用判断只有 `if Path(typed_request.output_path).is_file() and not request.force_rerender`（`engine.py:687 / 749 / 801`），不校验原图 mtime/size、`source_scale_adjustments`、品类模板、Logo 覆盖、`max_size_mb`。
+- 前端主流程也没有任何入口把 `force_rerender` 置 `true`：`App.vue:1468` 硬编码 `false`，`generationPayload` 的默认参数也是 `false`。
+
+**修复（用户定的方案）**：强制重跑入口放设置页，不放主界面。设置页「输出选项」新增「强制重跑」开关，持久化到 `pixelflow.output-settings`，`generationPayload` 发 `force_rerender: forceRerender || forceRerenderDefault.value`。
+
+**已知残留（未做，属设计取舍）**：引擎仍不校验参数指纹，所以「改了参数但忘了开开关」仍会复用旧图。要根治需要给每个输出记录输入指纹（原图 mtime/size + 滑块 + 品类 + Logo + `max_size_mb`），成本是 manifest 体积和每次生成的额外 `stat`；本次只提供手动兜底。
 
 ## 四、已知未闭环
 

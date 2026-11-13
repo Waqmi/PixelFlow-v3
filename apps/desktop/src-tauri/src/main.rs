@@ -225,7 +225,7 @@ fn discover_models_directory() -> Result<Option<String>, String> {
         .map(|path| path.to_string_lossy().into_owned()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn pick_file(app: AppHandle, key: String, state: State<'_, WorkerState>) -> Result<Option<String>, String> {
     let remember = |path: Option<String>| {
         if let Some(path) = &path {
@@ -281,17 +281,19 @@ fn validate_logo(path: &str, key: &str) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
+const WINDOWS_DIALOG_OWNER: &str = "Add-Type -AssemblyName System.Windows.Forms; \
+    $owner = New-Object System.Windows.Forms.Form; \
+    $owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; \
+    $owner.Opacity = 0; $owner.ShowInTaskbar = $false; $owner.TopMost = $true; \
+    $owner.Show(); ";
+
+#[cfg(target_os = "windows")]
 fn windows_dialog(script: &str) -> Result<Option<String>, String> {
     // An ownerless dialog can open behind the app window, which looks exactly
     // like a frozen UI: the user sees nothing and the click appears to do
     // nothing. Show a 1x1 transparent topmost form first and hand it to
     // ShowDialog as the owner so the dialog comes to the front.
-    const OWNER: &str = "Add-Type -AssemblyName System.Windows.Forms; \
-        $owner = New-Object System.Windows.Forms.Form; \
-        $owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; \
-        $owner.Opacity = 0; $owner.ShowInTaskbar = $false; $owner.TopMost = $true; \
-        $owner.Show(); ";
-    let script = windows_utf8_script(&format!("{OWNER}{script}"));
+    let script = windows_utf8_script(&format!("{WINDOWS_DIALOG_OWNER}{script}"));
     let mut command = Command::new("powershell");
     command
         .arg("-NoProfile")
@@ -357,8 +359,8 @@ fn choose_save_path(
     }
     #[cfg(target_os = "windows")]
     {
-        let script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog() -eq 'OK') { $d.FileName }";
-        let script = windows_utf8_script(script);
+        let script = "$d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = $env:PIXELFLOW_FILE_NAME; $d.Filter = $env:PIXELFLOW_FILE_FILTER; $d.Title = $env:PIXELFLOW_DIALOG_TITLE; if ($d.ShowDialog($owner) -eq 'OK') { $d.FileName }";
+        let script = windows_utf8_script(&format!("{WINDOWS_DIALOG_OWNER}{script}"));
         let mut command = Command::new("powershell");
         command
             .arg("-NoProfile")
@@ -385,7 +387,7 @@ fn choose_save_path(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_text_file(default_name: String, content: String) -> Result<Option<String>, String> {
     let Some(path) = choose_save_path(
         &default_name,
@@ -736,7 +738,7 @@ fn persisted_diagnostics_path() -> Option<String> {
     safe.is_file().then(|| safe.to_string_lossy().into_owned())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn export_diagnostics(default_name: String, entries: Vec<Value>, diagnostics_path: Option<String>) -> Result<Option<String>, String> {
     let mut archive_entries = Vec::with_capacity(entries.len() + 4);
     for entry in entries {
@@ -814,7 +816,7 @@ fn windows_shell_path(path: &str) -> String {
     path.replace('/', "\\")
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn open_path(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     if !path.is_dir() {
