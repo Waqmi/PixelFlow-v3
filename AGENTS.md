@@ -38,7 +38,7 @@ These AGENTS.md instructions replace all previously provided AGENTS.md instructi
   - 前端：`cd apps/desktop && npm run protocol:check && npm run build`
   - 改了 Rust：`cd apps/desktop/src-tauri && cargo test`
 - **CI 与产物**：push `main` 会触发测试和三端打包，产物在该次 Actions run 的 artifacts 里。推 `v*` tag 才发 Release。仓库是公开的，产物任何人都能下载。
-- **取测试包**：`gh run download <run-id> -R Waqmi/PixelFlow-v3 -n <artifact> -D <新的空目录>`，再用包里的 `SHA256SUMS-*.txt` 校验。校验文件里的路径带 `artifacts/` 前缀，Windows 版是 CRLF 换行。mac 包没有签名，解压后执行 `codesign --force --deep --sign -` 和 `codesign --verify --deep --strict`。给用户的文件放在 `~/Desktop/PixelFlow/05_测试素材与输出/`。
+- **取成品包**：三端产物**固定下载到 `~/Desktop/PixelFlow/01_当前成品App/`**，不要每次换目录。下载前先删掉该目录里上一版的文件，只保留当前这一版。命令：`gh run download <run-id> -R Waqmi/PixelFlow-v3 -n <artifact> -D ~/Desktop/PixelFlow/01_当前成品App`，再用包里的 `SHA256SUMS-*.txt` 校验。校验文件里的路径带 `artifacts/` 前缀，Windows 版是 CRLF 换行。mac 包没有签名，解压后执行 `codesign --force --deep --sign -` 和 `codesign --verify --deep --strict`。图片类测试素材和对比图仍放 `~/Desktop/PixelFlow/05_测试素材与输出/`。
 - **行为约束**：规则版本要四处同步（见 `CLAUDE.md`，以代码中的当前值为准）。改构图或模型路径时，必须对比改动前后的模型结果，逐项一致才算通过。shirt/shoes/pants 不得回归。测试 App 前先清缓存，并勾选“强制重跑”。
 - **性能相关位置**：
   - 分类线程上限：`App.vue` 的 `classificationConcurrency`
