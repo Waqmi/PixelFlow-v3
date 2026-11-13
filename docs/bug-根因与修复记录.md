@@ -14,6 +14,9 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-13 | **确认页快速加载预览时，偶发请求挂起直到超时** | 并发写 stdout | `emit()` 写 stdout 有 `output_lock`，主循环 L729 的 `print(response)` 裸写；后台线程的 base64 预览行与主线程响应在字节流中间交错，前端解析失败丢弃整帧 | 见 3.22 |
+| 2026-11-13 | **Windows 导出诊断包永远缺 `run-diagnostics.json`**，且在工作目录乱建 `PixelFlow\diagnostics` | 跨平台路径 | Rust `diagnostics_cache_root()` 非 macOS 只查 `XDG_CACHE_HOME` / `HOME`，Windows 两者都没有；fallback `"."` 与 Python 的 `Path.home()/.cache` 对不上 | 见 3.23 |
+| 2026-11-13 | **首次运行未生成就点「清理缓存」，本地开发必报 `ModuleNotFoundError: output_validator`** | 模块加载顺序 | `clear_cache()` 直接导入 `generate_main_images`，而它顶部是裸导入；打包 spec 与 CI 的 PYTHONPATH 都替它补了 `legacy_engine`，把问题盖住 | 见 3.24 |
 | 2026-11-13 | **macOS 点「替换 Logo」主线程死锁 5 分钟**，Windows 保存框落后台像卡死 | 线程与窗口 | 只给 `pick_directory` 加了 `(async)`，`pick_file` / `save_text_file` / `export_diagnostics` / `open_path` 仍是同步命令，主线程 `run_on_main_thread` + `recv_timeout(300s)` 自己等自己；`choose_save_path` 的 `ShowDialog()` 漏传 `$owner` | 见 3.19 |
 | 2026-11-13 | **品类保持「自动识别」时，商品白底图的品类模板与 shoes 归一化全部失效** | 参数断链 | 分类结果只写 `result.category`，没进 `decision.metadata["category"]`；生成时 `auto` 发 `category_override: undefined`，引擎回退 `"产品主图"`，而 `category_templates.json` 没有这个键 | 见 3.20 |
 | 2026-11-13 | **改了滑块 / Logo / 尺寸后点生成，输出仍是旧图**，界面还提示「已复用上次输出」 | 缓存判据 | 复用判断只有 `Path(output_path).is_file() and not force_rerender`，不校验原图 mtime/size 与参数；前端主流程也没有入口把 `force_rerender` 置 true | 见 3.21 |
@@ -558,6 +561,49 @@ m = min(1.0, (fill(reference_aspect) / fill(主体宽高比)) ** (strength / 2))
 
 **已知残留（未做，属设计取舍）**：引擎仍不校验参数指纹，所以「改了参数但忘了开开关」仍会复用旧图。要根治需要给每个输出记录输入指纹（原图 mtime/size + 滑块 + 品类 + Logo + `max_size_mb`），成本是 manifest 体积和每次生成的额外 `stat`；本次只提供手动兜底。
 
+### 3.22 确认页加载预览时偶发请求挂起：stdout 写锁只包了一半
+
+现象：确认页一次加载几十张预览图时，偶尔某张预览一直不出来，或点「开始生成」后迟迟不开始，最终靠超时才恢复；日志里对应请求没有 `done`。
+
+**根因**：Worker 的 stdout 是单条 JSONL 协议流，但写入方有两类：
+
+- 后台线程（`preview_executor` 的 4 个预览线程、生成/分类线程的 `progress`、`probe_models` 线程）都走 `emit()`，里面是 `with output_lock: print(...)`（`worker.py:630-632`）；
+- 主循环处理 `ping` / `cancel_generation` / `clear_cache` 等同步请求时，走 `worker.py:729` 的 `print(response, flush=True)`，**没有拿 `output_lock`**。
+
+base64 预览是单行几万字节，底层 `write` 会分多次系统调用。主线程恰好在这中间写入自己的响应，两条 JSON 就在字节流里拼成一行，前端 `parseWorkerMessage` 解析失败后丢弃整帧——丢掉 `done` 或 `preview_ready`，对应请求就一直等到超时。
+
+**为什么之前没发现**：单条消息短时几乎撞不上；只有确认页几十张预览并发、单行特别长时才放大。CI 的单测也不会跑真实并发写。
+
+**修复**：`worker.py:729` 改为 `with output_lock: print(response, flush=True)`，让所有 stdout 写入共用同一把锁。
+
+### 3.23 Windows 诊断目录两边算的不一样：导出包缺核心文件，还往工作目录乱写
+
+现象：Windows 上「导出诊断包」永远缺 `run-diagnostics.json`；同时程序当前目录下会多出 `PixelFlow\diagnostics\last-task.json`，装在 `C:\Program Files` 时则静默失败。
+
+**根因**：同一个缓存目录，两边用了不同的环境变量。
+
+- Python（`engine.py:49-56`）：非 macOS 用 `XDG_CACHE_HOME`，否则 `Path.home() / ".cache"`。Windows 的 `Path.home()` 读 `USERPROFILE`，得到 `C:\Users\<用户>\.cache\PixelFlow\diagnostics`。
+- Rust（`main.rs:542-552`）：非 macOS 只查 `XDG_CACHE_HOME` 和 `HOME`。Windows 原生进程这两个通常都没有，于是 fallback 到 `"."`，变成相对路径 `.\PixelFlow\diagnostics`。
+
+`safe_diagnostics_path` 用 Rust 的 root 校验 Python 回传的绝对路径，前缀对不上就拒绝打包；`last_task_path()` 又把 `last-task.json` 写到这个相对目录里。
+
+**为什么之前没发现**：macOS 走独立分支（`~/Library/Caches`）两边一致；Windows 只在真实安装包上暴露，而开发机是 macOS。
+
+**修复**：`diagnostics_cache_root()` 的 `HOME` 之后补 `USERPROFILE` fallback，与同文件 `discover_models_directory`（`main.rs:220`）的写法一致。
+
+### 3.24 首次运行就点「清理缓存」：本地开发必报 `output_validator` 找不到
+
+现象：本地 `tauri:dev` 或按 `CLAUDE.md` 用 `PYTHONPATH=worker` 跑，第一次启动、还没分类/生成就点「设置 → 清理缓存」，直接抛 `ModuleNotFoundError: No module named 'output_validator'`。打包后的 App 和 CI 都不复现。
+
+**根因**：`WorkerRuntime.clear_cache()`（`worker.py:405-408`）直接 `from .legacy_engine.generate_main_images import clear_manifest_cache`。而 `generate_main_images.py:26` 顶部是裸绝对导入 `from output_validator import ...`，只有把 `legacy_engine` 放进 `sys.path` 才能解析。正常生成路径由 `V26EngineAdapter._load_engine()`（`engine.py:1229-1230`）先 `sys.path.insert`，所以只有「还没生成过」时才会踩到。
+
+**为什么之前没测出来**：
+
+1. PyInstaller 的 `pixelflow-worker-ondir.spec:28` 写了 `pathex = [worker_root, legacy_root]`，打包时裸导入天然可解析；
+2. `.github/workflows/v3.yml:39` 在跑单测前手动把 `worker/pixelflow_core/legacy_engine` 追加进 `PYTHONPATH`，把这类问题在 CI 里全部盖掉。
+
+**修复**：`clear_cache()` 导入前把 `legacy_root` 补进 `sys.path`（与 `_load_engine` 同一做法），并本地实测 `WorkerRuntime().clear_cache()` 返回 `{'manifest': 18, 'model_results': 40}`。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |
@@ -573,6 +619,7 @@ m = min(1.0, (fill(reference_aspect) / fill(主体宽高比)) ** (strength / 2))
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
 | **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，`51789c0` 已把出错位置写进 `worker.log` |
 | **重启后仍显示上次任务路径 / 改路径不生效** | 已修复（详见 3.9）：启动时无条件用恢复快照覆盖输入框，旧路径压回用户选择 | 待 Windows 实机确认：重启后输入框为空、提示可见，点「继续未完成」才填入 |
+| **结果页「保守构图重跑」名不副实** | 确认存在：`retryFailures(reviewSources(), true)` 只传 `force_rerender`；`source_metadata_overrides` 里的旧 `composition_plans` 与 `local_model_enabled: true` 原样照发，`engine.py:628` 从 metadata 读回旧计划，输出像素不变 | 待用户定：① 重跑时清空 `composition_plans` 并关模型，真走保守构图（改动大，需回归）；② 仅把按钮改名为「强制重跑」（成本最低，功能仍缺）；③ 新增独立「保守构图」标志 |
 
 ## 五、命令速查
 

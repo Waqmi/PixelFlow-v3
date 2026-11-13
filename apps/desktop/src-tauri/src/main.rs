@@ -547,6 +547,7 @@ fn diagnostics_cache_root() -> PathBuf {
     return std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .or_else(|| std::env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".cache")))
         .unwrap_or_else(|| PathBuf::from("."))
         .join("PixelFlow/diagnostics");
 }

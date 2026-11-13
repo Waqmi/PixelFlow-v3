@@ -405,6 +405,11 @@ class WorkerRuntime:
     def clear_cache(self) -> dict[str, int]:
         if self.busy:
             raise RuntimeError("请等待当前任务结束后再清理缓存")
+        # generate_main_images uses flat imports for its legacy siblings, so the
+        # directory has to be importable before the first generation loads it.
+        legacy_root = str(Path(__file__).resolve().parent / "legacy_engine")
+        if legacy_root not in sys.path:
+            sys.path.insert(0, legacy_root)
         from .legacy_engine.generate_main_images import clear_manifest_cache
         from .model_cache import clear_model_result_cache
         from .model_service import get_model_process_service
@@ -726,7 +731,8 @@ def main() -> int:
             response = _event(message.request_id if "message" in locals() else "unknown", "error", {"code": "invalid_request", "message": str(error)})
             should_exit = False
         if response is not None:
-            print(response, flush=True)
+            with output_lock:
+                print(response, flush=True)
         if should_exit:
             return 0
     return 0
