@@ -59,7 +59,7 @@
 - Worker 全量：`PYTHONPATH=worker worker/.venv/bin/python -m unittest discover -s worker/tests -p 'test_*.py'` → **210 项，209 通过 + 1 跳过**（跳过为外部素材/模型缺失的既有跳过）。
 - `npm run protocol:check`：通过，16 类消息解析正常。
 - `npm run build`：`vue-tsc --noEmit` + Vite 生产构建通过（34 modules，JS 178.09 kB）。
-- CI run `41415505474`（`314e59f`）：Desktop checks、Worker tests（macos-14 / windows-2022）、macOS arm64、macOS x64、Windows x64 全部成功。
+- CI run `41415505474`（`314e59f`）：Desktop checks、Worker tests（当时为 macos-14 / windows-2022，该 macOS 标签 2026-11-12 起改为 macos-15）、macOS arm64、macOS x64、Windows x64 全部成功。
 
 历史验证记录见 `baselines/` 与 `.planning/` 下的各期记录，不再在此重复。
 
