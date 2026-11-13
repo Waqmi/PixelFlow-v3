@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-13 | **结果页按钮写「保守构图重跑」但实际只强制重跑** | 文案与行为不符 | 按钮只传 `force_rerender`，旧 `composition_plans` 与 `local_model_enabled` 原样照发，`engine.py:628` 读回旧计划 | 改名「强制重跑」 |
 | 2026-11-13 | **确认页快速加载预览时，偶发请求挂起直到超时** | 并发写 stdout | `emit()` 写 stdout 有 `output_lock`，主循环 L729 的 `print(response)` 裸写；后台线程的 base64 预览行与主线程响应在字节流中间交错，前端解析失败丢弃整帧 | 见 3.22 |
 | 2026-11-13 | **Windows 导出诊断包永远缺 `run-diagnostics.json`**，且在工作目录乱建 `PixelFlow\diagnostics` | 跨平台路径 | Rust `diagnostics_cache_root()` 非 macOS 只查 `XDG_CACHE_HOME` / `HOME`，Windows 两者都没有；fallback `"."` 与 Python 的 `Path.home()/.cache` 对不上 | 见 3.23 |
 | 2026-11-13 | **首次运行未生成就点「清理缓存」，本地开发必报 `ModuleNotFoundError: output_validator`** | 模块加载顺序 | `clear_cache()` 直接导入 `generate_main_images`，而它顶部是裸导入；打包 spec 与 CI 的 PYTHONPATH 都替它补了 `legacy_engine`，把问题盖住 | 见 3.24 |
@@ -619,7 +620,7 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 | **Windows 退出后删不掉安装目录、残留 2 个进程** | 已修复（详见 3.7）：辅助窗口只 `hide()` 不销毁，窗口表非空，Tauri 永不退出；顺带修掉 `os._exit` 跳过 atexit 导致的模型子进程孤儿 | 待 Windows 实机复测：开设置页 → 关设置页 → 关主窗口 → 任务管理器应为 0 进程，且安装目录可删 |
 | **Windows 点「开始生成」没反应 / 测试模型一直检测中** | 已修复（详见 3.8）：错误回 `request_id: "unknown"` 无法关联，前端丢弃后状态卡死；已改为从原始行抠 id，另加两处超时释放 | 待复测；**JSON 为何变成非法转义仍未定**，`51789c0` 已把出错位置写进 `worker.log` |
 | **重启后仍显示上次任务路径 / 改路径不生效** | 已修复（详见 3.9）：启动时无条件用恢复快照覆盖输入框，旧路径压回用户选择 | 待 Windows 实机确认：重启后输入框为空、提示可见，点「继续未完成」才填入 |
-| **结果页「保守构图重跑」名不副实** | 确认存在：`retryFailures(reviewSources(), true)` 只传 `force_rerender`；`source_metadata_overrides` 里的旧 `composition_plans` 与 `local_model_enabled: true` 原样照发，`engine.py:628` 从 metadata 读回旧计划，输出像素不变 | 待用户定：① 重跑时清空 `composition_plans` 并关模型，真走保守构图（改动大，需回归）；② 仅把按钮改名为「强制重跑」（成本最低，功能仍缺）；③ 新增独立「保守构图」标志 |
+| **结果页按钮名与行为不符** | 已按方案②处理：按钮改名为「强制重跑」。功能上仍只传 `force_rerender`，旧 `composition_plans` 与 `local_model_enabled` 原样照发，`engine.py:628` 会读回旧计划 | 保守构图功能仍未实现；若要做，按方案①（清空 plan + 关模型）或③（独立标志）另行排期 |
 
 ## 五、命令速查
 

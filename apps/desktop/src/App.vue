@@ -2577,7 +2577,7 @@ function startGeneration() {
           <div v-if="fallbackItems.length" class="review-list"><article v-for="item in fallbackItems" :key="`fallback-${String(item.source)}`"><strong>兼容模式：{{ String(item.source).split(/[\\/]/).pop() }}</strong><small>{{ String(item.fallback_reason || '未提供回退原因') }}</small></article></div>
         </div>
         <p v-if="acceptedReviewSources.length" class="dialog-notice">已接受 {{ acceptedReviewSources.length }} 项复核结果</p>
-        <div class="page-actions"><button class="outline-button" @click="reviewOpen = false">关闭</button><button v-if="reviewItems.length" class="outline-button" @click="acceptReviewItems">接受当前结果</button><button v-if="reviewItems.length" class="confirm-button" @click="reviewOpen = false; retryFailures(reviewSources(), true)">保守构图重跑</button></div>
+        <div class="page-actions"><button class="outline-button" @click="reviewOpen = false">关闭</button><button v-if="reviewItems.length" class="outline-button" @click="acceptReviewItems">接受当前结果</button><button v-if="reviewItems.length" class="confirm-button" @click="reviewOpen = false; retryFailures(reviewSources(), true)">强制重跑</button></div>
       </section>
     </div>
     </Transition>
