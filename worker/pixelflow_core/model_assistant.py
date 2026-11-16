@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import json
 import math
+import os
 from pathlib import Path
 import threading
 from typing import Any
@@ -163,8 +164,13 @@ def _create_onnx_session(model_path: str | Path):
     # The runtime's telemetry uploader thread can abort the process on exit.
     ort.disable_telemetry_events()
     path = Path(model_path)
+    options = ort.SessionOptions()
+    # Each source may run in its own worker thread; keep one session from
+    # grabbing every core and starving the others.
+    options.intra_op_num_threads = max(1, (os.cpu_count() or 4) // 4)
+    options.inter_op_num_threads = 1
     try:
-        return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        return ort.InferenceSession(str(path), sess_options=options, providers=["CPUExecutionProvider"])
     except Exception as original_error:  # noqa: BLE001 - retry only a compatibility copy
         try:
             compatibility_bytes = _legacy_onnx_model_bytes(path)
@@ -173,7 +179,7 @@ def _create_onnx_session(model_path: str | Path):
         if compatibility_bytes is None:
             raise original_error
         try:
-            return ort.InferenceSession(compatibility_bytes, providers=["CPUExecutionProvider"])
+            return ort.InferenceSession(compatibility_bytes, sess_options=options, providers=["CPUExecutionProvider"])
         except Exception as compatibility_error:  # noqa: BLE001 - preserve both load errors
             raise RuntimeError(f"原始模型加载失败：{original_error}；兼容模式加载失败：{compatibility_error}") from compatibility_error
 

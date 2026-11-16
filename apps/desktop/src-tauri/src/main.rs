@@ -71,7 +71,7 @@ fn remember_preview_root(guard: &mut WorkerSupervisor, path: &str) {
     }
 }
 
-fn validate_preview_request(guard: &WorkerSupervisor, message: &Value) -> Result<(), String> {
+fn validate_preview_request(known_roots: &[PathBuf], message: &Value) -> Result<(), String> {
     let payload = message
         .get("payload")
         .and_then(Value::as_object)
@@ -94,7 +94,7 @@ fn validate_preview_request(guard: &WorkerSupervisor, message: &Value) -> Result
             .as_str()
             .ok_or_else(|| "preview scope must contain paths".to_string())
             .and_then(canonical_path)?;
-        if !guard.preview_roots.iter().any(|known| path_within(&root, known)) {
+        if !known_roots.iter().any(|known| path_within(&root, known)) {
             return Err("preview scope was not selected by the current task".to_string());
         }
         matched |= path_within(&path, &root);
@@ -133,16 +133,25 @@ fn native_open_panel(app: &AppHandle, choose_directory: bool) -> Result<Option<S
 
 #[tauri::command]
 fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String> {
+    let parsed = serde_json::from_str::<Value>(&line).ok();
+    if let Some(message) = &parsed {
+        if message.get("type").and_then(Value::as_str) == Some("read_preview") {
+            // Canonicalize outside the supervisor lock: a preview burst must
+            // not block task commands while the filesystem resolves paths.
+            let known_roots = {
+                let guard = state.0.lock().map_err(|_| "worker state lock failed")?;
+                guard.preview_roots.clone()
+            };
+            validate_preview_request(&known_roots, message)?;
+        }
+    }
     let mut guard = state.0.lock().map_err(|_| "worker state lock failed")?;
-    if let Ok(message) = serde_json::from_str::<Value>(&line) {
+    if let Some(message) = parsed {
         let message_type = message.get("type").and_then(Value::as_str);
         let request_id = message
             .get("request_id")
             .and_then(Value::as_str)
             .map(str::to_owned);
-        if message_type == Some("read_preview") {
-            validate_preview_request(&guard, &message)?;
-        }
         if matches!(message_type, Some("start_generation" | "classify_materials" | "retry_failed")) {
             guard.active_task_id = request_id;
             if let Some(root) = message
@@ -1206,7 +1215,7 @@ mod tests {
         let request = serde_json::json!({
             "payload": { "path": path, "allowed_roots": [parent] }
         });
-        assert!(validate_preview_request(&supervisor, &request).is_ok());
+        assert!(validate_preview_request(&supervisor.preview_roots, &request).is_ok());
         assert_eq!(supervisor.preview_roots.len(), 1);
         std::fs::remove_file(path).unwrap();
     }

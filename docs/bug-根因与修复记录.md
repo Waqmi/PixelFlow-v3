@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **VIP 图重复合成、PNG 编码慢、ORT 线程互抢、预览校验阻塞任务指令** | 性能浪费 | VIP 请求漏传 `background` / `layout.scale` / `allow_mirror_extension` 导致 compose cache 不命中；无体积限制时 PNG 仍用 level 9；每个 ORT session 默认开满核线程；`worker_send` 在锁内做 `canonicalize` | 见 3.34 |
 | 2026-11-16 | **细节图缩小时非等比拉伸，影棚渐变底出现矩形接缝** | 缩放与铺底 | `_pinned_detail_shrink` 直接把原图 resize 到 `target*scale`，1:1 图缩到 3:4 纵向拉长；cut 在原图判定，cover 裁切新产生的出画边没算；背景单色 + 1% 羽化 | 见 3.30 |
 | 2026-11-16 | **主图贴边时缩放滑块无效** | 分类/渲染判据不一致 | 分类器 128px/1.5% 判不贴边并给滑块，渲染器 512px/3% 判贴边后直接 cover，`renderer.py:985` 漏传 `source_scale` | 见 3.31 |
 | 2026-11-16 | **地面重阴影撑大前景框，主体被误缩/上顶** | 前景框阈值 | `_light_foreground_bbox` 固定色差 32 把柔和投影算进前景，bbox 宽高比虚高，`_orientation_factor` 误判 | 见 3.32 |
@@ -743,6 +744,18 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **同一轮补齐**：socks / gloves / bag 已按规范图补齐分尺寸 `sizes`——量取方图（1440×1440）和竖图（1440×1920）的主体限制边占比与中心，`1125x1500` 与竖图同比例沿用；`normalize.reference_aspect` 也按实测微调（socks 0.983 / gloves 1.106 / bag 0.754），`enabled` 仍保持 `false`。为兼容 legacy 的 `CategoryTemplateManager`，三个品类同时保留顶层 `scale`。
 
 **仍未做（属取舍）**：hat / knee_pads / socks 的 `normalize.enabled` 未打开（需鞋类实机验收后出对比图）；bag 检测补框按用户决定先忽略。
+
+### 3.34 性能优化：VIP 缓存、PNG 编码、ORT 线程与预览校验
+
+本轮是性能与体验优化，不改变输出像素。
+
+- **VIP 复用 1440x1440 合成结果**：`build_vip_request` 调用漏传 `background`、`layout.scale`、`layout.allow_mirror_extension`，而 `_compose_key` 正好读这三个字段，导致 VIP 每次都重跑底图合成。补齐后与主图共用缓存。
+- **PNG 编码分级**：`max_size_mb is None` 时原来无条件 `compress_level=9`，改为 `6`（像素无损，编码更快）；只有设了体积上限且超限时才升到 9 / 量化。
+- **ORT 线程**：`_create_onnx_session` 原来不传 `SessionOptions`，每个 session 默认开满性能核；现在 `intra_op_num_threads = max(1, cpu_count // 4)`、`inter_op_num_threads = 1`，避免 4 路并发时线程互抢。
+- **目录预检并发**：`_preflight_materials` 串行 `Image.open` 改为 4 线程，减少外置盘/NAS 上的冷启动等待。
+- **预览校验出锁**：`worker_send` 原来先锁 `Mutex<WorkerSupervisor>` 再 `canonicalize`；改为锁内克隆 `preview_roots`、锁外校验，预览洪峰不再阻塞任务指令。
+
+**未做**：增量复用 manifest（输入指纹）、`_analyze_source` 向量化、渲染后 SHA-256 复用、缩略图 JPEG 传输、Tauri 自定义协议、App.vue 拆分——见后续排期。
 
 ## 四、已知未闭环
 

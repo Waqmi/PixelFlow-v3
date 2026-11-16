@@ -814,7 +814,8 @@ def _encode_png(image: Image.Image, max_size_mb: float | None) -> bytes:
         return stream.getvalue()
 
     if max_size_mb is None:
-        return encode(rgba, optimize=True, compress_level=9)
+        # No size cap: level 6 is visually identical and much faster than 9.
+        return encode(rgba, optimize=True, compress_level=6)
     limit = max_size_mb * 1024 * 1024
     # Level-9 payloads (None = deferred) in candidate order, so the fallback
     # below breaks size ties exactly like a plain left-to-right scan.

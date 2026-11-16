@@ -734,11 +734,14 @@ class V3EngineAdapter:
                     output_path=str(vip_path),
                     max_size_mb=request.max_size_mb,
                     source_type=source_type,
+                    background=background,
                     assets=RenderAssets(border=request.logo_overrides.get("border")),
                     layout=RenderLayout(
                         category=category,
                         filename=filename,
                         enable_category_template=request.enable_category_template,
+                        allow_mirror_extension=bool(metadata.get("allow_mirror_extension")),
+                        scale=float(metadata.get("scale", 1.0) or 1.0),
                     ),
                     summary=self._summary(decision, source_type),
                 )

@@ -205,13 +205,17 @@ def _preflight_materials(
         raise ValueError("文件夹内没有 JPG、JPEG 或 PNG 图片")
     unreadable: list[str] = []
     oversized: list[str] = []
-    for source in sources:
+
+    def check(source: Path) -> None:
         try:
             with Image.open(source) as image:
                 if image.width * image.height > 50_000_000:
                     oversized.append(source.name)
         except Exception:
             unreadable.append(source.name)
+
+    with ThreadPoolExecutor(max_workers=min(4, max(1, len(sources)))) as pool:
+        list(pool.map(check, sources))
     warnings = []
     if unreadable:
         warnings.append(f"无法读取 {len(unreadable)} 张图片（例如：{', '.join(unreadable[:3])}）。")
