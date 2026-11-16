@@ -14,6 +14,10 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **细节图缩小时非等比拉伸，影棚渐变底出现矩形接缝** | 缩放与铺底 | `_pinned_detail_shrink` 直接把原图 resize 到 `target*scale`，1:1 图缩到 3:4 纵向拉长；cut 在原图判定，cover 裁切新产生的出画边没算；背景单色 + 1% 羽化 | 见 3.30 |
+| 2026-11-16 | **主图贴边时缩放滑块无效** | 分类/渲染判据不一致 | 分类器 128px/1.5% 判不贴边并给滑块，渲染器 512px/3% 判贴边后直接 cover，`renderer.py:985` 漏传 `source_scale` | 见 3.31 |
+| 2026-11-16 | **地面重阴影撑大前景框，主体被误缩/上顶** | 前景框阈值 | `_light_foreground_bbox` 固定色差 32 把柔和投影算进前景，bbox 宽高比虚高，`_orientation_factor` 误判 | 见 3.32 |
+| 2026-11-16 | **路径同时出现两个品类词时直接退回「其他」** | 目录识别 | `v3_classification.py` 全局收集关键词，`len(matches) > 1` 直接 other，丢掉就近目录的明确品类 | 见 3.33 |
 | 2026-11-14 | **结果页点「重试失败项 / 强制重跑」期间没有停止按钮，「开始生成」仍可点击** | UI 状态漏置 | `retryFailures()` 发了 `retry_failed` 请求却漏把 `isRunning` 置 `true`、未重置 `isCancelling` / `clearProgressComplete()` | 见 3.29 |
 | 2026-11-13 | **确认窗不居中、切换深浅色时原生标题栏不跟随** | Tauri ACL | capabilities 缺 `core:window:allow-set-position` / `allow-set-theme`；`setPosition` / `setTheme` 被拒后被 `catch {}` 吞掉 | 见 3.25 |
 | 2026-11-13 | **结果页「跳过不适用」与「Seg 使用率」恒为 0** | 统计字段缺失与键名不一致 | `V3EngineAdapter._render_sources` 没统计跳过的模特图与 Seg；首轮补字段时又只读 `segmentation_evidence`，漏了 `V26ClassifierAdapter` 写的 `seg_evidence` 与锚点构图内的 `anchor_segmentation` | 见 3.26 |
@@ -674,6 +678,67 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **为什么之前没发现**：失败重试是低频异常路径；17be26e 把复核详情的「强制重跑」也接到 `retryFailures` 上之后，这个入口变成了常规操作，审查代码时才顺藤摸瓜暴露出来。
 
 **修复**：`retryFailures` 补齐 `reviewOpen = false`、`workerInterrupted = false`、`isRunning = true`、`isCancelling = false`、`clearProgressComplete()` 及 `taskPhase` / `taskDetail`，与 `startGeneration` / `resumeTask` 三处状态切换严格一致。
+
+### 3.30 细节图缩小时非等比拉伸，影棚渐变底出现矩形接缝
+
+现象：细节图把滑块拖到 0% 以下，主体会被纵向硬拉长——1:1 方图输出 1125x1500 时尤其明显，-5% 就能看出鞋子变形；影棚灰白渐变底的图缩小后，边缘还能看出一个矩形框。
+
+**根因**：
+
+1. `_pinned_detail_shrink`（`renderer.py:508`）直接 `rgb.resize((target[0]*scale, target[1]*scale))`，把**原图**塞进目标比例；原图与 target 宽高比不同时就发生非等比拉伸。
+2. `_detail_cut_sides(rgb)` 在原图上判定贴边，但缩小前会先 cover 裁切，裁切本身会产生新的出画边，这些边没有参与判断。
+3. 背景用 `_detail_background_color` 单一中位数纯色，`_detail_seam_mask` 羽化带只有 1%，渐变底上容易看出接缝。
+
+**修复**：
+
+- 先 `covered = _resize_cover(rgb, target)`，再在 covered 上判 `_detail_cut_sides`，最后把 covered 等比缩到 `target*scale`；
+- 背景改用 `_corner_gradient` + 新增 `_detail_corner_colors`（cut 边回退到未裁边颜色，避免采到产品）；
+- 羽化带从 1% 放宽到 2.5%。
+
+**验证**：1:1 图（中心 400x400 红块）缩到 1125x1500、scale 0.9，输出红块宽高比 `1.0`（修复前会被拉成 0.75）；Worker 234 项通过。
+
+### 3.31 主图贴边时缩放滑块无效：分类和渲染用了两套贴边判据
+
+现象：白底商品图边缘稍紧（或带一点边缘暗角），确认页显示「主体大小 -50%~+50%」滑块，但拖动后输出完全不变。
+
+**根因**：两处判据不一致。
+
+- 分类器 `_foreground_metrics`（`v3_classification.py:118`）：128px 预览、1.5% 边距，判「不贴边」→ 展示滑块；
+- 渲染器 `_light_foreground_touches_edge`（`renderer.py:690`）：512px 预览、边缘非背景像素 ≥3%，判「贴边」；
+- 渲染器命中 `touches_edge` 后直接 `return _resize_cover(image, target, focus, protected)`（`renderer.py:985`），**没把 `source_scale` 传进去**，滑块被完全忽略。
+
+**修复**：`touches_edge` 分支里，`source_scale < 1.0` 走 `_pinned_detail_shrink`（贴边缩小 + 补背景），否则 `_resize_cover(..., source_scale)` 把缩放传下去。
+
+**未做**：分类阶段把四边 `cut_sides` 写进 metadata、确认页对「双边满版」置灰滑块并提示——属 UI 改动，待确认交互方案。
+
+### 3.32 地面重阴影撑大前景框，主体被误缩或上顶
+
+现象：实拍白底图（鞋底、双肩包底部、立式水壶）常带横向拖出的柔和地面投影；这类图生成后主体偏小，或商品实体被顶到画面上方、视觉重心偏高。
+
+**根因**：`_light_foreground_bbox`（`renderer.py:686`）用固定色差 `> 32` 提取前景。投影亮度 195–218、白底约 250，差值普遍 > 32，被算进前景，bbox 被横向拉宽 / 向下拖长：
+
+- 宽高比虚高 → `_orientation_factor` 误判接近扁平侧面图，`m` 偏小，主体被少缩；
+- bbox 向下延伸 → 居中定位按 bbox 中心算，商品实体被上顶。
+
+**修复**：拆成两个框。
+
+- `_light_foreground_bbox(..., include_shadow=False)` 额外把「所有通道都比背景暗、色相比例接近、亮度下降 ≤30%」的柔和像素算回背景，得到 tight body box，用于定标与居中；
+- `include_shadow=True` 保留原来的完整范围，得到 shadow-safe box，传给 `_outer_background_blend_mask` 做贴图保护，避免真实投影被硬截断；
+- `SourceAnalysis` 新增 `shadow_bbox`，`_scaled_opaque_canvas` 用 shadow box 生成保护掩码。
+
+**验证**：合成白底 + 灰色投影图，tight 框 bottom=701（止于产品）、full 框 bottom=779（含投影），符合预期。**真实素材仍需目视对比**。
+
+### 3.33 路径同时出现两个品类词就直接退回「其他」
+
+现象：素材目录叫「秋冬外套靴子合集/跑鞋款A」，明明直接父目录写的是「跑鞋款A」，品类却被判成「其他」，鞋类锚点构图和尺度归一都不生效。
+
+**根因**：`V3CategoryClassifier.classify`（`v3_classification.py:198`）把所有路径文本（`product_root.name` + 每个文件的相对路径）放进同一个 `matches` 字典，只要收集到两个品类就 `len(matches) > 1` 直接返回 `other`，没有区分关键词来自哪一层目录。
+
+**修复**：改成就近优先，逐层匹配：文件名 > 直接父目录 > 上级目录 > 产品根目录。某一层唯一匹配就采用；同一层出现多个品类才退回 `other`。
+
+**验证**：`秋冬外套靴子合集/跑鞋款A/img.jpg` 现在返回 `shoes`（`v3_name`），修复前是 `other`。
+
+**未做（属取舍）**：hat / knee_pads / socks 的 `normalize.enabled` 仍是 `false`（参数已就位，需鞋类实机验收后出对比图）；socks / gloves / bag 还没有分尺寸 `sizes`（三个尺寸共用一个 `scale`，竖版偏差 6%–15%，需单独校准）；bag 仍复用 shirt 锚点、未接检测模型（手提包/斜挎包半身构图有下缘裁切风险，需 YOLO-World 补框）。
 
 ## 四、已知未闭环
 

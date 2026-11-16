@@ -195,24 +195,38 @@ class V3CategoryClassifier:
             if manual_category not in CATEGORY_IDS:
                 raise ValueError(f"不支持的商品类别：{manual_category}")
             return V3CategoryDecision(manual_category, 1.0, "manual")
-        matches: dict[str, str] = {}
         source_names = []
         for source in sources:
             try:
                 source_names.append(source.relative_to(product_root).as_posix())
             except ValueError:
                 source_names.append(str(source))
-        for text in (product_root.name, *source_names):
-            for category, keywords in CATEGORY_KEYWORDS:
-                keyword = next((item for item in keywords if item in text), None)
-                if keyword:
-                    matches[category] = keyword
-                    break
-        if len(matches) == 1:
-            category, keyword = next(iter(matches.items()))
-            return V3CategoryDecision(category, 0.95, "v3_name", keyword)
-        if len(matches) > 1:
-            return V3CategoryDecision("other", 0.0, "v3_conflict", "、".join(sorted(matches)))
+
+        def match_level(texts: list[str]) -> dict[str, str]:
+            matched: dict[str, str] = {}
+            for text in texts:
+                for category, keywords in CATEGORY_KEYWORDS:
+                    keyword = next((item for item in keywords if item in text), None)
+                    if keyword:
+                        matched.setdefault(category, keyword)
+                        break
+            return matched
+
+        # Nearest path level wins: file name > direct parent > grandparent >
+        # product root. Only a conflict within the same level falls back.
+        levels = (
+            [Path(name).stem for name in source_names],
+            [Path(name).parent.name for name in source_names],
+            [Path(name).parent.parent.name for name in source_names],
+            [product_root.name],
+        )
+        for texts in levels:
+            matched = match_level(texts)
+            if len(matched) == 1:
+                category, keyword = next(iter(matched.items()))
+                return V3CategoryDecision(category, 0.95, "v3_name", keyword)
+            if len(matched) > 1:
+                return V3CategoryDecision("other", 0.0, "v3_conflict", "、".join(sorted(matched)))
         return V3CategoryDecision("other", 0.0, "v3_fallback")
 
 

@@ -85,6 +85,7 @@ class SourceAnalysis:
         tuple[int, int, int],
         tuple[int, int, int],
     ] | None
+    shadow_bbox: tuple[int, int, int, int] | None = None
 
 
 def _size(value: str | tuple[int, int] | list[int]) -> tuple[str, tuple[int, int]]:
@@ -505,6 +506,29 @@ def _detail_background_color(image: Image.Image, cut: dict[str, bool]) -> tuple[
     return tuple(int(value) for value in np.median(pool, axis=0))
 
 
+def _detail_corner_colors(
+    image: Image.Image, cut: dict[str, bool]
+) -> tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]:
+    """Sample four corners, using the uncut edge colour on cut sides."""
+    rgb = image.convert("RGB")
+    width, height = rgb.size
+    base = _detail_background_color(rgb, cut)
+    sample = max(2, round(min(width, height) * 0.02))
+
+    def corner(left: int, top: int, right: int, bottom: int, skip: bool) -> tuple[int, int, int]:
+        if skip:
+            return base
+        pixels = list(rgb.crop((left, top, right, bottom)).get_flattened_data())
+        return tuple(int(value) for value in np.median(np.asarray(pixels, dtype=np.int16), axis=0))
+
+    return (
+        corner(0, 0, sample, sample, cut["top"] or cut["left"]),
+        corner(width - sample, 0, width, sample, cut["top"] or cut["right"]),
+        corner(0, height - sample, sample, height, cut["bottom"] or cut["left"]),
+        corner(width - sample, height - sample, width, height, cut["bottom"] or cut["right"]),
+    )
+
+
 def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: float) -> Image.Image:
     """Shrink a detail shot while the edges that run off frame stay flush.
 
@@ -516,12 +540,15 @@ def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: fl
     scale = max(0.05, min(1.0, float(scale)))
     if scale >= 1.0:
         return _resize_cover(rgb, target)
-    cut = _detail_cut_sides(rgb)
+    # Judge cut sides after cover: cropping can create new bleeding edges that
+    # the source image does not have.
+    covered = _resize_cover(rgb, target)
+    cut = _detail_cut_sides(covered)
     if (cut["left"] and cut["right"]) or (cut["top"] and cut["bottom"]):
-        return _resize_cover(rgb, target)
+        return covered
     size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
-    resized = rgb.resize(size, Image.Resampling.LANCZOS)
-    canvas = Image.new("RGB", target, _detail_background_color(rgb, cut))
+    resized = covered.resize(size, Image.Resampling.LANCZOS)
+    canvas = _corner_gradient(target, _detail_corner_colors(covered, cut))
     left = 0 if cut["left"] else target[0] - resized.width if cut["right"] else (target[0] - resized.width) // 2
     top = 0 if cut["top"] else target[1] - resized.height if cut["bottom"] else (target[1] - resized.height) // 2
     canvas.paste(resized, (left, top), _detail_seam_mask(resized.size, cut))
@@ -531,7 +558,7 @@ def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: fl
 def _detail_seam_mask(size: tuple[int, int], cut: dict[str, bool]) -> Image.Image:
     """Feather only the sides that gained background; cut sides stay flush."""
     width, height = size
-    band = max(1, round(min(width, height) * 0.01))
+    band = max(1, round(min(width, height) * 0.025))
     mask = np.full((height, width), 255, dtype=np.uint8)
     ramp = np.linspace(0, 255, band).astype(np.uint8)
     if not cut["top"]:
@@ -624,6 +651,7 @@ def _scaled_opaque_canvas(
     ] | None = None,
     scale_multiplier: float = 1.0,
     normalization: tuple[float, float] | None = None,
+    shadow_box: tuple[int, int, int, int] | None = None,
 ) -> Image.Image:
     """Match the legacy light-background foreground extension path."""
     source = image.convert("RGB")
@@ -652,19 +680,46 @@ def _scaled_opaque_canvas(
     )
     colors = corner_colors or _corner_background_colors(source, product_box, 0.04)
     canvas = _corner_gradient(target, colors)
-    blend_mask = _outer_background_blend_mask(scaled_size, scaled_box, 0.03)
+    scaled_shadow_box = tuple(round(value * photo_scale) for value in shadow_box) if shadow_box else scaled_box
+    blend_mask = _outer_background_blend_mask(scaled_size, scaled_shadow_box, 0.03)
     canvas.paste(scaled, position, blend_mask)
     return canvas
 
 
-def _light_foreground_bbox(image: Image.Image, background: tuple[int, int, int]) -> tuple[int, int, int, int] | None:
-    """Find the edge-connected light background bounds used by legacy."""
+def _light_foreground_bbox(
+    image: Image.Image,
+    background: tuple[int, int, int],
+    include_shadow: bool = True,
+) -> tuple[int, int, int, int] | None:
+    """Find the edge-connected light background bounds used by legacy.
+
+    ``include_shadow=False`` also treats soft ground shadows as background, so
+    the returned box measures the product body instead of the shadow it casts.
+    """
     rgb = image.convert("RGB")
     scale = min(1.0, 512 / max(rgb.width, rgb.height))
     preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
     width, height = preview.size
     pixels = list(preview.get_flattened_data())
-    light = bytearray(max(abs(channel - base) for channel, base in zip(pixel, background)) <= 32 for pixel in pixels)
+    if include_shadow:
+        light = bytearray(max(abs(channel - base) for channel, base in zip(pixel, background)) <= 32 for pixel in pixels)
+    else:
+        base_sum = sum(background) or 1
+        base_ratios = [channel / base_sum for channel in background]
+
+        def is_background(pixel: tuple[int, ...]) -> bool:
+            if max(abs(channel - base) for channel, base in zip(pixel, background)) <= 32:
+                return True
+            # Soft ground shadow: darker on every channel, same hue, moderate drop.
+            if any(channel > base for channel, base in zip(pixel, background)):
+                return False
+            total = sum(pixel)
+            if total <= 0 or (base_sum - total) / base_sum > 0.30:
+                return False
+            ratios = [channel / total for channel in pixel]
+            return max(abs(left - right) for left, right in zip(base_ratios, ratios)) <= 0.08
+
+        light = bytearray(is_background(pixel) for pixel in pixels)
     visited = bytearray(len(light))
     pending: list[tuple[int, int]] = []
     pending.extend((0, x) for x in range(width)); pending.extend((height - 1, x) for x in range(width))
@@ -841,10 +896,11 @@ class Renderer:
         light_background = _is_light_background(rgb)
         if not light_background:
             return SourceAnalysis(edge_color, False, None, False, None)
-        foreground_bbox = _light_foreground_bbox(rgb, edge_color)
+        foreground_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=False)
+        shadow_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=True)
         touches_edge = _light_foreground_touches_edge(rgb, edge_color)
         corner_colors = _corner_background_colors(rgb, foreground_bbox, 0.04)
-        return SourceAnalysis(edge_color, True, foreground_bbox, touches_edge, corner_colors)
+        return SourceAnalysis(edge_color, True, foreground_bbox, touches_edge, corner_colors, shadow_bbox)
 
     def _output_path(self, request: RenderRequest, size_name: str, transparent: bool, vip: bool) -> Path:
         metadata = request.metadata
@@ -982,7 +1038,9 @@ class Renderer:
         if analysis.light_background and analysis.edge_color is not None:
             edge_color = analysis.edge_color
             if analysis.touches_edge:
-                return _resize_cover(image, target, focus, protected)
+                if source_scale < 1.0:
+                    return _pinned_detail_shrink(image, target, source_scale)
+                return _resize_cover(image, target, focus, protected, source_scale)
             # Match legacy's foreground-aware extension for light products.
             if category_template is not None or target[1] > target[0] or plan is not None:
                 return _scaled_opaque_canvas(
@@ -995,6 +1053,7 @@ class Renderer:
                     analysis.corner_colors,
                     source_scale,
                     normalization,
+                    analysis.shadow_bbox,
                 )
             return _resize_cover(image, target, focus, protected, source_scale)
         return _resize_cover(image, target, focus, protected, source_scale)
