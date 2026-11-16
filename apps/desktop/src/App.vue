@@ -1193,11 +1193,18 @@ function requestPreview(path: string, allowedRoots = [previewParent(path)]) {
     { path, max_width: 198, max_height: 138, allowed_roots: allowedRoots.filter(Boolean) },
   )
 }
+function previewBlob(preview: { mime_type: string; data: string }) {
+  // fetch('data:...') is blocked by the app CSP (connect-src has no data:).
+  const binary = atob(preview.data)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new Blob([bytes], { type: preview.mime_type })
+}
 async function loadLogoPreview(key: string, path: string) {
   try {
     if (window.__TAURI_INTERNALS__) await invoke('authorize_logo_preview', { path, key })
     const preview = await requestPreview(path, [previewParent(path)])
-    const blob = await fetch(`data:${preview.mime_type};base64,${preview.data}`).then((response) => response.blob())
+    const blob = previewBlob(preview)
     const previous = logoPreviews.value[key]
     logoPreviews.value[key] = URL.createObjectURL(blob)
     if (previous) URL.revokeObjectURL(previous)
@@ -2133,7 +2140,7 @@ async function loadMaterialPreview(material: MaterialDecision, session = preview
     ])
     if (session !== previewSession) return
     const target = currentMaterial() || material
-    const blob = await fetch(`data:${preview.mime_type};base64,${preview.data}`).then((response) => response.blob())
+    const blob = previewBlob(preview)
     const url = URL.createObjectURL(blob)
     previewUrls.add(url)
     previewLoadedSources.add(material.source)

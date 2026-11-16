@@ -470,6 +470,7 @@ class V3ClassifierAdapter:
             override = next((request.overrides.get(key) for key in (str(source), source.name, source.as_posix()) if request.overrides.get(key)), None)
             decision = classifier.classify(source, sources, override)
             metadata = {
+                **(decision.metadata or {}),
                 "category": category.category,
                 "category_source": category.source,
                 "category_confidence": category.confidence,
