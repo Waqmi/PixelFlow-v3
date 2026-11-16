@@ -637,27 +637,45 @@ def _outer_background_blend_mask(
     return mask
 
 
-def subject_canvas_ratios(
-    subject_aspect: float,
-    template_scale: float,
+def subject_canvas_frame(
+    subject_box: tuple[float, float, float, float],
+    image_aspect: float,
+    template: tuple[float, float, float],
     target: tuple[int, int],
     normalization: tuple[float, float] | None = None,
-) -> tuple[float, float]:
-    """How much of the canvas the subject covers at 0% adjustment.
+) -> dict[str, list[float]]:
+    """Where the photo and its subject land inside the canvas at 0%.
 
-    Mirrors the photo scale inside :func:`_scaled_opaque_canvas`; the confirm
-    page draws its baseline box from this, so the two cannot drift apart.  The
-    result only depends on the subject's aspect ratio, not on its pixel size.
+    Mirrors the photo scale inside :func:`_scaled_opaque_canvas`, so the confirm
+    page can draw the real photo instead of a second approximation.
+
+    * ``box`` — subject footprint in canvas fractions.
+    * ``image`` — the whole photo rectangle in canvas fractions (``left, top,
+      width, height``); it can be negative or larger than one.
+    * ``origin`` — subject centre in fractions of the photo rectangle, i.e. the
+      point a scale transform has to keep fixed.
     """
-    box_width = max(1e-6, float(subject_aspect))
-    box_height = 1.0
-    photo_scale = min(target[0] * template_scale / box_width, target[1] * template_scale / box_height)
+    tw, th = target
+    source_w, source_h = float(image_aspect), 1.0
+    x0, y0, x1, y1 = subject_box
+    box_w = max(1e-6, (x1 - x0) * source_w)
+    box_h = max(1e-6, (y1 - y0) * source_h)
+    photo_scale = min(tw * template[0] / box_w, th * template[0] / box_h)
     if normalization is not None:
-        photo_scale *= _orientation_factor(box_width, box_height, target, *normalization)
-    return (
-        box_width * photo_scale / target[0],
-        box_height * photo_scale / target[1],
-    )
+        photo_scale *= _orientation_factor(box_w, box_h, target, *normalization)
+    scaled_w, scaled_h = source_w * photo_scale, source_h * photo_scale
+    centre_x = (x0 + x1) / 2 * scaled_w
+    centre_y = (y0 + y1) / 2 * scaled_h
+    return {
+        "box": [box_w * photo_scale / tw, box_h * photo_scale / th],
+        "image": [
+            (tw * template[1] - centre_x) / tw,
+            (th * template[2] - centre_y) / th,
+            scaled_w / tw,
+            scaled_h / th,
+        ],
+        "origin": [(x0 + x1) / 2, (y0 + y1) / 2],
+    }
 
 
 def _scaled_opaque_canvas(

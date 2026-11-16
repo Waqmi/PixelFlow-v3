@@ -30,6 +30,8 @@ class ForegroundProfile:
     touches_edge: bool
     cut_sides: dict[str, bool]
     box_aspect: float
+    # Normalised subject bounds (x0, y0, x1, y1) inside the source image.
+    box: tuple[float, float, float, float]
 
 
 def foreground_profile(image: Image.Image, background: tuple[int, int, int]) -> ForegroundProfile:
@@ -43,7 +45,9 @@ def foreground_profile(image: Image.Image, background: tuple[int, int, int]) -> 
         if max(abs(channel - base) for channel, base in zip(pixel, background)) > 32
     ]
     if not foreground:
-        return ForegroundProfile(0.0, 0.0, False, {"left": False, "right": False, "top": False, "bottom": False}, 0.0)
+        return ForegroundProfile(
+            0.0, 0.0, False, {"left": False, "right": False, "top": False, "bottom": False}, 0.0, (0.0, 0.0, 1.0, 1.0)
+        )
     left = min(index % width for index in foreground)
     top = min(index // width for index in foreground)
     right = max(index % width for index in foreground) + 1
@@ -58,7 +62,8 @@ def foreground_profile(image: Image.Image, background: tuple[int, int, int]) -> 
     }
     # The preview keeps the source aspect, so this is the subject's own aspect.
     box_aspect = (right - left) / max(1, bottom - top)
-    return ForegroundProfile(width_ratio, height_ratio, any(cut_sides.values()), cut_sides, box_aspect)
+    box = (left / width, top / height, right / width, bottom / height)
+    return ForegroundProfile(width_ratio, height_ratio, any(cut_sides.values()), cut_sides, box_aspect, box)
 
 
 def foreground_metrics(

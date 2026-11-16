@@ -108,7 +108,7 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(decision.source, "conflict")
 
     def test_main_product_carries_the_baseline_canvas(self) -> None:
-        """The confirm guide needs the 0% footprint for every output size."""
+        """The confirm guide needs the photo rectangle for every output size."""
         with tempfile.TemporaryDirectory() as root:
             product = Path(root) / "长裤"
             product.mkdir()
@@ -122,25 +122,32 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(decision.source_type, "main_product")
         # The measurement runs on a 128px preview, so the aspect is coarse.
         self.assertAlmostEqual(float(metadata["subject_aspect"]), 120 / 680, delta=0.01)
+        self.assertAlmostEqual(float(metadata["image_aspect"]), 0.5, delta=0.01)
         canvas = metadata["baseline_canvas"]
         self.assertEqual(set(canvas), {"1440x1440", "1440x1920", "1125x1500"})
-        for ratios in canvas.values():
-            self.assertEqual(len(ratios), 2)
-            self.assertGreater(ratios[0], 0)
-            self.assertLessEqual(max(ratios), 1.0)
+        for frame in canvas.values():
+            self.assertEqual(set(frame), {"box", "image", "origin"})
+            self.assertEqual(len(frame["image"]), 4)
+            self.assertEqual(len(frame["origin"]), 2)
+            self.assertGreater(frame["box"][0], 0)
+            self.assertLessEqual(max(frame["box"]), 1.0)
         # long_pants uses 0.748 for 1440x1920 and the subject is height-bound.
-        self.assertAlmostEqual(canvas["1440x1920"][1], 0.748, places=3)
+        self.assertAlmostEqual(canvas["1440x1920"]["box"][1], 0.748, places=3)
 
     def test_baseline_canvas_follows_the_renderer_formula(self) -> None:
-        from pixelflow_core.renderer import subject_canvas_ratios
+        from pixelflow_core.renderer import subject_canvas_frame
 
-        # aspect 0.5 in a square canvas at 0.7: height-limited, so the subject
-        # fills 70% of the height and 35% of the width.
-        self.assertEqual(subject_canvas_ratios(0.5, 0.7, (1440, 1440)), (0.35, 0.7))
-        # A wide subject is width-limited instead.
-        width_ratio, height_ratio = subject_canvas_ratios(4.0, 0.7, (1440, 1440))
-        self.assertAlmostEqual(width_ratio, 0.7)
-        self.assertAlmostEqual(height_ratio, 0.175)
+        # A subject covering 20% x 80% of a square photo, height-limited in a
+        # square canvas at 0.7: it fills 70% of the height and 17.5% of the
+        # width, and the photo lands centred at 87.5% of the canvas.
+        frame = subject_canvas_frame((0.4, 0.1, 0.6, 0.9), 1.0, (0.7, 0.5, 0.5), (1000, 1000))
+        self.assertAlmostEqual(frame["box"][0], 0.175)
+        self.assertAlmostEqual(frame["box"][1], 0.7)
+        self.assertAlmostEqual(frame["image"][0], 0.0625)
+        self.assertAlmostEqual(frame["image"][1], 0.0625)
+        self.assertAlmostEqual(frame["image"][2], 0.875)
+        self.assertAlmostEqual(frame["image"][3], 0.875)
+        self.assertEqual(frame["origin"], [0.5, 0.5])
 
     def test_missing_pose_model_keeps_an_explicit_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as root:

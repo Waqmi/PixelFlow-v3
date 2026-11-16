@@ -39,9 +39,11 @@ PixelFlow 桌面宿主：Vue 3 + TypeScript + Vite 前端（`src/`）与 Tauri 2
 - **不要改成常驻挂载**：每张卡片一个叠加层等于几百个节点，且会和预览队列抢渲染。
 - **不要动 `.confirm-card` 的 `IntersectionObserver` / `observeCard` / `data-visible`**：卡片可见性由它们控制（见 3.12）。
 - 缩放动画只用 CSS `transform: scale()`，拖动时不会触发布局。
-- 画布比例取第一个被选中的竖图尺寸（`1440x1920` / `1125x1500` → 3:4），都没选才用 1:1，右上角标出比例。
-- `main_product` 用 Worker 的 `metadata.baseline_canvas` 画 0% 灰色虚线框，主题色实线框按 `1 + 调整值/100` 居中缩放，任一边超画布 98% 变橙色。
-- `detail` 以满框为 0%，缩小时按 `metadata.cut_sides` 贴住出画边，空出的条带用浅色底示意补边方向。
+- **画的是产品图本身，不是示意图框**：`.scale-guide-stage` 是输出画布，里面的 `.scale-guide-photo` 用 `metadata.baseline_canvas[尺寸].image` 定位、`.origin` 作 `transform-origin`，因此看到的就是成品里主体的真实占比。
+- 画布比例取「已选尺寸里最宽的那个」：勾了方图用 1:1 作外框（青色 `#0f9b8e`），竖图再画一个 75% 宽的 3:4 虚线内框（主题色）。只勾一种就只画一个框。
+- `main_product`：主体（`box`）任一边按 `1 + 调整值/100` 放大后超画布 98%，外框变橙色预警。
+- `detail`：0% 即铺满画布；缩小时按 `cut_sides` 贴住出画边，并在「照片将不再覆盖画布」的那一点截止，预览里不会出现空白边。
+- 满版图（两条及以上边出画）滑块 `disabled`，`:disabled` 样式会同时压暗轨道和滑块，不能只留一行「不可缩小」文字。
 
 ## Rust Host（main.rs）
 

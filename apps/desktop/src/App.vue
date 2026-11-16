@@ -2335,31 +2335,23 @@ function baseScale(material: MaterialDecision) {
 const activeScaleSource = ref('')
 let scaleGuideTimer: number | undefined
 
-interface ScaleGuideBox {
-  left: number
-  top: number
-  width: number
-  height: number
+interface ScaleGuideFrame {
+  label: string
+  tone: string
+  style: Record<string, string>
 }
 
 interface ScaleGuide {
-  ratioLabel: string
   aspect: string
+  tone: string
+  label: string
   warning: boolean
-  detail: boolean
-  baseStyle: Record<string, string> | null
-  currentStyle: Record<string, string>
+  photoStyle: Record<string, string> | null
+  inner: ScaleGuideFrame | null
 }
 
-function boxStyle(box: ScaleGuideBox): Record<string, string> {
-  return { left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }
-}
-
-// The guide canvas follows the first selected portrait size, so the drawn
-// ratio always matches what will actually be rendered.
-function previewSizeName() {
-  return ['1440x1920', '1125x1500'].find((size) => selectedSizes.value.includes(size)) || '1440x1440'
-}
+const SQUARE_TONE = '#0f9b8e'
+const PORTRAIT_TONE = 'var(--accent)'
 
 function showScaleGuide(material: MaterialDecision) {
   if (scaleGuideTimer) {
@@ -2379,41 +2371,77 @@ function scheduleScaleGuideHide() {
   }, 800)
 }
 
+// The widest selected size owns the stage, so the photo is never clipped by a
+// frame that is narrower than the canvas it is standing in.  A narrower ratio
+// is drawn inside it as an outline.
 function buildScaleGuide(material: MaterialDecision): ScaleGuide | null {
-  const size = previewSizeName()
-  const adjustment = Number(scaleAdjustments.value[material.source] || 0)
-  const scale = 1 + adjustment / 100
-  const ratioLabel = size === '1440x1440' ? '1:1' : '3:4'
-  const aspect = size === '1440x1440' ? '1 / 1' : '3 / 4'
+  const square = selectedSizes.value.includes('1440x1440')
+  const portrait = ['1440x1920', '1125x1500'].find((size) => selectedSizes.value.includes(size))
+  const stageSize = square ? '1440x1440' : portrait || '1440x1440'
+  const stageSquare = stageSize === '1440x1440'
+  const aspect = stageSquare ? '1 / 1' : '3 / 4'
+  const tone = stageSquare ? SQUARE_TONE : PORTRAIT_TONE
+  const inner = square && portrait
+    ? { label: '3:4', tone: PORTRAIT_TONE, style: { left: '12.5%', width: '75%' } }
+    : null
+  const scale = 1 + Number(scaleAdjustments.value[material.source] || 0) / 100
+
   if (material.source_type === 'detail') {
-    // 0% is the full canvas; shrinking keeps the bleeding edges flush and the
-    // leftover strip is where the renderer extends the background.
+    // 0% covers the canvas.  Shrinking is clamped in the preview at the point
+    // where the photo would stop covering it, so no blank edge is ever drawn.
+    const imageAspect = Number(material.metadata?.image_aspect)
+    const canvasAspect = stageSquare ? 1 : 0.75
+    const ratio = Number.isFinite(imageAspect) && imageAspect > 0 ? imageAspect : canvasAspect
+    const width = Math.max(1, ratio / canvasAspect)
+    const height = Math.max(1, canvasAspect / ratio)
+    // Stop where the photo would stop covering the canvas: past that point the
+    // preview would show an edge that the renderer has to paint over.
+    const visible = Math.max(scale, 1 / Math.min(width, height))
     const cut = (material.metadata?.cut_sides || {}) as Record<string, boolean>
+    const left = cut.left ? 0 : cut.right ? (1 - width) * 100 : ((1 - width) / 2) * 100
+    const top = cut.top ? 0 : cut.bottom ? (1 - height) * 100 : ((1 - height) / 2) * 100
     const originX = cut.left ? 'left' : cut.right ? 'right' : 'center'
     const originY = cut.top ? 'top' : cut.bottom ? 'bottom' : 'center'
     return {
-      ratioLabel,
       aspect,
+      tone,
+      label: stageSquare ? '1:1' : '3:4',
       warning: false,
-      detail: true,
-      baseStyle: null,
-      currentStyle: { transform: `scale(${scale})`, transformOrigin: `${originX} ${originY}` },
+      inner,
+      photoStyle: {
+        left: `${left}%`,
+        top: `${top}%`,
+        width: `${width * 100}%`,
+        height: `${height * 100}%`,
+        transform: `scale(${visible})`,
+        transformOrigin: `${originX} ${originY}`,
+      },
     }
   }
-  const canvas = material.metadata?.baseline_canvas as Record<string, number[]> | undefined
-  const baseline = canvas?.[size]
-  if (!Array.isArray(baseline) || baseline.length !== 2) return null
-  const [width0, height0] = baseline
-  const box = { left: (1 - width0) * 50, top: (1 - height0) * 50, width: width0 * 100, height: height0 * 100 }
+
+  const canvas = material.metadata?.baseline_canvas as
+    | Record<string, { box: number[]; image: number[]; origin: number[] }>
+    | undefined
+  const baseline = canvas?.[stageSize]
+  if (!baseline || !Array.isArray(baseline.image) || baseline.image.length !== 4) return null
+  const [left, top, width, height] = baseline.image
+  const [originX, originY] = baseline.origin
+  const [boxWidth, boxHeight] = baseline.box
   return {
-    ratioLabel,
     aspect,
-    // Scaling from the centred baseline box is a pure CSS transform, so the
-    // drag never triggers layout.
-    warning: width0 * scale > 0.98 || height0 * scale > 0.98,
-    detail: false,
-    baseStyle: boxStyle(box),
-    currentStyle: { ...boxStyle(box), transform: `scale(${scale})`, transformOrigin: 'center center' },
+    tone,
+    label: stageSquare ? '1:1' : '3:4',
+    // The subject, not the photo, is what must stay inside the canvas.
+    warning: boxWidth * scale > 0.98 || boxHeight * scale > 0.98,
+    inner,
+    photoStyle: {
+      left: `${left * 100}%`,
+      top: `${top * 100}%`,
+      width: `${width * 100}%`,
+      height: `${height * 100}%`,
+      transform: `scale(${scale})`,
+      transformOrigin: `${originX * 100}% ${originY * 100}%`,
+    },
   }
 }
 
@@ -2670,7 +2698,7 @@ function startGeneration() {
         <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div class="confirm-grid-shell" :data-scroll-bottom="isConfirmGridScrolledToBottom" :data-has-overflow="confirmGridHasOverflow"><div ref="confirmGridElement" class="confirm-grid" @scroll="onConfirmGridScroll"><article v-for="(material, index) in materials" :key="material.source" :style="{ '--card-index': Math.min(index, 19) }" :data-visible="material.isVisible === true" :ref="(element) => { setPreviewElement(material, element); observeCard(element, material) }" class="confirm-card">
-          <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span><div v-if="scaleGuideModel && activeScaleSource === material.source" class="scale-guide" :style="{ '--guide-aspect': scaleGuideModel.aspect }"><div class="scale-guide-canvas" :class="{ 'is-detail': scaleGuideModel.detail }"><span class="scale-guide-ratio">{{ scaleGuideModel.ratioLabel }}</span><div v-if="scaleGuideModel.baseStyle" class="scale-guide-base" :style="scaleGuideModel.baseStyle" /><div class="scale-guide-current" :class="{ 'is-warning': scaleGuideModel.warning, 'is-detail': scaleGuideModel.detail }" :style="scaleGuideModel.currentStyle" /></div></div></div>
+          <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady, 'is-guide-hidden': scaleGuideModel && activeScaleSource === material.source }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span><div v-if="scaleGuideModel && activeScaleSource === material.source" class="scale-guide" :style="{ '--guide-aspect': scaleGuideModel.aspect, '--guide-tone': scaleGuideModel.tone }"><div class="scale-guide-stage" :class="{ 'is-warning': scaleGuideModel.warning }"><div class="scale-guide-clip"><img v-if="scaleGuideModel.photoStyle && material.previewUrl" class="scale-guide-photo" :src="material.previewUrl" alt="" :style="scaleGuideModel.photoStyle" /></div><div v-if="scaleGuideModel.inner" class="scale-guide-inner" :style="{ ...scaleGuideModel.inner.style, '--guide-inner-tone': scaleGuideModel.inner.tone }" /><span class="scale-guide-label">{{ scaleGuideModel.label }}</span><span v-if="scaleGuideModel.inner" class="scale-guide-label is-inner" :style="{ color: scaleGuideModel.inner.tone }">{{ scaleGuideModel.inner.label }}</span></div></div></div>
           <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' && material.source_type !== 'detail' }" @pointerenter="showScaleGuide(material)" @pointerleave="scheduleScaleGuideHide()"><div class="scale-row"><span>{{ material.source_type === 'detail' ? `缩小 ${Math.abs(scaleAdjustments[material.source] || 0)}%` : `主体大小 ${(scaleAdjustments[material.source] || 0) >= 0 ? '+' : ''}${scaleAdjustments[material.source] || 0}%` }}</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><template v-if="material.source_type === 'detail'"><small>细节图只能缩小；四边贴边的特写无法调整</small></template><template v-else><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong></template><input :value="scaleAdjustments[material.source] ?? 0" :style="scaleTrack(material)" type="range" :min="scaleBounds(material).min" :max="scaleBounds(material).max" step="1" :disabled="scaleLocked(material)" @pointerdown="showScaleGuide(material)" @input="onScaleInput(material, $event); showScaleGuide(material)" @change="scheduleScaleGuideHide()" /><small v-if="scaleLocked(material)" class="scale-locked">两条及以上边出画，不可缩小</small></div></div>
         </article></div><div class="confirm-grid-scroll-hint" aria-hidden="true" /></div>
         <div class="page-actions"><button type="button" class="outline-button" @click="dismissMaterialConfirmation">取消</button><button type="button" class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>

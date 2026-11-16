@@ -160,17 +160,21 @@ button{cursor:pointer}
 .confirm-preview{height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:8px;color:#64748b;background:#eef2f7;font-size:12px}
 .confirm-preview img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;object-position:center}
 /* Composition guide: mounted for one card at a time, so it stays a couple of
-   nodes and never touches the preview observer. */
+   nodes and never touches the preview observer.  The stage is the output
+   canvas; the photo inside it is the real preview scaled like the renderer. */
 .confirm-preview{position:relative}
+.confirm-preview img.preview-loaded.is-guide-hidden,.confirm-preview img.is-guide-hidden{opacity:0}
 .scale-guide{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:2}
-.scale-guide-canvas{position:relative;height:84%;aspect-ratio:var(--guide-aspect,1/1);border:1px solid rgba(128,142,160,.55);border-radius:2px}
-.scale-guide-canvas.is-detail{overflow:hidden}
-.scale-guide-ratio{position:absolute;top:-13px;right:0;color:var(--muted);font-size:9px;line-height:1;letter-spacing:.04em}
-.scale-guide-base{position:absolute;border:1px dashed var(--muted);opacity:.6}
-.scale-guide-current{position:absolute;border:1.5px solid var(--accent);border-radius:1px;transition:transform .12s ease-out}
-.scale-guide-current.is-detail{inset:0;box-shadow:0 0 0 9999px rgba(120,150,190,.18)}
-.scale-guide-current.is-warning{border-color:#e08a1e}
-.theme-dark .scale-guide-current.is-detail{box-shadow:0 0 0 9999px rgba(120,150,190,.22)}
+.scale-guide-stage{position:relative;height:84%;aspect-ratio:var(--guide-aspect,1/1);border:1.5px solid var(--guide-tone,var(--accent));border-radius:2px}
+.scale-guide-stage.is-warning{border-color:#e08a1e}
+.scale-guide-clip{position:absolute;inset:0;overflow:hidden}
+.confirm-preview .scale-guide-photo{position:absolute;display:block;max-width:none;max-height:none;opacity:1;object-fit:fill;transition:transform .12s ease-out}
+.scale-guide-inner{position:absolute;top:0;bottom:0;border:1.5px dashed var(--guide-inner-tone,var(--accent));border-radius:1px}
+.scale-guide-label{position:absolute;top:-14px;right:0;color:var(--guide-tone,var(--accent));font-size:9px;line-height:1;letter-spacing:.04em}
+.scale-guide-label.is-inner{top:3px;right:3px}
+.scale-option input[type=range]:disabled{opacity:.45;cursor:not-allowed}
+.scale-option input[type=range]:disabled::-webkit-slider-runnable-track{background:var(--line)}
+.scale-option input[type=range]:disabled::-webkit-slider-thumb{background:var(--muted);border-color:var(--muted);box-shadow:none}
 .confirm-card-body{display:flex;flex:1;flex-direction:column;min-width:0;gap:7px;padding-top:12px}
 .confirm-card strong{overflow:hidden;font-size:12px;font-weight:600;line-height:20px;text-overflow:ellipsis;white-space:nowrap}
 .confirm-folder,.confirm-confidence{margin-top:0;color:var(--muted);font-size:10px;line-height:16px}

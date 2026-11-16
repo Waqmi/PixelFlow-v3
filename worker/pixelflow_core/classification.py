@@ -188,10 +188,10 @@ def _typed_decision(source: Path, decision: object) -> ClassificationDecision:
 
 
 def _source_measurements(source: Path) -> dict[str, object] | None:
-    """Cut sides plus subject aspect, measured in one decode.
+    """Cut sides, subject box and image aspect, measured in one decode.
 
-    ``cut_sides`` disables the shrink slider; ``subject_aspect`` lets the
-    confirm page draw the baseline canvas box without re-reading the image.
+    ``cut_sides`` disables the shrink slider; the box and aspect let the confirm
+    page place the real photo inside the output canvas without re-reading it.
     """
     try:
         from PIL import Image
@@ -203,9 +203,12 @@ def _source_measurements(source: Path) -> dict[str, object] | None:
                 image.draft("RGB", (256, 256))
             background, _ = edge_background(image)
             profile = foreground_profile(image, background)
+            width, height = image.size
             return {
                 "cut_sides": profile.cut_sides,
                 "subject_aspect": round(profile.box_aspect, 4),
+                "subject_box": [round(value, 4) for value in profile.box],
+                "image_aspect": round(width / max(1, height), 4),
             }
     except Exception:  # noqa: BLE001 - a preview helper must not stop classification
         return None
