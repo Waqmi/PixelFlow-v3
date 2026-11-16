@@ -59,19 +59,34 @@
     "scale": 0.550,
     "position_x": 0.500,
     "position_y": 0.520,
-    "normalize": {"enabled": false, "reference_aspect": 0.98, "strength": 1.0}
+    "sizes": {
+      "1440x1440": {"scale": 0.606, "position_x": 0.500, "position_y": 0.500},
+      "1440x1920": {"scale": 0.690, "position_x": 0.500, "position_y": 0.500},
+      "1125x1500": {"scale": 0.690, "position_x": 0.500, "position_y": 0.500}
+    },
+    "normalize": {"enabled": false, "reference_aspect": 0.983, "strength": 1.0}
   },
   "gloves": {
     "scale": 0.620,
     "position_x": 0.500,
     "position_y": 0.500,
-    "normalize": {"enabled": false, "reference_aspect": 1.11, "strength": 1.0}
+    "sizes": {
+      "1440x1440": {"scale": 0.679, "position_x": 0.500, "position_y": 0.500},
+      "1440x1920": {"scale": 0.768, "position_x": 0.500, "position_y": 0.500},
+      "1125x1500": {"scale": 0.768, "position_x": 0.500, "position_y": 0.500}
+    },
+    "normalize": {"enabled": false, "reference_aspect": 1.106, "strength": 1.0}
   },
   "bag": {
     "scale": 0.600,
     "position_x": 0.500,
     "position_y": 0.500,
-    "normalize": {"enabled": false, "reference_aspect": 0.74, "strength": 1.0}
+    "sizes": {
+      "1440x1440": {"scale": 0.617, "position_x": 0.500, "position_y": 0.533},
+      "1440x1920": {"scale": 0.560, "position_x": 0.500, "position_y": 0.524},
+      "1125x1500": {"scale": 0.560, "position_x": 0.500, "position_y": 0.524}
+    },
+    "normalize": {"enabled": false, "reference_aspect": 0.754, "strength": 1.0}
   },
   "other": {
     "scale": 0.750,

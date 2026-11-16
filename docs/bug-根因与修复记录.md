@@ -697,6 +697,8 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 
 **验证**：1:1 图（中心 400x400 红块）缩到 1125x1500、scale 0.9，输出红块宽高比 `1.0`（修复前会被拉成 0.75）；Worker 234 项通过。
 
+**顺手优化**：`_detail_cut_sides` 与 `_detail_background_color` 原来各转一次整图 `np.int16`，改为只转四边条带，输出不变。
+
 ### 3.31 主图贴边时缩放滑块无效：分类和渲染用了两套贴边判据
 
 现象：白底商品图边缘稍紧（或带一点边缘暗角），确认页显示「主体大小 -50%~+50%」滑块，但拖动后输出完全不变。
@@ -709,7 +711,7 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 
 **修复**：`touches_edge` 分支里，`source_scale < 1.0` 走 `_pinned_detail_shrink`（贴边缩小 + 补背景），否则 `_resize_cover(..., source_scale)` 把缩放传下去。
 
-**未做**：分类阶段把四边 `cut_sides` 写进 metadata、确认页对「双边满版」置灰滑块并提示——属 UI 改动，待确认交互方案。
+**同一轮补齐**：按「两条及以上边出画即不可缩小」的规则，`_foreground_metrics` 返回 `cut_sides` 并写进 decision metadata；确认页新增 `scaleLocked()`，cut ≥ 2 时滑块置灰并提示「两条及以上边出画，不可缩小」。`_pinned_detail_shrink` 的提前返回条件也从「对边都出画」改为 `sum(cut.values()) >= 2`。
 
 ### 3.32 地面重阴影撑大前景框，主体被误缩或上顶
 
@@ -738,7 +740,9 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 
 **验证**：`秋冬外套靴子合集/跑鞋款A/img.jpg` 现在返回 `shoes`（`v3_name`），修复前是 `other`。
 
-**未做（属取舍）**：hat / knee_pads / socks 的 `normalize.enabled` 仍是 `false`（参数已就位，需鞋类实机验收后出对比图）；socks / gloves / bag 还没有分尺寸 `sizes`（三个尺寸共用一个 `scale`，竖版偏差 6%–15%，需单独校准）；bag 仍复用 shirt 锚点、未接检测模型（手提包/斜挎包半身构图有下缘裁切风险，需 YOLO-World 补框）。
+**同一轮补齐**：socks / gloves / bag 已按规范图补齐分尺寸 `sizes`——量取方图（1440×1440）和竖图（1440×1920）的主体限制边占比与中心，`1125x1500` 与竖图同比例沿用；`normalize.reference_aspect` 也按实测微调（socks 0.983 / gloves 1.106 / bag 0.754），`enabled` 仍保持 `false`。为兼容 legacy 的 `CategoryTemplateManager`，三个品类同时保留顶层 `scale`。
+
+**仍未做（属取舍）**：hat / knee_pads / socks 的 `normalize.enabled` 未打开（需鞋类实机验收后出对比图）；bag 检测补框按用户决定先忽略。
 
 ## 四、已知未闭环
 

@@ -115,7 +115,7 @@ def _edge_background(image: Image.Image) -> tuple[tuple[int, int, int], bool]:
     return background, uniform
 
 
-def _foreground_metrics(image: Image.Image, background: tuple[int, int, int]) -> tuple[float, float, bool]:
+def _foreground_metrics(image: Image.Image, background: tuple[int, int, int]) -> tuple[float, float, bool, dict[str, bool]]:
     rgb = image.convert("RGB")
     scale = min(1.0, 128 / max(rgb.size))
     preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
@@ -126,15 +126,21 @@ def _foreground_metrics(image: Image.Image, background: tuple[int, int, int]) ->
         if max(abs(channel - base) for channel, base in zip(pixel, background)) > 32
     ]
     if not foreground:
-        return 0.0, 0.0, False
+        return 0.0, 0.0, False, {"left": False, "right": False, "top": False, "bottom": False}
     left = min(index % width for index in foreground)
     top = min(index // width for index in foreground)
     right = max(index % width for index in foreground) + 1
     bottom = max(index // width for index in foreground) + 1
     width_ratio, height_ratio = (right - left) / width, (bottom - top) / height
     margin_x, margin_y = max(1, round(width * 0.015)), max(1, round(height * 0.015))
-    touches_edge = left <= margin_x or top <= margin_y or right >= width - margin_x or bottom >= height - margin_y
-    return width_ratio, height_ratio, touches_edge
+    cut_sides = {
+        "left": left <= margin_x,
+        "right": right >= width - margin_x,
+        "top": top <= margin_y,
+        "bottom": bottom >= height - margin_y,
+    }
+    touches_edge = any(cut_sides.values())
+    return width_ratio, height_ratio, touches_edge, cut_sides
 
 
 class V3SourceTypeClassifier:
@@ -167,7 +173,7 @@ class V3SourceTypeClassifier:
                 if _has_transparency(image):
                     return ClassificationDecision(str(source), "main_product", 0.99, "v3_rules", "PNG 含透明通道")
                 background, uniform = _edge_background(image)
-                width_ratio, height_ratio, touches_edge = _foreground_metrics(image, background)
+                width_ratio, height_ratio, touches_edge, cut_sides = _foreground_metrics(image, background)
         except Exception as error:  # noqa: BLE001 - one bad source must not stop a run
             return ClassificationDecision(str(source), "detail", 0.0, "v3_error", f"无法读取素材：{error}")
 
@@ -177,14 +183,14 @@ class V3SourceTypeClassifier:
         background_is_light = max(background) - min(background) <= 28 and sum(background) / 3 >= 205
         if uniform and background_is_light and not touches_edge:
             confidence = 0.90 if width_ratio < 0.90 and height_ratio < 0.90 else 0.76
-            return ClassificationDecision(str(source), "main_product", confidence, "v3_rules", "浅色均匀背景且主体未贴边")
+            return ClassificationDecision(str(source), "main_product", confidence, "v3_rules", "浅色均匀背景且主体未贴边", metadata={"cut_sides": cut_sides})
         if product_folder:
-            return ClassificationDecision(str(source), "detail", 0.86, "v3_rules_product_folder", "商品编码-性别-颜色文件夹中的细节素材")
+            return ClassificationDecision(str(source), "detail", 0.86, "v3_rules_product_folder", "商品编码-性别-颜色文件夹中的细节素材", metadata={"cut_sides": cut_sides})
         if touches_edge:
-            return ClassificationDecision(str(source), "detail", 0.88, "v3_rules", "主体或画面内容贴近边缘")
+            return ClassificationDecision(str(source), "detail", 0.88, "v3_rules", "主体或画面内容贴近边缘", metadata={"cut_sides": cut_sides})
         if uniform and background_is_light:
-            return ClassificationDecision(str(source), "main_product", 0.68, "v3_rules", "浅色背景，主体轮廓不明确")
-        return ClassificationDecision(str(source), "detail", 0.55, "v3_fallback", "规则无法确认，按细节图处理")
+            return ClassificationDecision(str(source), "main_product", 0.68, "v3_rules", "浅色背景，主体轮廓不明确", metadata={"cut_sides": cut_sides})
+        return ClassificationDecision(str(source), "detail", 0.55, "v3_fallback", "规则无法确认，按细节图处理", metadata={"cut_sides": cut_sides})
 
 
 class V3CategoryClassifier:

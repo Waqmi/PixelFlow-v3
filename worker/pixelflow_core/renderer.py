@@ -468,14 +468,14 @@ def _template_crop(
 
 def _detail_cut_sides(image: Image.Image) -> dict[str, bool]:
     """Which source edges run off the frame (the strip is product, not background)."""
-    array = np.asarray(image.convert("RGB"), dtype=np.int16)
-    height, width = array.shape[:2]
+    rgb = image.convert("RGB")
+    width, height = rgb.size
     band = max(2, min(24, round(min(width, height) * 0.01)))
     strips = {
-        "top": array[:band, :, :],
-        "bottom": array[-band:, :, :],
-        "left": array[:, :band, :],
-        "right": array[:, -band:, :],
+        "top": np.asarray(rgb.crop((0, 0, width, band)), dtype=np.int16),
+        "bottom": np.asarray(rgb.crop((0, height - band, width, height)), dtype=np.int16),
+        "left": np.asarray(rgb.crop((0, 0, band, height)), dtype=np.int16),
+        "right": np.asarray(rgb.crop((width - band, 0, width, height)), dtype=np.int16),
     }
     samples = {name: strip.reshape(-1, 3) for name, strip in strips.items()}
     pool = np.concatenate([values[:: max(1, len(values) // 500)] for values in samples.values()])
@@ -490,14 +490,14 @@ def _detail_cut_sides(image: Image.Image) -> dict[str, bool]:
 
 def _detail_background_color(image: Image.Image, cut: dict[str, bool]) -> tuple[int, int, int]:
     """Edge colour of the sides that still show background, not product."""
-    array = np.asarray(image.convert("RGB"), dtype=np.int16)
-    height, width = array.shape[:2]
+    rgb = image.convert("RGB")
+    width, height = rgb.size
     band = max(2, min(24, round(min(width, height) * 0.01)))
     strips = {
-        "top": array[:band, :, :],
-        "bottom": array[-band:, :, :],
-        "left": array[:, :band, :],
-        "right": array[:, -band:, :],
+        "top": np.asarray(rgb.crop((0, 0, width, band)), dtype=np.int16),
+        "bottom": np.asarray(rgb.crop((0, height - band, width, height)), dtype=np.int16),
+        "left": np.asarray(rgb.crop((0, 0, band, height)), dtype=np.int16),
+        "right": np.asarray(rgb.crop((width - band, 0, width, height)), dtype=np.int16),
     }
     usable = [name for name in strips if not cut.get(name)]
     pool = np.concatenate(
@@ -532,9 +532,9 @@ def _detail_corner_colors(
 def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: float) -> Image.Image:
     """Shrink a detail shot while the edges that run off frame stay flush.
 
-    An axis whose two sides both run off frame cannot shrink without exposing a
-    cut edge, so the request falls back to cover; a fully bleeding close-up is
-    therefore unaffected by the slider.
+    Two or more cut sides cannot shrink without exposing a fake edge, so the
+    request falls back to cover; a fully bleeding close-up is therefore
+    unaffected by the slider.
     """
     rgb = image.convert("RGB")
     scale = max(0.05, min(1.0, float(scale)))
@@ -544,7 +544,7 @@ def _pinned_detail_shrink(image: Image.Image, target: tuple[int, int], scale: fl
     # the source image does not have.
     covered = _resize_cover(rgb, target)
     cut = _detail_cut_sides(covered)
-    if (cut["left"] and cut["right"]) or (cut["top"] and cut["bottom"]):
+    if sum(cut.values()) >= 2:
         return covered
     size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
     resized = covered.resize(size, Image.Resampling.LANCZOS)
