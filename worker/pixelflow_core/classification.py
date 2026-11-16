@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Event
 from typing import Callable
 
+from .classification_metrics import edge_background, foreground_metrics
 from .contracts import CompositionPlan, ProtectedRegion
 
 
@@ -184,6 +185,21 @@ def _typed_decision(source: Path, decision: object) -> ClassificationDecision:
         skipped_by_scope=bool(metadata.get("skipped_by_scope"))
         or any(plan.skipped_by_scope for plan in plans.values()),
     )
+
+
+def _cut_sides(source: Path) -> dict[str, bool] | None:
+    """Which source edges run off frame, used to disable the confirm slider."""
+    try:
+        from PIL import Image
+
+        with Image.open(source) as image:
+            if source.suffix.lower() in {".jpg", ".jpeg"}:
+                image.draft("RGB", (256, 256))
+            background, _ = edge_background(image)
+            _, _, _, cut = foreground_metrics(image, background)
+            return cut
+    except Exception:  # noqa: BLE001 - a preview helper must not stop classification
+        return None
 
 
 def classification_summary(decisions: list[ClassificationDecision]) -> dict[str, object]:
@@ -444,7 +460,17 @@ class V26ClassifierAdapter:
                 request.stage_progress,
                 workers=request.workers,
             )
-        return [_typed_decision(source, decision) for source, decision in decisions.items()]
+        typed: list[ClassificationDecision] = []
+        for source, decision in decisions.items():
+            item = _typed_decision(source, decision)
+            if item.source_type in {"main_product", "detail"} and (
+                item.metadata is None or "cut_sides" not in item.metadata
+            ):
+                cut = _cut_sides(source)
+                if cut is not None:
+                    item = replace(item, metadata={**(item.metadata or {}), "cut_sides": cut})
+            typed.append(item)
+        return typed
 
     def _apply_optional_models(
         self,
