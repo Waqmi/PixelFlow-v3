@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from io import BytesIO
+import hashlib
 import json
 import math
 from functools import lru_cache
@@ -174,8 +175,8 @@ def _edge_color(image: Image.Image) -> tuple[int, int, int]:
     return tuple(int(median(channel)) for channel in zip(*pixels))
 
 
-def _is_light_background(image: Image.Image) -> bool:
-    color = _edge_color(image)
+def _is_light_background(image: Image.Image, color: tuple[int, int, int] | None = None) -> bool:
+    color = color or _edge_color(image)
     return sum(color) / 3 >= 220 and max(color) - min(color) <= 24
 
 
@@ -686,10 +687,19 @@ def _scaled_opaque_canvas(
     return canvas
 
 
+def _analysis_preview(rgb: Image.Image) -> Image.Image:
+    """One 512px preview shared by every foreground measurement."""
+    scale = min(1.0, 512 / max(rgb.size))
+    if scale >= 1.0:
+        return rgb
+    return rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
+
+
 def _light_foreground_bbox(
     image: Image.Image,
     background: tuple[int, int, int],
     include_shadow: bool = True,
+    preview: Image.Image | None = None,
 ) -> tuple[int, int, int, int] | None:
     """Find the edge-connected light background bounds used by legacy.
 
@@ -697,8 +707,7 @@ def _light_foreground_bbox(
     the returned box measures the product body instead of the shadow it casts.
     """
     rgb = image.convert("RGB")
-    scale = min(1.0, 512 / max(rgb.width, rgb.height))
-    preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
+    preview = preview or _analysis_preview(rgb)
     width, height = preview.size
     pixels = list(preview.get_flattened_data())
     if include_shadow:
@@ -742,11 +751,14 @@ def _light_foreground_bbox(
     return round(left / width * rgb.width), round(top / height * rgb.height), round(right / width * rgb.width), round(bottom / height * rgb.height)
 
 
-def _light_foreground_touches_edge(image: Image.Image, background: tuple[int, int, int]) -> bool:
+def _light_foreground_touches_edge(
+    image: Image.Image,
+    background: tuple[int, int, int],
+    preview: Image.Image | None = None,
+) -> bool:
     """Match legacy's safe cover path when light-background products reach an edge."""
     rgb = image.convert("RGB")
-    scale = min(1.0, 512 / max(rgb.width, rgb.height))
-    preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
+    preview = preview or _analysis_preview(rgb)
     width, height = preview.size
     edge_pixels = [preview.getpixel((x, y)) for x in range(width) for y in (0, height - 1)]
     edge_pixels.extend(preview.getpixel((x, y)) for y in range(1, height - 1) for x in (0, width - 1))
@@ -894,12 +906,13 @@ class Renderer:
             return SourceAnalysis(None, False, None, False, None)
         rgb = image.convert("RGB")
         edge_color = _edge_color(rgb)
-        light_background = _is_light_background(rgb)
+        light_background = _is_light_background(rgb, edge_color)
         if not light_background:
             return SourceAnalysis(edge_color, False, None, False, None)
-        foreground_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=False)
-        shadow_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=True)
-        touches_edge = _light_foreground_touches_edge(rgb, edge_color)
+        preview = _analysis_preview(rgb)
+        foreground_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=False, preview=preview)
+        shadow_bbox = _light_foreground_bbox(rgb, edge_color, include_shadow=True, preview=preview)
+        touches_edge = _light_foreground_touches_edge(rgb, edge_color, preview=preview)
         corner_colors = _corner_background_colors(rgb, foreground_bbox, 0.04)
         return SourceAnalysis(edge_color, True, foreground_bbox, touches_edge, corner_colors, shadow_bbox)
 
@@ -1201,6 +1214,7 @@ class Renderer:
         compose_seconds = overlay_seconds = encode_seconds = write_seconds = 0.0
         errors: list[str] = []
         encoded_bytes = b""
+        output_sha256 = ""
         expected_mode = "RGBA" if transparent else "RGB"
         actual_mode = expected_mode
         actual_bytes = 0
@@ -1245,6 +1259,7 @@ class Renderer:
                 try:
                     output.parent.mkdir(parents=True, exist_ok=True)
                     output.write_bytes(encoded_bytes)
+                    output_sha256 = hashlib.sha256(encoded_bytes).hexdigest()
                 except Exception as error:  # noqa: BLE001 - preserve one-output failure
                     errors.append(f"write failed: {error}")
                 write_seconds = time.perf_counter() - write_started
@@ -1294,6 +1309,7 @@ class Renderer:
             "height": target[1],
             "mode": actual_mode,
             "bytes": actual_bytes,
+            "sha256": output_sha256,
             "fallback": bool(failed_by_exception or (request.plan and request.plan.fallback)),
             "risk_flags": list(request.plan.risk_flags) if request.plan else [],
             "requires_review": bool(request.plan and request.plan.requires_review),

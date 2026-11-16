@@ -202,7 +202,12 @@ def _write_v3_diagnostics(
         return None, None
 
 
-def _output_inventory(output_root: Path, outputs: object, max_entries: int = 2000) -> dict[str, object]:
+def _output_inventory(
+    output_root: Path,
+    outputs: object,
+    hashes: dict[str, str] | None = None,
+    max_entries: int = 2000,
+) -> dict[str, object]:
     """Hash only reported generated outputs, bounded by count and total bytes."""
     entries: list[dict[str, object]] = []
     duplicate_paths: dict[str, list[str]] = {}
@@ -227,11 +232,13 @@ def _output_inventory(output_root: Path, outputs: object, max_entries: int = 200
             if total_bytes + byte_count > 128 * 1024 * 1024:
                 omitted += 1
                 continue
-            digest = hashlib.sha256()
-            with path.open("rb") as stream:
-                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            sha256 = digest.hexdigest()
+            sha256 = str((hashes or {}).get(str(value)) or (hashes or {}).get(str(path)) or "")
+            if not sha256:
+                digest = hashlib.sha256()
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                sha256 = digest.hexdigest()
         except OSError:
             continue
         total_bytes += byte_count
@@ -587,6 +594,7 @@ class V3EngineAdapter:
         expected_output_paths: set[Path] = set()
         diagnostics_by_source: dict[str, dict[str, object]] = {}
         render_signatures = _read_render_manifest(request.output_root)
+        output_hashes: dict[str, str] = {}
         skipped_model_sources = 0
         seg_used = 0
         main_count = model_count = transparent_count = vip_count = 0
@@ -961,6 +969,10 @@ class V3EngineAdapter:
                 render_timings["source_tasks"] = render_timings.get("source_tasks", 0) + 1
                 for result, (_typed_request, kind, plan, source_type, skipped) in zip(results, source_requests):
                     diagnostic = diagnostics_by_source[str(source)]
+                    result_sha256 = str(result.metadata.get("sha256") or "")
+                    if result_sha256:
+                        for produced in result.outputs:
+                            output_hashes[str(produced)] = result_sha256
                     output_path = _typed_request.output_path
                     if output_path:
                         if result.success:
@@ -1029,7 +1041,7 @@ class V3EngineAdapter:
             request.local_model_path,
         )
         _write_render_manifest(request.output_root, render_signatures)
-        output_inventory = _output_inventory(request.output_root, outputs)
+        output_inventory = _output_inventory(request.output_root, outputs, output_hashes)
         return {
             "sources": len(sources),
             "skipped_model_sources": skipped_model_sources,

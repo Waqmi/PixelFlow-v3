@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **每张白底图重复 512px 缩放与边缘采样；渲染后重读成品算 SHA-256** | 重复计算 | `_analyze_source` 调 3 次 512px 缩放、2 次 `_edge_color`；`_output_inventory` 从磁盘重读每个输出算 hash | 见 3.36 |
 | 2026-11-16 | **改了滑块 / 品类 / Logo 后输出不更新；勾强制重跑又全量重算** | 复用判据 | 复用只看 `is_file()`；现在按「源图 mtime/size + 完整请求 + Logo/边框指纹」签名，一致才复用 | 见 3.35 |
 | 2026-11-16 | **VIP 图重复合成、PNG 编码慢、ORT 线程互抢、预览校验阻塞任务指令** | 性能浪费 | VIP 请求漏传 `background` / `layout.scale` / `allow_mirror_extension` 导致 compose cache 不命中；无体积限制时 PNG 仍用 level 9；每个 ORT session 默认开满核线程；`worker_send` 在锁内做 `canonicalize` | 见 3.34 |
 | 2026-11-16 | **细节图缩小时非等比拉伸，影棚渐变底出现矩形接缝** | 缩放与铺底 | `_pinned_detail_shrink` 直接把原图 resize 到 `target*scale`，1:1 图缩到 3:4 纵向拉长；cut 在原图判定，cover 裁切新产生的出画边没算；背景单色 + 1% 羽化 | 见 3.30 |
@@ -776,6 +777,13 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **踩坑**：manifest 文件名必须加 `render-` 前缀，不能把 `v3-` 替换掉——测试把 `_v3_manifest_path` patch 成 `{hash}.json`，替换规则失效会让两份 manifest 写进同一个文件，stale 清理读到空记录。
 
 **验证**：Worker 234 项通过；`test_v3_removes_only_previously_generated_stale_outputs`、`test_v3_retry_does_not_delete_and_keeps_manifest_records` 恢复通过。
+
+### 3.36 渲染链路优化：单次 512px 预览 + 复用渲染 hash
+
+- **单次预览**：`_analyze_source` 原来对同一张图做 3 次 512px 缩放（两次 `_light_foreground_bbox` + 一次 `_light_foreground_touches_edge`），`_edge_color` 也调了 2 次。现在只缩放一次，通过 `_analysis_preview` 传给三个测量函数；`_is_light_background` 复用已算出的 `edge_color`。bbox / 贴边判定结果与改动前逐值一致。
+- **复用 hash**：`Renderer` 写完 `encoded_bytes` 后直接算 SHA-256，挂到 `RenderResult.metadata["sha256"]`；`_render_sources` 收集成 `{path: sha256}` 传给 `_output_inventory`，命中就不再从磁盘重读成品。
+
+**验证**：合成图 `RenderResult` hash 与磁盘一致；Worker 234 项通过。
 
 ## 四、已知未闭环
 
