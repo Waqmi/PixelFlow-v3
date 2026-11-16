@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import threading
+
+from PIL import Image
 
 
 @dataclass(frozen=True)
@@ -14,6 +17,30 @@ class PersonDetection:
     bbox: tuple[float, float, float, float]
     confidence: float
     keypoints: tuple[tuple[float, float, float], ...] = ()
+
+
+# One source is analysed by several model steps in a row (Pose, Seg,
+# detection, side-fill checks). Decoding a camera-sized JPEG dominates those
+# steps, so each thread keeps its most recent full decode.
+_DECODED_SOURCE = threading.local()
+
+
+def _decoded_source(source: Path) -> Image.Image:
+    """Return the fully decoded source, reusing it for consecutive model steps."""
+    stat = source.stat()
+    key = (str(source.resolve()), stat.st_mtime_ns, stat.st_size)
+    if getattr(_DECODED_SOURCE, "key", None) == key:
+        return _DECODED_SOURCE.image
+    _DECODED_SOURCE.key = _DECODED_SOURCE.image = None  # release the previous image first
+    with Image.open(source) as opened:
+        opened.load()
+        image = opened.copy()
+    _DECODED_SOURCE.key, _DECODED_SOURCE.image = key, image
+    return image
+
+
+def _static_dimension(value: object, fallback: int) -> int:
+    return int(value) if isinstance(value, int) and value > 0 else fallback
 
 
 def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
