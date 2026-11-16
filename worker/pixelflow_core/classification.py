@@ -663,6 +663,8 @@ class V26ClassifierAdapter:
                                 root_text, source, SIZES, product_category=category,
                                 segmentation=segmentation, **extra,
                             )
+                        if segmentation is not None:
+                            composition = {**composition, "anchor_segmentation_used": True}
                         if pose_model_path is not None:
                             store_model_result(
                                 source,
@@ -682,6 +684,8 @@ class V26ClassifierAdapter:
                         source=str(source),
                         purpose="pose",
                     )
+                    if isinstance(composition, dict) and composition.get("anchor_segmentation_used"):
+                        metadata.setdefault("seg_evidence", {"status": "ready"})
                     return type(updated)(
                         updated.source_type, updated.confidence, updated.source,
                         updated.reason, metadata=metadata,

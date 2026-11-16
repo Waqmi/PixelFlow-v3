@@ -318,6 +318,41 @@ class ClassificationAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["by_size"], composition["by_size"])
         self.assertTrue(metadata["shoe_composition"]["by_size"]["1440x1440"]["shoe_risk"])
 
+    def test_anchor_segmentation_records_ready_seg_evidence(self) -> None:
+        adapter = V26ClassifierAdapter()
+        adapter._load_classifier()
+        from pixelflow_core.legacy_engine.category_engine.source_type_classifier import SourceTypeDecision
+
+        source = Path("模特图/model.jpg")
+        composition = {
+            "available": True,
+            "model": "yolo11n-pose.onnx",
+            "model_view": "full_body",
+            "confidence": 0.92,
+            "person_count": 1,
+            "by_size": {"1440x1440": {"composition_mode": "anchor_crop", "crop_box": [0.1, 0.0, 0.9, 1.0]}},
+        }
+
+        class FakeService:
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None, **_kwargs):
+                return composition
+
+            def segment(self, _root, _source):
+                return {"available": True, "confidence": 0.9, "mask_rows": [[0.1, 0.9, 0.2, 0.8]]}
+
+        decisions = {
+            source: SourceTypeDecision("model", 0.95, "rules", "model"),
+        }
+        with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=lambda _root, kind: [Path(f"{kind}.onnx")] if kind in {"pose", "segmentation"} else []), patch(
+            "pixelflow_core.model_service.get_model_process_service", return_value=FakeService()
+        ), patch("pixelflow_core.model_cache.load_model_result", return_value=None), patch(
+            "pixelflow_core.model_cache.store_model_result"
+        ):
+            adapter._apply_optional_models(decisions, "/tmp/models", "shoes", None)
+
+        metadata = decisions[source].metadata or {}
+        self.assertEqual(metadata.get("seg_evidence"), {"status": "ready"})
+
 
 class ClassificationRuntimeTests(unittest.TestCase):
     def test_runtime_emits_classification_progress_and_done(self) -> None:

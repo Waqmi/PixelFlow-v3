@@ -971,6 +971,41 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(second["incremental_skipped"])
             self.assertEqual(second["failures"], [])
 
+    def test_v3_counts_skipped_models_and_both_segmentation_evidence_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            kept_model = product_root / "model_a.jpg"
+            skipped_model = product_root / "model_b.jpg"
+            v3_seg_product = product_root / "product_a.jpg"
+            for path in (kept_model, skipped_model, v3_seg_product):
+                Image.new("RGB", (32, 32), "white").save(path)
+            request = GenerationRequest(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=True,
+                source_type_overrides={
+                    str(kept_model): "model",
+                    str(skipped_model): "model",
+                    str(v3_seg_product): "main_product",
+                },
+                excluded_model_sources=(str(skipped_model),),
+                source_metadata_overrides={
+                    # V26ClassifierAdapter._merge_composition_metadata(purpose="seg") key
+                    str(kept_model): {"seg_evidence": {"status": "ready"}},
+                    # V3ClassifierAdapter key
+                    str(v3_seg_product): {"segmentation_evidence": {"status": "ready"}},
+                },
+                mode="v3",
+            )
+            result = V3EngineAdapter().run(request)
+            self.assertEqual(result["skipped_model_sources"], 1)
+            self.assertEqual(result["segmentation_used"], 2)
+            self.assertAlmostEqual(result["segmentation_ratio"], round(2 / 3, 4))
+
     def test_request_requires_existing_product_root(self) -> None:
         request = GenerationRequest(
             product_root=Path("/path/that/does/not/exist"),

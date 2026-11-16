@@ -14,8 +14,9 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-14 | **结果页点「重试失败项 / 强制重跑」期间没有停止按钮，「开始生成」仍可点击** | UI 状态漏置 | `retryFailures()` 发了 `retry_failed` 请求却漏把 `isRunning` 置 `true`、未重置 `isCancelling` / `clearProgressComplete()` | 见 3.29 |
 | 2026-11-13 | **确认窗不居中、切换深浅色时原生标题栏不跟随** | Tauri ACL | capabilities 缺 `core:window:allow-set-position` / `allow-set-theme`；`setPosition` / `setTheme` 被拒后被 `catch {}` 吞掉 | 见 3.25 |
-| 2026-11-13 | **结果页「跳过不适用」与「Seg 使用率」恒为 0** | 统计字段缺失 | `V3EngineAdapter._render_sources` 没统计跳过的模特图，也没返回 `segmentation_used` / `segmentation_ratio`；前端仍在读 V26 的字段 | 见 3.26 |
+| 2026-11-13 | **结果页「跳过不适用」与「Seg 使用率」恒为 0** | 统计字段缺失与键名不一致 | `V3EngineAdapter._render_sources` 没统计跳过的模特图与 Seg；首轮补字段时又只读 `segmentation_evidence`，漏了 `V26ClassifierAdapter` 写的 `seg_evidence` 与锚点构图内的 `anchor_segmentation` | 见 3.26 |
 | 2026-11-13 | **复核弹窗 Esc 关错窗口 / 文件大小限制被旧值覆盖 / 确认窗重开卡片不显示** | UI 状态残留 | `onGlobalKeydown` 漏 `reviewOpen`；`applyReportSnapshot` 没重置子弹窗；`onMounted` 用旧键覆盖 `maxSizeMb`；`applyConfirmSnapshot` 提前 return 没重跑 observer；取消设置没回滚 `logoPreviews` | 见 3.27 |
 | 2026-11-13 | **Windows 便携版缺 WebView2 时仍静默安装 1–3 分钟** | 打包配置 | 主安装包已改 `silent: false`，但 `v3.yml` 手写的便携版启动器仍是 `/silent /install` | 见 3.28 |
 | 2026-11-13 | **结果页按钮写「保守构图重跑」但实际只强制重跑** | 文案与行为不符 | 按钮只传 `force_rerender`，旧 `composition_plans` 与 `local_model_enabled` 原样照发，`engine.py:628` 读回旧计划 | 改名「强制重跑」 |
@@ -624,23 +625,29 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 
 **修复**：`capabilities/main.json` 补 `core:window:allow-set-position` 与 `core:window:allow-set-theme`。`cargo test` 会触发 `tauri-build` 解析 capabilities，权限名不合法会直接编译失败，14 项通过说明名称有效。
 
-### 3.26 结果页「跳过不适用」和「Seg 使用率」恒为 0：v3 返回少了三个统计字段
+### 3.26 结果页「跳过不适用」和「Seg 使用率」恒为 0：v3 缺统计字段且两套分类器键名不一致
 
 现象：v3 模式下结果页「跳过不适用」永远是 0；开启本地模型时「Seg 兜底」也永远显示 0（0.0%）。
 
-**根因**：前端读的是 v2.6 时代 `V26EngineAdapter` 返回的字段（`App.vue:411`、`:418-419`）：`skipped_model_sources`、`segmentation_used`、`segmentation_ratio`。切到 `V3EngineAdapter` 后，`_render_sources` 在 `engine.py:552` 直接 `continue` 跳过被排除/未启用的模特图，没有计数；返回字典（`engine.py:944`）也没有这三个键。`skipped_model_sources` 只在 legacy 桥接层 `engine.py:1292` 填，v3 路径走不到。
+**根因**：
+
+1. 前端读的是 v2.6 时代 `V26EngineAdapter` 返回的字段（`App.vue:411`、`:418-419`）：`skipped_model_sources`、`segmentation_used`、`segmentation_ratio`。切到 `V3EngineAdapter` 后，`_render_sources` 在 `engine.py:552` 直接 `continue` 跳过被排除/未启用的模特图，没有计数；返回字典（`engine.py:944`）也没有这三个键。
+2. **为什么第一轮（`8152dd3`）没修全**：第一轮在 `engine.py` 只读了 `metadata.get("segmentation_evidence")`（这是 `V3ClassifierAdapter` 写的键）。但 Worker 分类默认走的是 `V26ClassifierAdapter._apply_optional_models`：
+   - 疑难图 Seg 阶段调 `_merge_composition_metadata(..., purpose="seg")`，按 `f"{purpose}_evidence"` 写进 metadata 的键名是 **`"seg_evidence"`**（`classification.py:283`）；
+   - 全身模特锚点构图（置信度 $\ge 0.70$ 的 `model` 图）在 `analyze_pose` 内部通过 `anchor_segmentation()` 调 Seg 抠头顶/鞋底（`classification.py:656`），不会进后面的疑难图循环，既没写 `segmentation_evidence` 也没写 `seg_evidence`。
 
 **修复**：
 
 - `_render_sources` 维护 `skipped_model_sources`，在 `continue` 前 `+= 1`；
-- 遍历时读 `metadata["segmentation_evidence"]["status"]`，值为 `"ready"` 时 `seg_used += 1`（`"fallback"` / `"not_run"` 不计，与 legacy「真正调用成功才计数」一致）；
-- 返回字典补 `skipped_model_sources`、`segmentation_used`、`segmentation_ratio = seg_used / max(1, len(sources))`。
+- `classification.py` 的 `analyze_pose` 在 `anchor_segmentation` 产出了非 fallback 分割结果时，往 `composition` 写入 `"anchor_segmentation_used": True`（随 Pose 结果一并落盘缓存，命中缓存也不丢）并在合并后 `metadata.setdefault("seg_evidence", {"status": "ready"})`；
+- `engine.py` 兼容读取 `metadata.get("segmentation_evidence") or metadata.get("seg_evidence")`，`status == "ready"` 时 `seg_used += 1`；
+- 返回字典补 `skipped_model_sources`、`segmentation_used`、`segmentation_ratio = round(seg_used / max(1, len(sources)), 4)`。
 
-**验证**：Worker 232 项不变。
+**验证**：新增 `test_v3_counts_skipped_models_and_both_segmentation_evidence_keys` 与 `test_anchor_segmentation_records_ready_seg_evidence`，Worker 234 项（233 过 + 1 skip）通过。
 
 ### 3.27 多窗口三处状态残留：Esc 关错窗、大小限制被旧键覆盖、确认窗重开卡片不显示
 
-**① 复核弹窗按 Esc 关错窗口**：`onGlobalKeydown`（`App.vue:1282`）只判断了 `failureOpen`，漏了 `reviewOpen`。在复核详情里按 Esc 会落到 `else if (reportOpen) closeReport()`，把整个报告窗隐藏，而 `reviewOpen` 仍是 `true`。另外 `applyReportSnapshot`（`App.vue:675`）没有重置 `reviewOpen` / `failureOpen` / `reportNotice`，下次报告窗打开会直接卡在上一次的子弹窗。修复：Esc 分支补 `reviewOpen`；`applyReportSnapshot` 重置这三个状态。
+**① 复核弹窗按 Esc 关错窗口**：`onGlobalKeydown`（`App.vue:1282`）只判断了 `failureOpen`，漏了 `reviewOpen`。在复核详情里按 Esc 会落到 `else if (reportOpen) closeReport()`，把整个报告窗隐藏，而 `reviewOpen` 仍是 `true`。另外 `applyReportSnapshot`（`App.vue:675`）没有重置 `reviewOpen` / `failureOpen` / `reportNotice` / `failureNotice`，下次报告窗打开会直接卡在上一次的子弹窗或残留提示条。修复：Esc 分支补 `reviewOpen`；`applyReportSnapshot` 重置这四个状态。
 
 **② 文件大小限制被旧键覆盖**：`saveSettings` 只写 `pixelflow.output-settings`，不再更新旧键 `pixelflow.max-size-mb`；但 `onMounted`（`App.vue:1533`）在 `applySettings` 之后又执行 `maxSizeMb.value = localStorage.getItem('pixelflow.max-size-mb') || maxSizeMb.value`。用户清空限制或改过值后，每次挂载都会被旧值/默认 `2` 盖回去。修复：删掉这行旧键读取，统一以 `output-settings` 为准。
 
@@ -657,6 +664,16 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **修复**：去掉 `/silent`，改为 `/install`，让 bootstrapper 显示自己的安装界面，与主安装包行为一致。
 
 **验证**：CI 下次构建便携版后需在无 WebView2 的 Windows 机器上双击复验；本次只改了脚本参数，未实机跑。
+
+### 3.29 结果页点「重试失败项 / 强制重跑」期间没有停止按钮，「开始生成」仍可点击
+
+现象：在结果报告的失败弹窗点「重试失败项」，或在复核详情弹窗点「强制重跑」后，Worker 已经在跑 `retry_failed`，但主界面不显示「停止」按钮，「开始生成」按钮也未被禁用；若用户此时再点「开始生成」，会直接撞上 Worker 的 `busy` 报错。
+
+**根因**：`App.vue` 共有三处发起生成任务的入口——`startGeneration`、`resumeTask`、`retryFailures`。前两处都完整设置了 `isRunning = true`、`isCancelling = false`、`clearProgressComplete()`；唯独 `retryFailures` 只设了 `generationStarted = true` 和 `setProgress(0, true)`，漏掉了 `isRunning = true` 等运行态标志。
+
+**为什么之前没发现**：失败重试是低频异常路径；17be26e 把复核详情的「强制重跑」也接到 `retryFailures` 上之后，这个入口变成了常规操作，审查代码时才顺藤摸瓜暴露出来。
+
+**修复**：`retryFailures` 补齐 `reviewOpen = false`、`workerInterrupted = false`、`isRunning = true`、`isCancelling = false`、`clearProgressComplete()` 及 `taskPhase` / `taskDetail`，与 `startGeneration` / `resumeTask` 三处状态切换严格一致。
 
 ## 四、已知未闭环
 

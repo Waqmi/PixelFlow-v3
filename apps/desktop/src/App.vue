@@ -684,6 +684,7 @@ function applyReportSnapshot(snapshot: ReportSnapshot) {
   reviewOpen.value = false
   failureOpen.value = false
   reportNotice.value = ''
+  failureNotice.value = ''
   reportOpen.value = true
 }
 
@@ -1390,14 +1391,21 @@ function retryFailures(sourceFilterOverride?: string[], forceRerender = false) {
   }
   if (!worker || isRunning.value) return
   reportOpen.value = false
+  reviewOpen.value = false
   failureOpen.value = false
+  workerInterrupted.value = false
+  isRunning.value = true
+  isCancelling.value = false
   generationStarted.value = true
   setProgress(0, true)
+  clearProgressComplete()
+  taskPhase.value = '重试素材'
+  taskDetail.value = `准备重试 ${sourceFilter.length} 项素材`
+  status.value = taskDetail.value
   const payload = { ...generationPayload(sourceFilter, forceRerender), material_confirmation_completed: true }
   generationRequestId.value = worker.request('retry_failed', payload)
   armGenerationStallWatchdog()
   persistGenerationResume(payload)
-  status.value = `准备重试 ${sourceFilter.length} 项失败素材`
 }
 function generationPayload(sourceFilter?: string[], forceRerender = false) {
   const logo_overrides = Object.fromEntries(

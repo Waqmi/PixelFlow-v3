@@ -556,7 +556,7 @@ class V3EngineAdapter:
                 continue
             metadata = dict((decision.metadata if decision else {}) or {})
             metadata.update(request.source_metadata_overrides.get(str(source), {}))
-            seg_evidence = metadata.get("segmentation_evidence")
+            seg_evidence = metadata.get("segmentation_evidence") or metadata.get("seg_evidence")
             if isinstance(seg_evidence, dict) and seg_evidence.get("status") == "ready":
                 seg_used += 1
             source_scale_adjustment = next(
