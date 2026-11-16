@@ -117,11 +117,21 @@ def _file_fingerprint(raw: object) -> tuple[int, int] | None:
     return stat.st_mtime_ns, stat.st_size
 
 
+PREVIEW_ONLY_METADATA = ("subject_aspect", "baseline_canvas")
+
+
 def _render_signature(request: RenderRequest) -> str:
     """Stable fingerprint of every input that can change the rendered pixels."""
     payload = request.to_dict()
     payload.pop("output_path", None)
     payload.pop("request_id", None)
+    # The confirm overlay measures the subject for its guide box.  Those keys
+    # never reach the renderer, so folding them into the signature would throw
+    # away every cached output the first time this version runs.
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        for key in PREVIEW_ONLY_METADATA:
+            metadata.pop(key, None)
     assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
     for key in ("logo", "white_logo", "border"):
         payload[f"{key}_fingerprint"] = _file_fingerprint(assets.get(key))

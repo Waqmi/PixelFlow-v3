@@ -32,6 +32,17 @@ PixelFlow 桌面宿主：Vue 3 + TypeScript + Vite 前端（`src/`）与 Tauri 2
 
 `src-tauri/gen/`、`dist/`、`node_modules/` 为生成物，不要改。
 
+## 确认页构图参考框
+
+`App.vue` 用 `activeScaleSource` + `scaleGuideModel` 控制一个**按需挂载**的叠加层：只有用户悬停或拖动某张卡片的缩放滑块时，才在该卡片的 `.confirm-preview` 里挂一个绝对定位的 `.scale-guide`，松手/移开 800ms 后卸载。
+
+- **不要改成常驻挂载**：每张卡片一个叠加层等于几百个节点，且会和预览队列抢渲染。
+- **不要动 `.confirm-card` 的 `IntersectionObserver` / `observeCard` / `data-visible`**：卡片可见性由它们控制（见 3.12）。
+- 缩放动画只用 CSS `transform: scale()`，拖动时不会触发布局。
+- 画布比例取第一个被选中的竖图尺寸（`1440x1920` / `1125x1500` → 3:4），都没选才用 1:1，右上角标出比例。
+- `main_product` 用 Worker 的 `metadata.baseline_canvas` 画 0% 灰色虚线框，主题色实线框按 `1 + 调整值/100` 居中缩放，任一边超画布 98% 变橙色。
+- `detail` 以满框为 0%，缩小时按 `metadata.cut_sides` 贴住出画边，空出的条带用浅色底示意补边方向。
+
 ## Rust Host（main.rs）
 
 Tauri commands：`worker_send`、`pick_directory`、`pick_file`、`choose_save_path`、`save_text_file`、`export_diagnostics`（生成含 CRC32 的 ZIP，校验条目名防路径穿越）、`open_path`。

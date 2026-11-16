@@ -860,6 +860,39 @@ class EngineAdapterTests(unittest.TestCase):
             self.assertFalse(rerendered_pixel[2] > 200 and rerendered_pixel[0] < 20 and rerendered_pixel[1] < 20)
             self.assertEqual(forced["incremental_reused"], 0)
 
+    def test_preview_only_metadata_does_not_invalidate_reused_outputs(self) -> None:
+        """The confirm guide's measurements must not throw cached outputs away."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            product_root = Path(temp_dir) / "input"
+            product_root.mkdir()
+            source = product_root / "sample.jpg"
+            Image.new("RGB", (32, 32), "red").save(source)
+            base = dict(
+                product_root=product_root,
+                output_root=Path(temp_dir) / "output",
+                selected_sizes=("1440x1440",),
+                include_logo=False,
+                include_vip=False,
+                include_model_images=False,
+                mode="v3",
+                source_type_overrides={str(source): "main_product"},
+                material_confirmation_completed=True,
+            )
+            adapter = V3EngineAdapter()
+            adapter.run(GenerationRequest(**base))
+            guided = adapter.run(
+                GenerationRequest(
+                    **base,
+                    source_metadata_overrides={
+                        str(source): {
+                            "subject_aspect": 0.4,
+                            "baseline_canvas": {"1440x1440": [0.3, 0.75]},
+                        }
+                    },
+                )
+            )
+            self.assertGreater(guided["incremental_reused"], 0)
+
     def test_v3_removes_only_previously_generated_stale_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             product_root = Path(temp_dir) / "input"

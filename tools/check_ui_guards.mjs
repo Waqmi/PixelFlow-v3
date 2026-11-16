@@ -79,6 +79,18 @@ if (/"webviewInstallMode"[\s\S]{0,120}?"silent"\s*:\s*true/.test(conf)) {
   fail('tauri.conf.json', 'WebView2 installs silently; the install page shows no progress')
 }
 
+// 3.39 — the composition guide is mounted for one card at a time. Without the
+// identity check a single truthy model renders the same overlay on every card.
+if (!/v-if="scaleGuideModel && activeScaleSource === material\.source"/.test(app)) {
+  fail('App.vue', 'the composition guide is not gated per card; every card would render it')
+}
+
+// 3.12 — the grid is blank without this wiring: cards start hidden and only the
+// observer flips data-visible.
+if (!/data-visible="material\.isVisible === true"/.test(app) || !/observeCard\(element, material\)/.test(app)) {
+  fail('App.vue', 'the confirm card observer wiring is gone; the grid stays blank (3.12)')
+}
+
 if (failures.length) {
   console.error('UI guards failed:')
   for (const failure of failures) console.error(`  - ${failure}`)

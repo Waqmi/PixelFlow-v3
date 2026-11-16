@@ -637,6 +637,29 @@ def _outer_background_blend_mask(
     return mask
 
 
+def subject_canvas_ratios(
+    subject_aspect: float,
+    template_scale: float,
+    target: tuple[int, int],
+    normalization: tuple[float, float] | None = None,
+) -> tuple[float, float]:
+    """How much of the canvas the subject covers at 0% adjustment.
+
+    Mirrors the photo scale inside :func:`_scaled_opaque_canvas`; the confirm
+    page draws its baseline box from this, so the two cannot drift apart.  The
+    result only depends on the subject's aspect ratio, not on its pixel size.
+    """
+    box_width = max(1e-6, float(subject_aspect))
+    box_height = 1.0
+    photo_scale = min(target[0] * template_scale / box_width, target[1] * template_scale / box_height)
+    if normalization is not None:
+        photo_scale *= _orientation_factor(box_width, box_height, target, *normalization)
+    return (
+        box_width * photo_scale / target[0],
+        box_height * photo_scale / target[1],
+    )
+
+
 def _scaled_opaque_canvas(
     image: Image.Image,
     target: tuple[int, int],

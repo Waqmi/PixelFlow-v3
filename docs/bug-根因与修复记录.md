@@ -819,6 +819,24 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 
 **教训**：同一件事有两份实现时，先合并再改规则。两套分类器并存期间，每次修 bug 都要问「确认页和兜底是不是都修了」，3.26 就是只修了一半。
 
+### 3.39 确认页构图参考框（新功能，附两个坑）
+
+**需求**：确认页拖动缩放滑块时，在卡片预览上画出目标画布框，让用户看到主体在成品里的实际占比。规格是「单卡按需挂载」：不能给所有卡片常驻叠加层，也不能碰 `.confirm-card` 的 `IntersectionObserver` / `observeCard` / `data-visible`（那是 3.12 的修复）。
+
+**实现**：
+
+- 前端 `activeScaleSource` + `scaleGuideModel`：悬停或拖动某张卡片的 `.scale-option` 时才挂载 `.scale-guide`，`pointerleave` / `change` 后 800ms 卸载；缩放只改 `transform: scale()`，不触发布局。
+- 画布比例取第一个被选中的竖图尺寸（`1440x1920` / `1125x1500` → 3:4），都没选才 1:1。
+- `main_product`：0% 灰色虚线框 = `metadata.baseline_canvas[尺寸]`；主题色实线框按 `1 + 调整值/100` 居中缩放；任一边 > 98% 变橙色。
+- `detail`：0% 即满框，缩小时按 `metadata.cut_sides` 设置 `transform-origin`（左/右/上/下/居中），空出的条带用 `box-shadow` 铺一层浅色底示意补边方向。
+- 后端：`foreground_profile()` 一次 128px 扫描同时给出 `cut_sides` 与 `subject_aspect`；`renderer.subject_canvas_ratios()` 复用 `_scaled_opaque_canvas` 的公式算出每个输出尺寸的 `[w0, h0]`。
+
+**坑 1：新增 metadata 会把所有缓存输出作废。** `source_metadata_overrides` 把整份 metadata 发给引擎，`_render_signature` 又对整个 `RenderRequest` 取哈希——加两个纯预览用的键，等于让每个用户的下一次生成全量重跑。修复：`engine.PREVIEW_ONLY_METADATA` 在算签名前剔除 `subject_aspect` / `baseline_canvas`，并用 `test_preview_only_metadata_does_not_invalidate_reused_outputs` 锁住。以后往 metadata 加「只给界面看」的字段，必须同步加进这个元组。
+
+**坑 2：`_source_measurements` 不能重复解码。** 原先 `_cut_sides` 单独开图量一次，参考框又要量一次主体比例。现在两者共用一次 128px 扫描（`foreground_profile`），并且只在 `main_product` / `detail` 上跑——这两类本来就要量 cut_sides，没有额外成本。
+
+**验证**：Worker 240 项（239 过 + 1 skip）、前端 `protocol:check` + `vue-tsc` build 通过；`tools/classifier_baseline.py` 对 368 张图复跑仍 `identical: true`（新 metadata 不改分类结果与构图计划）。**真机观感待用户确认**。
+
 ## 四、已知未闭环
 
 | 问题 | 现状 | 下一步 |

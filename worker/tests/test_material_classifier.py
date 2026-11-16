@@ -107,6 +107,41 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(decision.category, "other")
         self.assertEqual(decision.source, "conflict")
 
+    def test_main_product_carries_the_baseline_canvas(self) -> None:
+        """The confirm guide needs the 0% footprint for every output size."""
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "长裤"
+            product.mkdir()
+            source = product / "IMG_1.jpg"
+            image = Image.new("RGB", (400, 800), "white")
+            ImageDraw.Draw(image).rectangle((140, 60, 260, 740), fill="black")
+            image.save(source)
+            decision = MaterialClassifier().classify(ClassificationRequest(product))[0]
+
+        metadata = decision.metadata or {}
+        self.assertEqual(decision.source_type, "main_product")
+        # The measurement runs on a 128px preview, so the aspect is coarse.
+        self.assertAlmostEqual(float(metadata["subject_aspect"]), 120 / 680, delta=0.01)
+        canvas = metadata["baseline_canvas"]
+        self.assertEqual(set(canvas), {"1440x1440", "1440x1920", "1125x1500"})
+        for ratios in canvas.values():
+            self.assertEqual(len(ratios), 2)
+            self.assertGreater(ratios[0], 0)
+            self.assertLessEqual(max(ratios), 1.0)
+        # long_pants uses 0.748 for 1440x1920 and the subject is height-bound.
+        self.assertAlmostEqual(canvas["1440x1920"][1], 0.748, places=3)
+
+    def test_baseline_canvas_follows_the_renderer_formula(self) -> None:
+        from pixelflow_core.renderer import subject_canvas_ratios
+
+        # aspect 0.5 in a square canvas at 0.7: height-limited, so the subject
+        # fills 70% of the height and 35% of the width.
+        self.assertEqual(subject_canvas_ratios(0.5, 0.7, (1440, 1440)), (0.35, 0.7))
+        # A wide subject is width-limited instead.
+        width_ratio, height_ratio = subject_canvas_ratios(4.0, 0.7, (1440, 1440))
+        self.assertAlmostEqual(width_ratio, 0.7)
+        self.assertAlmostEqual(height_ratio, 0.175)
+
     def test_missing_pose_model_keeps_an_explicit_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             product = Path(root) / "模特图"

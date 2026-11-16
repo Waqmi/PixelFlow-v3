@@ -2328,6 +2328,102 @@ function baseScale(material: MaterialDecision) {
   return Number.isFinite(value) && value > 0 ? value : 0.75
 }
 
+// The composition guide is mounted for one card at a time, and only while the
+// user hovers or drags that card's scale slider. Mounting it for every card
+// would add a node per source and fight the preview observer, so the guide is
+// torn down 800ms after the pointer leaves or the drag ends.
+const activeScaleSource = ref('')
+let scaleGuideTimer: number | undefined
+
+interface ScaleGuideBox {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+interface ScaleGuide {
+  ratioLabel: string
+  aspect: string
+  warning: boolean
+  detail: boolean
+  baseStyle: Record<string, string> | null
+  currentStyle: Record<string, string>
+}
+
+function boxStyle(box: ScaleGuideBox): Record<string, string> {
+  return { left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }
+}
+
+// The guide canvas follows the first selected portrait size, so the drawn
+// ratio always matches what will actually be rendered.
+function previewSizeName() {
+  return ['1440x1920', '1125x1500'].find((size) => selectedSizes.value.includes(size)) || '1440x1440'
+}
+
+function showScaleGuide(material: MaterialDecision) {
+  if (scaleGuideTimer) {
+    window.clearTimeout(scaleGuideTimer)
+    scaleGuideTimer = undefined
+  }
+  activeScaleSource.value = material.source_type === 'main_product' || material.source_type === 'detail'
+    ? material.source
+    : ''
+}
+
+function scheduleScaleGuideHide() {
+  if (scaleGuideTimer) window.clearTimeout(scaleGuideTimer)
+  scaleGuideTimer = window.setTimeout(() => {
+    activeScaleSource.value = ''
+    scaleGuideTimer = undefined
+  }, 800)
+}
+
+function buildScaleGuide(material: MaterialDecision): ScaleGuide | null {
+  const size = previewSizeName()
+  const adjustment = Number(scaleAdjustments.value[material.source] || 0)
+  const scale = 1 + adjustment / 100
+  const ratioLabel = size === '1440x1440' ? '1:1' : '3:4'
+  const aspect = size === '1440x1440' ? '1 / 1' : '3 / 4'
+  if (material.source_type === 'detail') {
+    // 0% is the full canvas; shrinking keeps the bleeding edges flush and the
+    // leftover strip is where the renderer extends the background.
+    const cut = (material.metadata?.cut_sides || {}) as Record<string, boolean>
+    const originX = cut.left ? 'left' : cut.right ? 'right' : 'center'
+    const originY = cut.top ? 'top' : cut.bottom ? 'bottom' : 'center'
+    return {
+      ratioLabel,
+      aspect,
+      warning: false,
+      detail: true,
+      baseStyle: null,
+      currentStyle: { transform: `scale(${scale})`, transformOrigin: `${originX} ${originY}` },
+    }
+  }
+  const canvas = material.metadata?.baseline_canvas as Record<string, number[]> | undefined
+  const baseline = canvas?.[size]
+  if (!Array.isArray(baseline) || baseline.length !== 2) return null
+  const [width0, height0] = baseline
+  const box = { left: (1 - width0) * 50, top: (1 - height0) * 50, width: width0 * 100, height: height0 * 100 }
+  return {
+    ratioLabel,
+    aspect,
+    // Scaling from the centred baseline box is a pure CSS transform, so the
+    // drag never triggers layout.
+    warning: width0 * scale > 0.98 || height0 * scale > 0.98,
+    detail: false,
+    baseStyle: boxStyle(box),
+    currentStyle: { ...boxStyle(box), transform: `scale(${scale})`, transformOrigin: 'center center' },
+  }
+}
+
+const scaleGuideModel = computed<ScaleGuide | null>(() => {
+  const source = activeScaleSource.value
+  if (!source) return null
+  const material = materials.value.find((item) => item.source === source)
+  return material ? buildScaleGuide(material) : null
+})
+
 function confirmMaterials() {
   if (!materials.value.length) {
     status.value = '没有可确认的图片素材'
@@ -2574,8 +2670,8 @@ function startGeneration() {
         <div class="confirm-summary"><div>{{ categoryHint }}</div><div class="confirm-policy">同名输出默认复用；强制重跑会覆盖原路径，不自动重命名。可用空间低于 200 MB 时会在此处提示。</div><div class="confirm-model-status">模型状态：{{ classificationModelStatus }}</div><div v-if="modelConfirmFallbackWarning" class="confirm-warning">⚠ 模特图将使用保守构图，建议配置模型</div><div v-for="warning in preflightWarnings" :key="warning" class="confirm-warning">⚠ {{ warning }}</div>已识别 {{ materials.length }} 张 · 商品白底图 {{ materialCounts.main_product || 0 }} · 细节图 {{ materialCounts.detail || 0 }} · 模特细节图 {{ materialCounts.model_detail || 0 }} · 模特图 {{ materialCounts.model || 0 }} · 跳过 {{ skippedMaterialCount }}</div>
         <div v-if="!materials.length" class="confirm-empty">当前目录没有可识别图片，请返回主页检查素材目录。</div>
         <div class="confirm-grid-shell" :data-scroll-bottom="isConfirmGridScrolledToBottom" :data-has-overflow="confirmGridHasOverflow"><div ref="confirmGridElement" class="confirm-grid" @scroll="onConfirmGridScroll"><article v-for="(material, index) in materials" :key="material.source" :style="{ '--card-index': Math.min(index, 19) }" :data-visible="material.isVisible === true" :ref="(element) => { setPreviewElement(material, element); observeCard(element, material) }" class="confirm-card">
-          <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span></div>
-          <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' && material.source_type !== 'detail' }"><div class="scale-row"><span>{{ material.source_type === 'detail' ? `缩小 ${Math.abs(scaleAdjustments[material.source] || 0)}%` : `主体大小 ${(scaleAdjustments[material.source] || 0) >= 0 ? '+' : ''}${scaleAdjustments[material.source] || 0}%` }}</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><template v-if="material.source_type === 'detail'"><small>细节图只能缩小；四边贴边的特写无法调整</small></template><template v-else><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong></template><input :value="scaleAdjustments[material.source] ?? 0" :style="scaleTrack(material)" type="range" :min="scaleBounds(material).min" :max="scaleBounds(material).max" step="1" :disabled="scaleLocked(material)" @input="onScaleInput(material, $event)" /><small v-if="scaleLocked(material)" class="scale-locked">两条及以上边出画，不可缩小</small></div></div>
+          <div class="confirm-preview"><div v-if="material.previewLoading && !material.previewUrl" class="preview-skeleton" /><img v-else-if="material.previewUrl" loading="lazy" decoding="async" :src="material.previewUrl" :alt="material.source" :class="{ 'preview-loaded': material.previewReady }" @load="onPreviewLoad(material)" @error="onMaterialPreviewError(material)" /><span v-else>{{ material.previewFailed ? '预览不可用' : '预览加载中…' }}</span><div v-if="scaleGuideModel && activeScaleSource === material.source" class="scale-guide" :style="{ '--guide-aspect': scaleGuideModel.aspect }"><div class="scale-guide-canvas" :class="{ 'is-detail': scaleGuideModel.detail }"><span class="scale-guide-ratio">{{ scaleGuideModel.ratioLabel }}</span><div v-if="scaleGuideModel.baseStyle" class="scale-guide-base" :style="scaleGuideModel.baseStyle" /><div class="scale-guide-current" :class="{ 'is-warning': scaleGuideModel.warning, 'is-detail': scaleGuideModel.detail }" :style="scaleGuideModel.currentStyle" /></div></div></div>
+          <div class="confirm-card-body"><strong :title="material.source">{{ material.source.split(/[\\/]/).pop() }}</strong><small class="confirm-folder">{{ material.source.split(/[\\/]/).slice(-2, -1)[0] || '素材根目录' }}</small><small v-if="material.metadata?.review_hint" class="confirm-review-hint">⚠ {{ material.metadata.review_hint }}</small><div class="material-select"><select :value="material.source_type" :title="material.reason" aria-label="素材分类" @change="onMaterialTypeChange(material, $event)"><option value="main_product">商品白底图</option><option value="detail">细节图</option><option value="model_detail">模特细节图</option><option value="model">模特图</option></select><span class="select-chevron" /></div><label class="skip-option" :class="{ hidden: material.source_type !== 'model' && material.source_type !== 'model_detail' }"><input v-model="excludedModelSources" type="checkbox" :value="material.source" />不适用于本次品类（跳过）</label><div class="scale-option" :class="{ hidden: material.source_type !== 'main_product' && material.source_type !== 'detail' }" @pointerenter="showScaleGuide(material)" @pointerleave="scheduleScaleGuideHide()"><div class="scale-row"><span>{{ material.source_type === 'detail' ? `缩小 ${Math.abs(scaleAdjustments[material.source] || 0)}%` : `主体大小 ${(scaleAdjustments[material.source] || 0) >= 0 ? '+' : ''}${scaleAdjustments[material.source] || 0}%` }}</span><button type="button" class="scale-reset" title="恢复为 0%" @click="resetScale(material.source)">↺</button></div><template v-if="material.source_type === 'detail'"><small>细节图只能缩小；四边贴边的特写无法调整</small></template><template v-else><small>基础比例：{{ (baseScale(material) * 100).toFixed(1) }}%</small><strong>最终比例：{{ (baseScale(material) * (1 + (scaleAdjustments[material.source] || 0) / 100) * 100).toFixed(1) }}%</strong></template><input :value="scaleAdjustments[material.source] ?? 0" :style="scaleTrack(material)" type="range" :min="scaleBounds(material).min" :max="scaleBounds(material).max" step="1" :disabled="scaleLocked(material)" @pointerdown="showScaleGuide(material)" @input="onScaleInput(material, $event); showScaleGuide(material)" @change="scheduleScaleGuideHide()" /><small v-if="scaleLocked(material)" class="scale-locked">两条及以上边出画，不可缩小</small></div></div>
         </article></div><div class="confirm-grid-scroll-hint" aria-hidden="true" /></div>
         <div class="page-actions"><button type="button" class="outline-button" @click="dismissMaterialConfirmation">取消</button><button type="button" class="confirm-button" :disabled="!materials.length" :class="{ confirmed: materialConfirmed }" @click="confirmMaterials">{{ materialConfirmed ? '已确认' : `确认并开始（处理 ${processMaterialCount} 张）` }}</button></div>
       </section>

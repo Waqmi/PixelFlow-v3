@@ -159,6 +159,18 @@ button{cursor:pointer}
 .confirm-card{display:flex;flex-direction:column;min-width:0;min-height:430px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .confirm-preview{height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:8px;color:#64748b;background:#eef2f7;font-size:12px}
 .confirm-preview img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;object-position:center}
+/* Composition guide: mounted for one card at a time, so it stays a couple of
+   nodes and never touches the preview observer. */
+.confirm-preview{position:relative}
+.scale-guide{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:2}
+.scale-guide-canvas{position:relative;height:84%;aspect-ratio:var(--guide-aspect,1/1);border:1px solid rgba(128,142,160,.55);border-radius:2px}
+.scale-guide-canvas.is-detail{overflow:hidden}
+.scale-guide-ratio{position:absolute;top:-13px;right:0;color:var(--muted);font-size:9px;line-height:1;letter-spacing:.04em}
+.scale-guide-base{position:absolute;border:1px dashed var(--muted);opacity:.6}
+.scale-guide-current{position:absolute;border:1.5px solid var(--accent);border-radius:1px;transition:transform .12s ease-out}
+.scale-guide-current.is-detail{inset:0;box-shadow:0 0 0 9999px rgba(120,150,190,.18)}
+.scale-guide-current.is-warning{border-color:#e08a1e}
+.theme-dark .scale-guide-current.is-detail{box-shadow:0 0 0 9999px rgba(120,150,190,.22)}
 .confirm-card-body{display:flex;flex:1;flex-direction:column;min-width:0;gap:7px;padding-top:12px}
 .confirm-card strong{overflow:hidden;font-size:12px;font-weight:600;line-height:20px;text-overflow:ellipsis;white-space:nowrap}
 .confirm-folder,.confirm-confidence{margin-top:0;color:var(--muted);font-size:10px;line-height:16px}

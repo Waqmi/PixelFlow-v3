@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from statistics import median
 
 from PIL import Image
@@ -20,9 +21,18 @@ def edge_background(image: Image.Image) -> tuple[tuple[int, int, int], bool]:
     return background, uniform
 
 
-def foreground_metrics(
-    image: Image.Image, background: tuple[int, int, int]
-) -> tuple[float, float, bool, dict[str, bool]]:
+@dataclass(frozen=True)
+class ForegroundProfile:
+    """One 128px scan: how big the subject is and which edges it runs off."""
+
+    width_ratio: float
+    height_ratio: float
+    touches_edge: bool
+    cut_sides: dict[str, bool]
+    box_aspect: float
+
+
+def foreground_profile(image: Image.Image, background: tuple[int, int, int]) -> ForegroundProfile:
     rgb = image.convert("RGB")
     scale = min(1.0, 128 / max(rgb.size))
     preview = rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))), Image.Resampling.BILINEAR)
@@ -33,7 +43,7 @@ def foreground_metrics(
         if max(abs(channel - base) for channel, base in zip(pixel, background)) > 32
     ]
     if not foreground:
-        return 0.0, 0.0, False, {"left": False, "right": False, "top": False, "bottom": False}
+        return ForegroundProfile(0.0, 0.0, False, {"left": False, "right": False, "top": False, "bottom": False}, 0.0)
     left = min(index % width for index in foreground)
     top = min(index // width for index in foreground)
     right = max(index % width for index in foreground) + 1
@@ -46,5 +56,13 @@ def foreground_metrics(
         "top": top <= margin_y,
         "bottom": bottom >= height - margin_y,
     }
-    touches_edge = any(cut_sides.values())
-    return width_ratio, height_ratio, touches_edge, cut_sides
+    # The preview keeps the source aspect, so this is the subject's own aspect.
+    box_aspect = (right - left) / max(1, bottom - top)
+    return ForegroundProfile(width_ratio, height_ratio, any(cut_sides.values()), cut_sides, box_aspect)
+
+
+def foreground_metrics(
+    image: Image.Image, background: tuple[int, int, int]
+) -> tuple[float, float, bool, dict[str, bool]]:
+    profile = foreground_profile(image, background)
+    return profile.width_ratio, profile.height_ratio, profile.touches_edge, profile.cut_sides

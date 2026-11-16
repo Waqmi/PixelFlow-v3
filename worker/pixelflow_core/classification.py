@@ -187,19 +187,34 @@ def _typed_decision(source: Path, decision: object) -> ClassificationDecision:
     )
 
 
-def _cut_sides(source: Path) -> dict[str, bool] | None:
-    """Which source edges run off frame, used to disable the confirm slider."""
+def _source_measurements(source: Path) -> dict[str, object] | None:
+    """Cut sides plus subject aspect, measured in one decode.
+
+    ``cut_sides`` disables the shrink slider; ``subject_aspect`` lets the
+    confirm page draw the baseline canvas box without re-reading the image.
+    """
     try:
         from PIL import Image
+
+        from .classification_metrics import foreground_profile
 
         with Image.open(source) as image:
             if source.suffix.lower() in {".jpg", ".jpeg"}:
                 image.draft("RGB", (256, 256))
             background, _ = edge_background(image)
-            _, _, _, cut = foreground_metrics(image, background)
-            return cut
+            profile = foreground_profile(image, background)
+            return {
+                "cut_sides": profile.cut_sides,
+                "subject_aspect": round(profile.box_aspect, 4),
+            }
     except Exception:  # noqa: BLE001 - a preview helper must not stop classification
         return None
+
+
+def _cut_sides(source: Path) -> dict[str, bool] | None:
+    """Which source edges run off frame, used to disable the confirm slider."""
+    measurements = _source_measurements(source)
+    return measurements["cut_sides"] if measurements is not None else None  # type: ignore[return-value]
 
 
 def classification_summary(decisions: list[ClassificationDecision]) -> dict[str, object]:

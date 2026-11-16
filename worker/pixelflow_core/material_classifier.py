@@ -33,11 +33,11 @@ from .classification import (
     ClassificationCancelled,
     ClassificationDecision,
     ClassificationRequest,
-    _cut_sides,
     _material_sources,
     _matches_filter,
     _merge_composition_metadata,
     _model_parallelism,
+    _source_measurements,
     _typed_decision,
 )
 from .classification_metrics import edge_background, foreground_metrics
@@ -381,8 +381,8 @@ class MaterialClassifier:
             workers=max(1, int(request.workers or 1)),
             progress=report if progress is not None else None,
         )
+        category = self.resolve_category(request.product_root, sources, request.category)
         if request.local_model_enabled and request.local_model_path:
-            category = self.resolve_category(request.product_root, sources, request.category)
             decisions = self._apply_optional_models(
                 decisions,
                 request.local_model_path,
@@ -394,15 +394,59 @@ class MaterialClassifier:
         typed: list[ClassificationDecision] = []
         for source, decision in decisions.items():
             item = _typed_decision(source, decision)
-            if item.source_type in {"main_product", "detail"} and (
-                item.metadata is None or "cut_sides" not in item.metadata
-            ):
-                # Manual overrides carry no metadata, so measure it here.
-                cut = _cut_sides(source)
-                if cut is not None:
-                    item = replace(item, metadata={**(item.metadata or {}), "cut_sides": cut})
+            if item.source_type in {"main_product", "detail"}:
+                metadata = dict(item.metadata or {})
+                needs_aspect = item.source_type == "main_product" and "subject_aspect" not in metadata
+                if "cut_sides" not in metadata or needs_aspect:
+                    # One decode serves both the slider lock and the baseline box.
+                    measured = _source_measurements(source)
+                    if measured is not None:
+                        metadata.setdefault("cut_sides", measured["cut_sides"])
+                        if item.source_type == "main_product":
+                            metadata.setdefault("subject_aspect", measured["subject_aspect"])
+                        item = replace(item, metadata=metadata)
             typed.append(item)
-        return typed
+        return self._with_baseline_canvas(typed, category.category)
+
+    @staticmethod
+    def _with_baseline_canvas(
+        decisions: list[ClassificationDecision], category: str
+    ) -> list[ClassificationDecision]:
+        """Add the 0% subject footprint per output size for the confirm page.
+
+        The confirm overlay draws its dashed baseline box from this, so it uses
+        the renderer's own template scale and orientation normalisation instead
+        of a second approximation.
+        """
+        from .renderer import _template_config, _template_normalization, subject_canvas_ratios
+
+        resource_root = Path(__file__).resolve().parent.parent / "resources"
+        normalization = _template_normalization(resource_root, category)
+        templates = {
+            size: _template_config(resource_root, category, size) for size in SIZES
+        }
+        if not any(template is not None for template in templates.values()):
+            return decisions
+        result: list[ClassificationDecision] = []
+        for item in decisions:
+            metadata = dict(item.metadata or {})
+            aspect = metadata.get("subject_aspect")
+            if item.source_type != "main_product" or not isinstance(aspect, (int, float)) or aspect <= 0:
+                result.append(item)
+                continue
+            canvas: dict[str, list[float]] = {}
+            for size, template in templates.items():
+                if template is None:
+                    continue
+                width_ratio, height_ratio = subject_canvas_ratios(
+                    float(aspect), template[0], SIZES[size][0], normalization
+                )
+                canvas[size] = [round(width_ratio, 4), round(height_ratio, 4)]
+            if canvas:
+                metadata["baseline_canvas"] = canvas
+                item = replace(item, metadata=metadata)
+            result.append(item)
+        return result
 
     def _apply_optional_models(
         self,
