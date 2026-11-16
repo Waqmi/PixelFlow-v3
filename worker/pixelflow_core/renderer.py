@@ -1068,7 +1068,7 @@ class Renderer:
             target,
             bool(transparent),
             bool(request.transparent),
-            id(request.plan) if request.plan is not None else None,
+            _hashable(request.plan.to_dict()) if request.plan is not None else None,
             request.source_type,
             _hashable(request.background),
             _hashable(layout.category),

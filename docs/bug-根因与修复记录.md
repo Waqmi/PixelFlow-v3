@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **改了滑块 / 品类 / Logo 后输出不更新；勾强制重跑又全量重算** | 复用判据 | 复用只看 `is_file()`；现在按「源图 mtime/size + 完整请求 + Logo/边框指纹」签名，一致才复用 | 见 3.35 |
 | 2026-11-16 | **VIP 图重复合成、PNG 编码慢、ORT 线程互抢、预览校验阻塞任务指令** | 性能浪费 | VIP 请求漏传 `background` / `layout.scale` / `allow_mirror_extension` 导致 compose cache 不命中；无体积限制时 PNG 仍用 level 9；每个 ORT session 默认开满核线程；`worker_send` 在锁内做 `canonicalize` | 见 3.34 |
 | 2026-11-16 | **细节图缩小时非等比拉伸，影棚渐变底出现矩形接缝** | 缩放与铺底 | `_pinned_detail_shrink` 直接把原图 resize 到 `target*scale`，1:1 图缩到 3:4 纵向拉长；cut 在原图判定，cover 裁切新产生的出画边没算；背景单色 + 1% 羽化 | 见 3.30 |
 | 2026-11-16 | **主图贴边时缩放滑块无效** | 分类/渲染判据不一致 | 分类器 128px/1.5% 判不贴边并给滑块，渲染器 512px/3% 判贴边后直接 cover，`renderer.py:985` 漏传 `source_scale` | 见 3.31 |
@@ -755,7 +756,26 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 - **目录预检并发**：`_preflight_materials` 串行 `Image.open` 改为 4 线程，减少外置盘/NAS 上的冷启动等待。
 - **预览校验出锁**：`worker_send` 原来先锁 `Mutex<WorkerSupervisor>` 再 `canonicalize`；改为锁内克隆 `preview_roots`、锁外校验，预览洪峰不再阻塞任务指令。
 
-**未做**：增量复用 manifest（输入指纹）、`_analyze_source` 向量化、渲染后 SHA-256 复用、缩略图 JPEG 传输、Tauri 自定义协议、App.vue 拆分——见后续排期。
+**未做**：`_analyze_source` 向量化、渲染后 SHA-256 复用、缩略图 JPEG 传输、Tauri 自定义协议、App.vue 拆分——见后续排期。（增量复用已在 3.35 落地。）
+
+### 3.35 增量复用升级为参数指纹
+
+现象：改一张图的滑块、换品类模板或 Logo 后点生成，Worker 直接复用旧文件；勾「强制重跑」又会把整批 50–100 张全部重算。
+
+**根因**：`_render_sources` 的复用判断只有 `Path(output_path).is_file() and not force_rerender`，完全不看输入是否变化。
+
+**修复**：
+
+- 在缓存目录（与 v3 manifest 同目录）写 `render-*.json`，记录每个输出路径的签名；
+- 签名 = 源图 `mtime_ns + size` + `RenderRequest.to_dict()`（去掉 `output_path` / `request_id`）+ Logo / 白 Logo / 边框文件指纹；
+- 复用条件改为「文件存在 + 未强制重跑 + 签名一致」，主图、VIP、透明图三条路径都生效；
+- 渲染成功后更新签名，失败不写（避免把失败输出记为可复用）。
+
+**顺带**：`_compose_key` 里的 `id(plan)` 改成 `plan.to_dict()` 的稳定 hash，缓存 key 不再随对象地址变化。
+
+**踩坑**：manifest 文件名必须加 `render-` 前缀，不能把 `v3-` 替换掉——测试把 `_v3_manifest_path` patch 成 `{hash}.json`，替换规则失效会让两份 manifest 写进同一个文件，stale 清理读到空记录。
+
+**验证**：Worker 234 项通过；`test_v3_removes_only_previously_generated_stale_outputs`、`test_v3_retry_does_not_delete_and_keeps_manifest_records` 恢复通过。
 
 ## 四、已知未闭环
 

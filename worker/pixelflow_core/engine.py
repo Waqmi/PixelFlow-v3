@@ -78,6 +78,59 @@ def _write_v3_manifest(output_root: Path, relative_paths: set[str]) -> None:
         pass
 
 
+def _render_manifest_path(output_root: Path) -> Path:
+    """Private per-output-root render signatures, beside the v3 manifest."""
+    base = _v3_manifest_path(output_root)
+    return base.with_name(f"render-{base.name}")
+
+
+def _read_render_manifest(output_root: Path) -> dict[str, str]:
+    try:
+        payload = json.loads(_render_manifest_path(output_root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    outputs = payload.get("outputs") if isinstance(payload, dict) else None
+    if not isinstance(outputs, dict):
+        return {}
+    return {str(key): str(value) for key, value in outputs.items() if isinstance(value, str)}
+
+
+def _write_render_manifest(output_root: Path, signatures: dict[str, str]) -> None:
+    path = _render_manifest_path(output_root)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"schema_version": 1, "outputs": dict(sorted(signatures.items()))}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+def _file_fingerprint(raw: object) -> tuple[int, int] | None:
+    if not raw:
+        return None
+    try:
+        stat = Path(str(raw)).stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _render_signature(request: RenderRequest) -> str:
+    """Stable fingerprint of every input that can change the rendered pixels."""
+    payload = request.to_dict()
+    payload.pop("output_path", None)
+    payload.pop("request_id", None)
+    assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
+    for key in ("logo", "white_logo", "border"):
+        payload[f"{key}_fingerprint"] = _file_fingerprint(assets.get(key))
+    payload["source_fingerprint"] = _file_fingerprint(request.source)
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    ).hexdigest()
+
+
 def _v3_diagnostics_path(output_root: Path, request_id: str) -> Path:
     """Return a private per-run diagnostics path outside the output tree."""
     key = hashlib.sha256(str(output_root.expanduser().resolve(strict=False)).encode("utf-8")).hexdigest()
@@ -533,6 +586,7 @@ class V3EngineAdapter:
         expected_outputs = 0
         expected_output_paths: set[Path] = set()
         diagnostics_by_source: dict[str, dict[str, object]] = {}
+        render_signatures = _read_render_manifest(request.output_root)
         skipped_model_sources = 0
         seg_used = 0
         main_count = model_count = transparent_count = vip_count = 0
@@ -690,7 +744,14 @@ class V3EngineAdapter:
                     if typed_request.output_path:
                         expected_output_paths.add(Path(typed_request.output_path))
                     expected_outputs += 1
-                    if Path(typed_request.output_path).is_file() and not request.force_rerender:
+                    relative_output = _generated_relative_path(request.output_root, Path(typed_request.output_path))
+                    signature = _render_signature(typed_request) if relative_output else ""
+                    if (
+                        Path(typed_request.output_path).is_file()
+                        and not request.force_rerender
+                        and relative_output
+                        and render_signatures.get(relative_output) == signature
+                    ):
                         outputs.append(typed_request.output_path)
                         reused_outputs += 1
                         diagnostic["reused_output"] = True
@@ -755,7 +816,14 @@ class V3EngineAdapter:
                 if vip_request.output_path:
                     expected_output_paths.add(Path(vip_request.output_path))
                 expected_outputs += 1
-                if Path(vip_request.output_path).is_file() and not request.force_rerender:
+                relative_vip = _generated_relative_path(request.output_root, Path(vip_request.output_path))
+                vip_signature = _render_signature(vip_request) if relative_vip else ""
+                if (
+                    Path(vip_request.output_path).is_file()
+                    and not request.force_rerender
+                    and relative_vip
+                    and render_signatures.get(relative_vip) == vip_signature
+                ):
                     outputs.append(vip_request.output_path)
                     vip_count += 1
                     reused_outputs += 1
@@ -807,7 +875,14 @@ class V3EngineAdapter:
                     if transparent_request.output_path:
                         expected_output_paths.add(Path(transparent_request.output_path))
                     expected_outputs += 1
-                    if transparent_path.is_file() and not request.force_rerender:
+                    relative_transparent = _generated_relative_path(request.output_root, transparent_path)
+                    transparent_signature = _render_signature(transparent_request) if relative_transparent else ""
+                    if (
+                        transparent_path.is_file()
+                        and not request.force_rerender
+                        and relative_transparent
+                        and render_signatures.get(relative_transparent) == transparent_signature
+                    ):
                         outputs.append(str(transparent_path))
                         transparent_count += 1
                         reused_outputs += 1
@@ -888,6 +963,10 @@ class V3EngineAdapter:
                     diagnostic = diagnostics_by_source[str(source)]
                     output_path = _typed_request.output_path
                     if output_path:
+                        if result.success:
+                            relative_rendered = _generated_relative_path(request.output_root, Path(output_path))
+                            if relative_rendered:
+                                render_signatures[relative_rendered] = _render_signature(_typed_request)
                         diagnostic["outputs"].append({
                             "kind": kind,
                             "size": str(_typed_request.size),
@@ -949,6 +1028,7 @@ class V3EngineAdapter:
             sorted(diagnostics_by_source.values(), key=lambda item: str(item["source_path"])),
             request.local_model_path,
         )
+        _write_render_manifest(request.output_root, render_signatures)
         output_inventory = _output_inventory(request.output_root, outputs)
         return {
             "sources": len(sources),
