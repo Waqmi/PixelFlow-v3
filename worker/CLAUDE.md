@@ -41,8 +41,8 @@ worker/
 |---|---|
 | `worker.py` | 协议主循环 `main()`；`WorkerRuntime`（启动/取消/关闭生成与分类、`probe_models`、`clear_cache`）；`SUPPORTED_REQUESTS`；`RULES_VERSION`；`_read_preview`（有界缓存，限 128 项，路径范围校验）；`_ready_payload`（含 `worker_version`、`rules_version`、`build_hash`） |
 | `contracts.py` | 数据契约：`Message`、`ProtocolError`、`CompositionPlan`、`ProtectedRegion`、`RenderRequest`、`RenderResult`、`build_main_request` / `build_model_request` / `build_transparent_request` / `build_vip_request` |
-| `classification.py` | `ClassificationRequest`、`ClassificationDecision`、`V26ClassifierAdapter`（封装 v2.6 规则分类，默认根目录为 `legacy_engine`，可由 `PIXELFLOW_V2_ROOT` 覆盖） |
-| `v3_classification.py` | `V3SourceTypeClassifier`、`V3CategoryClassifier`、`V3ClassifierAdapter`（`classify(request, progress)`；`_apply_optional_models` 叠加 Pose/Seg 判断）；`_foreground_metrics` 使用 `get_flattened_data()` |
+| `classification.py` | `ClassificationRequest`、`ClassificationDecision`、`_material_sources`（输入树遍历与成品目录跳过）、`_merge_composition_metadata`、`_cut_sides`；`V26ClassifierAdapter` 只保留作 legacy 对照（默认根目录 `legacy_engine`，可由 `PIXELFLOW_V2_ROOT` 覆盖），生产路径不要用 |
+| `material_classifier.py` | **唯一主分类器**：`MaterialClassifier.classify(request, progress)`（规则 → Pose/Seg → 锚点 Seg → 检测框 → 文件夹 5 张抽样 → 阶段进度）、`resolve_category`、`RuleSourceTypeClassifier`（v2.6 规则优先级原样保留）、`CategoryClassifier`（路径层级就近消歧）。确认页（`worker.py`）与未确认兜底（`engine.py`）都走这里 |
 | `engine.py` | `GenerationRequest`、`V3EngineAdapter`（生成主流程，维护 v3 输出 manifest 用于复用/清理）、`ImageEngine`、`V26EngineAdapter`（对照用） |
 | `renderer.py` | `Renderer`（`render`、`render_source_batch`、`render_batch`、`validate_existing`）、`RenderConfig`；`_side_filled_window` 调用 `side_fill.extend_side`；输出 JPEG/PNG 并按 `max_size_mb` 压缩；`_light_foreground_bbox`、`_background_to_alpha` 使用 `get_flattened_data()` |
 | `side_fill.py` | `extend_side(region, strip_w, ext, side)`、`strip_structure`、`strip_partial`：仅当两侧条带是纯色影棚背景时合成补边；`STRUCTURE_MAX_SHARE`、`PARTIAL_MAX_SHARE` 为判定阈值 |
@@ -85,7 +85,7 @@ PYTHONPATH=worker python -m unittest discover -s worker/tests -p 'test_*.py'
 cd worker && python3 -m unittest tests/test_contracts.py
 ```
 
-测试文件：`test_contracts`、`test_classification`、`test_v3_classification`、`test_engine`、`test_renderer`、`test_anchor_composition`、`test_shoe_composition`、`test_model_cache`、`test_compare`、`test_worker_process`。
+测试文件：`test_contracts`、`test_classification`、`test_material_classifier`、`test_engine`、`test_renderer`、`test_anchor_composition`、`test_shoe_composition`、`test_model_cache`、`test_compare`、`test_worker_process`。
 `test_classification.py`、`test_engine.py`、`test_shoe_composition.py`、`test_worker_process.py` 在外部素材目录/文件缺失时 `skipTest`；没有素材的机器上“通过”不代表这些路径被验证。
 
 ## 构建

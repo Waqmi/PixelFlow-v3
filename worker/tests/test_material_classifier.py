@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
-import os
 from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
 from pixelflow_core.classification import ClassificationRequest
-from pixelflow_core.v3_classification import V3ClassifierAdapter
+from pixelflow_core.material_classifier import CategoryClassifier, MaterialClassifier
 
 
-class V3ClassificationTests(unittest.TestCase):
+class MaterialClassifierTests(unittest.TestCase):
     def test_native_rules_do_not_load_legacy_category_module(self) -> None:
         worker_root = Path(__file__).resolve().parents[1]
         script = """
@@ -52,39 +52,118 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_native_rules_emit_source_and_category_metadata(self) -> None:
+    def test_rules_keep_the_confirmed_precedence(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             product = Path(root) / "运动鞋"
             product.mkdir()
             source = product / "男_黑_01.jpg"
             Image.new("RGB", (32, 32), "white").save(source)
-            decision = V3ClassifierAdapter().classify(ClassificationRequest(product))[0]
+            decision = MaterialClassifier().classify(ClassificationRequest(product))[0]
 
         self.assertEqual(decision.source_type, "main_product")
-        self.assertEqual(decision.classifier, "v3_rules")
-        self.assertEqual((decision.metadata or {})["category"], "shoes")
-        self.assertEqual((decision.metadata or {})["classification_facade"], "v3_rules")
+        self.assertEqual(decision.classifier, "rules")
+        self.assertEqual(decision.reason, "性别-颜色-序号命名的商品素材")
 
-    def test_model_request_uses_native_pose_seg_facade_and_explicit_fallback(self) -> None:
+    def test_cut_sides_are_measured_for_the_confirm_slider(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "细节"
+            product.mkdir()
+            source = product / "detail.jpg"
+            image = Image.new("RGB", (200, 200), "white")
+            ImageDraw.Draw(image).rectangle((0, 0, 199, 199), fill="white")
+            ImageDraw.Draw(image).rectangle((0, 40, 199, 160), fill="black")
+            image.save(source)
+            decision = MaterialClassifier().classify(ClassificationRequest(product))[0]
+
+        self.assertEqual(decision.source_type, "detail")
+        cut = (decision.metadata or {}).get("cut_sides")
+        self.assertEqual(cut, {"left": True, "right": True, "top": False, "bottom": False})
+
+    def test_category_uses_the_nearest_path_level(self) -> None:
+        """A two-category path keeps the closest folder instead of ``other``."""
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "冲锋裤"
+            nested = product / "上衣"
+            nested.mkdir(parents=True)
+            source = nested / "look.jpg"
+            Image.new("RGB", (32, 32), "white").save(source)
+
+            decision = CategoryClassifier().classify(product, [source])
+
+        self.assertEqual(decision.category, "shirt")
+        self.assertEqual(decision.matched_keyword, "上衣")
+
+    def test_category_still_reports_a_same_level_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "混合素材"
+            product.mkdir()
+            shoes = product / "运动鞋.jpg"
+            pants = product / "冲锋裤.jpg"
+            for source in (shoes, pants):
+                Image.new("RGB", (32, 32), "white").save(source)
+
+            decision = CategoryClassifier().classify(product, [shoes, pants])
+
+        self.assertEqual(decision.category, "other")
+        self.assertEqual(decision.source, "conflict")
+
+    def test_missing_pose_model_keeps_an_explicit_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             product = Path(root) / "模特图"
             product.mkdir()
             source = product / "model.jpg"
             Image.new("RGB", (32, 32), "white").save(source)
-            decision = V3ClassifierAdapter().classify(
+            decision = MaterialClassifier().classify(
                 ClassificationRequest(product, local_model_enabled=True, local_model_path="/tmp/models")
             )[0]
 
         metadata = decision.metadata or {}
         self.assertEqual(decision.source_type, "model")
-        self.assertEqual(metadata["model_facade"]["status"], "available")
         self.assertEqual(metadata["pose_evidence"]["status"], "not_run")
         self.assertTrue(metadata["fallback"])
         self.assertIn("ONNX", str(metadata["fallback_reason"]))
 
+    def test_confident_white_background_source_is_not_sent_to_pose(self) -> None:
+        """The merged classifier keeps the confirmation gate: only uncertain or
+        model-looking sources reach Pose, so an approved product photo cannot be
+        re-typed by the model."""
+        class FakeModelService:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def compose_for_sizes(self, *_args, **_kwargs):
+                self.calls += 1
+                return {"model_view": "upper_body", "confidence": 0.95, "by_size": {}}
+
+            def segment(self, _root, _source):
+                return {"available": True, "confidence": 0.8}
+
+        service = FakeModelService()
+        with tempfile.TemporaryDirectory() as root:
+            product = Path(root) / "上衣"
+            product.mkdir()
+            # No model keyword in the name: only the pixels decide.
+            source = product / "p1.jpg"
+            image = Image.new("RGB", (100, 100), "white")
+            ImageDraw.Draw(image).rectangle((25, 10, 75, 90), fill="black")
+            image.save(source)
+            request = ClassificationRequest(
+                product,
+                local_model_enabled=True,
+                local_model_path=str(Path(root) / "models"),
+                category="shirt",
+            )
+            with patch("pixelflow_core.model_service.configured_model_candidates", return_value=(Path("model.onnx"),)), patch(
+                "pixelflow_core.model_service.get_model_process_service", return_value=service
+            ):
+                decision = MaterialClassifier().classify(request)[0]
+
+        self.assertEqual(decision.source_type, "main_product")
+        self.assertEqual(service.calls, 0)
+
     def test_native_model_facade_emits_typed_plan(self) -> None:
         class FakeModelService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None, **_kwargs):
                 return {
                     "model_view": "lower_body",
                     "confidence": 0.92,
@@ -131,16 +210,15 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
             with patch("pixelflow_core.model_service.configured_model_candidates", return_value=(Path("model.onnx"),)), patch(
                 "pixelflow_core.model_service.get_model_process_service", return_value=FakeModelService()
             ):
-                decision = V3ClassifierAdapter().classify(request)[0]
+                decision = MaterialClassifier().classify(request)[0]
 
         self.assertEqual(decision.source_type, "model")
-        self.assertEqual(decision.metadata["model_facade"]["status"], "available")
         self.assertIn("1440x1440", decision.composition_plans)
         self.assertFalse(decision.composition_plans["1440x1440"].fallback)
 
     def test_native_model_facade_emits_typed_plan_for_non_shoe_models(self) -> None:
         class FakeModelService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
+            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None, **_kwargs):
                 return {
                     "model_view": "upper_body",
                     "confidence": 0.92,
@@ -189,7 +267,7 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
             with patch("pixelflow_core.model_service.configured_model_candidates", return_value=(Path("model.onnx"),)), patch(
                 "pixelflow_core.model_service.get_model_process_service", return_value=FakeModelService()
             ):
-                decision = V3ClassifierAdapter().classify(request)[0]
+                decision = MaterialClassifier().classify(request)[0]
 
         plan = decision.composition_plans["1440x1440"]
         self.assertAlmostEqual(plan.scale, 1.25)
@@ -199,57 +277,6 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(plan.protected_regions[0].bbox, (10.0, 10.0, 90.0, 80.0))
         self.assertFalse(plan.fallback)
 
-    def test_clean_background_model_photo_can_leave_product_path_for_anchor_plan(self) -> None:
-        """Pose must be allowed to correct the cheap white-background rule."""
-        class FakeModelService:
-            def compose_for_sizes(self, _root, _source, _sizes, product_category=None, segmentation=None):
-                return {
-                    "model_view": "upper_body",
-                    "confidence": 0.95,
-                    "person_count": 1,
-                    "person_bboxes": [[20, 10, 80, 90]],
-                    "body_visibility": {
-                        "upper_body": True,
-                        "visible_keypoints": 8,
-                        "person_box_height_ratio": 0.80,
-                        "person_box_width_ratio": 0.60,
-                        "pose_geometry_score": 0.90,
-                        "relief_score": 0.90,
-                    },
-                    "by_size": {
-                        "1440x1440": {
-                            "composition_mode": "anchor_crop",
-                            "crop_box": [0.1, 0.0, 0.9, 0.8],
-                            "anchors": {"top": 0.05, "bottom": 0.75},
-                            "confidence": 0.95,
-                        }
-                    },
-                }
-
-        with tempfile.TemporaryDirectory() as root:
-            product = Path(root) / "上衣"
-            product.mkdir()
-            source = product / "look-01.jpg"
-            image = Image.new("RGB", (100, 100), "white")
-            ImageDraw.Draw(image).rectangle((25, 10, 75, 90), fill="black")
-            image.save(source)
-            request = ClassificationRequest(
-                product,
-                local_model_enabled=True,
-                local_model_path=str(Path(root) / "models"),
-                category="shirt",
-            )
-
-            def candidates(_root, kind):
-                return (Path("pose.onnx"),) if kind == "pose" else ()
-
-            with patch("pixelflow_core.model_service.configured_model_candidates", side_effect=candidates), patch(
-                "pixelflow_core.model_service.get_model_process_service", return_value=FakeModelService()
-            ):
-                decision = V3ClassifierAdapter().classify(request)[0]
-
-        self.assertEqual(decision.source_type, "model")
-        self.assertEqual(decision.composition_plans["1440x1440"].composition_mode, "anchor_crop")
 
 if __name__ == "__main__":
     unittest.main()

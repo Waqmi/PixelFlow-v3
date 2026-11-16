@@ -528,7 +528,7 @@ class EngineAdapterTests(unittest.TestCase):
                 mode="v3",
             )
             with patch(
-                "pixelflow_core.v3_classification.V3ClassifierAdapter.classify",
+                "pixelflow_core.material_classifier.MaterialClassifier.classify",
                 side_effect=AssertionError("confirmed sources must not be classified again"),
             ):
                 result = V3EngineAdapter().run(request)
@@ -994,9 +994,9 @@ class EngineAdapterTests(unittest.TestCase):
                 },
                 excluded_model_sources=(str(skipped_model),),
                 source_metadata_overrides={
-                    # V26ClassifierAdapter._merge_composition_metadata(purpose="seg") key
+                    # Current classifier key: _merge_composition_metadata(purpose="seg")
                     str(kept_model): {"seg_evidence": {"status": "ready"}},
-                    # V3ClassifierAdapter key
+                    # Older snapshots used the v3 key; resume must still count it
                     str(v3_seg_product): {"segmentation_evidence": {"status": "ready"}},
                 },
                 mode="v3",

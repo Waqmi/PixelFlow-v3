@@ -538,7 +538,7 @@ class V3EngineAdapter:
         cancel_event: Event | None,
     ) -> dict[str, object]:
         from .classification import ClassificationRequest, _material_sources
-        from .v3_classification import V3ClassifierAdapter
+        from .material_classifier import MaterialClassifier
 
         all_sources = _material_sources(request.product_root)
         sources = [p for p in all_sources if request.source_filter is None or str(p) in request.source_filter]
@@ -560,7 +560,7 @@ class V3EngineAdapter:
             or request.include_model_images
             or request.source_type_overrides
         ) and not confirmed_sources:
-            decisions = V3ClassifierAdapter().classify(ClassificationRequest(
+            decisions = MaterialClassifier().classify(ClassificationRequest(
                 product_root=request.product_root,
                 source_filter=request.source_filter,
                 overrides=request.source_type_overrides,

@@ -19,7 +19,7 @@ from .contracts import (
     validate_run_mode,
 )
 from .classification import ClassificationDecision, ClassificationRequest, V26ClassifierAdapter
-from .v3_classification import V3ClassifierAdapter
+from .material_classifier import CategoryDecision, MaterialClassifier
 from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 from .model_cache import (
     CACHE_VERSION,
@@ -53,8 +53,9 @@ __all__ = [
     "build_transparent_request",
     "build_vip_request",
     "RUN_MODES",
+    "CategoryDecision",
+    "MaterialClassifier",
     "V26ClassifierAdapter",
-    "V3ClassifierAdapter",
     "V3EngineAdapter",
     "V26EngineAdapter",
     "CACHE_VERSION",

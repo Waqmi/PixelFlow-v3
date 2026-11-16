@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pixelflow_core.material_classifier import CategoryDecision
 from pixelflow_core.classification import (
     ClassificationDecision,
     ClassificationRequest,
@@ -359,6 +360,9 @@ class ClassificationRuntimeTests(unittest.TestCase):
         events: list[tuple[str, dict]] = []
 
         class FakeClassifier:
+            def resolve_category(self, product_root, sources=None, manual_category=None):
+                return CategoryDecision("other", 0.0, "fallback")
+
             def classify(self, request, progress):
                 decision = ClassificationDecision(
                     source="a.jpg",
@@ -389,6 +393,9 @@ class ClassificationRuntimeTests(unittest.TestCase):
         events: list[tuple[str, dict]] = []
 
         class FailingClassifier:
+            def resolve_category(self, product_root, sources=None, manual_category=None):
+                return CategoryDecision("other", 0.0, "fallback")
+
             def classify(self, request, progress):
                 raise RuntimeError("synthetic classification failure")
 

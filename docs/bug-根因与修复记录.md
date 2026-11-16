@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **确认页与未确认兜底各跑一套分类器，同一张图可能被判成两种类型** | 重复实现 | `classification.py`（V26，封装 legacy 规则）与 `v3_classification.py`（V3）各维护一套规则、Pose 管线与品类解析；3.26 的 seg 键名不一致、3.31 的贴边判据不一致都是这个结构的产物 | 见 3.38 |
 | 2026-11-16 | **确认页快速滚动时预览传输重，其他窗口也跟着解析大 Base64** | 预览链路 | 无透明通道的图仍编码 PNG；前端用 `Uint8Array.from(atob)` 解码；Rust 把 preview 的 `done` 广播给所有窗口 | 见 3.37 |
 | 2026-11-16 | **每张白底图重复 512px 缩放与边缘采样；渲染后重读成品算 SHA-256** | 重复计算 | `_analyze_source` 调 3 次 512px 缩放、2 次 `_edge_color`；`_output_inventory` 从磁盘重读每个输出算 hash | 见 3.36 |
 | 2026-11-16 | **改了滑块 / 品类 / Logo 后输出不更新；勾强制重跑又全量重算** | 复用判据 | 复用只看 `is_file()`；现在按「源图 mtime/size + 完整请求 + Logo/边框指纹」签名，一致才复用 | 见 3.35 |
@@ -793,6 +794,30 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 - **Rust 定向**：`worker_send` 记录每个 preview `request_id` 对应的窗口 label；stdout reader 遇到 preview 的 `done` 时 `emit_to` 只发给该窗口，其他窗口不再解析几十段 Base64 大字符串。
 
 **验证**：无 alpha PNG → `image/jpeg`、透明 PNG → `image/png`；Rust 14、Worker 234、前端 build 全过。**滚动流畅度需实机复验**。
+
+### 3.38 两套分类器合并为唯一主分类器（重构）
+
+**现象**：确认页走 `V26ClassifierAdapter`（封装 `legacy_engine` 的 `RuleSourceTypeClassifier`），`engine.py` 的未确认兜底走 `V3ClassifierAdapter`。两条链路各有自己的规则表、Pose 管线、品类解析和 metadata 键名，同一张图可能被确认页判成 `main_product`、被兜底判成 `detail`。3.26（seg 键名不一致）和 3.31（贴边判据不一致）都是这个结构的产物。
+
+**合并原则**：以桌面端实际在跑的 **V26 为行为基准**，只把 V3 的「路径层级就近消歧」（3.33）搬过来。保留项逐条对照：
+
+| 行为 | 处理 |
+|---|---|
+| 规则优先级（性别-颜色-序号 → 同名 JPG/PNG → 透明通道 → 模特关键词 → 浅底未贴边 → 商品文件夹 → 贴边 → 浅底兜底） | 原样搬进 `RuleSourceTypeClassifier`，不再 import `legacy_engine` |
+| 细节文件夹 5 张等距抽样、抽到模特就全量补跑 | 保留 |
+| Pose 多线程（`_model_parallelism` 按内存取 1/2/4） | 保留 |
+| `anchor_segmentation` + `detector_boxes` 二次构图 | 保留 |
+| 阶段进度文案「Pose 模型加载中…／已就绪」 | 保留 |
+| `source_versions`（SHA-256 只算一次）做缓存身份 | 保留 |
+| 品类解析 | 换成 `CategoryClassifier`（就近层级优先），解决 3.33 |
+
+**结果**：`pixelflow_core/material_classifier.py` 成为唯一主分类器；`worker.py`（确认页）与 `engine.py`（兜底）调用同一入口；`v3_classification.py` 删除；`legacy_engine/` 一字未改，`V26ClassifierAdapter` 仅保留作 legacy 对照（`tools/classifier_baseline.py --adapter v26`）。
+
+**回归门禁**：`tools/classifier_baseline.py` 对 `~/Desktop/PixelFlow/05_测试素材与输出` 下 **21 个商品根目录、368 张图**（各品类产品白底图 195 张 + 上衣/鞋/帽子/手套/护膝/长袜/热能长裤/速干短裤 + 冲锋裤主图 36 张）跑合并前后快照对比，`identical: true`：shirt / shoes / pants / long_pants 的分类结果与构图计划零差异，其余 17 个根目录也零差异。
+
+**注意**：V3 曾让 Pose 也跑「高置信 main_product」，合并后恢复 V26 门禁（只有低置信、疑似模特或混放文件夹的素材进 Pose）。这条由 `test_confident_white_background_source_is_not_sent_to_pose` 锁定，不要再改回去——它会让确认页已经批准的分类被模型改写。
+
+**教训**：同一件事有两份实现时，先合并再改规则。两套分类器并存期间，每次修 bug 都要问「确认页和兜底是不是都修了」，3.26 就是只修了一半。
 
 ## 四、已知未闭环
 

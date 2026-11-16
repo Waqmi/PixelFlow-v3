@@ -20,10 +20,10 @@ from .classification import (
     ClassificationCancelled,
     ClassificationDecision,
     ClassificationRequest,
-    V26ClassifierAdapter,
     _material_sources,
     classification_summary,
 )
+from .material_classifier import MaterialClassifier
 from .engine import GenerationRequest, ImageEngine, V26EngineAdapter, V3EngineAdapter
 
 
@@ -327,7 +327,7 @@ class WorkerRuntime:
     def __init__(
         self,
         adapter: V26EngineAdapter | None = None,
-        classifier: V26ClassifierAdapter | None = None,
+        classifier: MaterialClassifier | None = None,
         emit: Callable[[str, str, dict[str, Any]], None] | None = None,
         v3_adapter: V3EngineAdapter | Any | None = None,
     ) -> None:
@@ -338,7 +338,7 @@ class WorkerRuntime:
             self.adapter if adapter is not None and not isinstance(self.adapter, V26EngineAdapter) else V3EngineAdapter()
         )
         self.engine = ImageEngine(self.adapter, self.v3_adapter)
-        self.classifier = classifier or V26ClassifierAdapter(getattr(self.adapter, "v2_root", None))
+        self.classifier = classifier or MaterialClassifier()
         self._emit = emit or (lambda _request_id, _event_type, _payload: None)
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -496,19 +496,17 @@ class WorkerRuntime:
             # classifier.  The old flow walked the input tree twice.
             sources = tuple(_material_sources(request.product_root))
             warnings = _preflight_materials(request, sources) if request.output_root else []
-            category_decision = None
-            v2_root = getattr(self.classifier, "v2_root", None)
-            if v2_root is not None:
-                from .legacy_engine.category_engine.category_classifier import RuleCategoryClassifier
-
-                category_decision = RuleCategoryClassifier().classify(
-                    request.product_root,
-                    request.category,
-                )
+            # One classifier decides both the category and the source types, so
+            # the confirmation window and the render fallback cannot disagree.
+            category_decision = self.classifier.resolve_category(
+                request.product_root,
+                sources,
+                request.category,
+            )
             classified_request = replace(
                 request,
                 sources=sources,
-                category=category_decision.category if category_decision is not None else request.category,
+                category=category_decision.category,
                 cancel_event=cancel_event,
                 stage_progress=report_stage,
             )
@@ -524,26 +522,17 @@ class WorkerRuntime:
                     "preflight_warnings": warnings,
                     "summary": classification_summary(decisions),
                 }
-                if v2_root is not None:
-                    from .legacy_engine.local_model_assistant import category_compatibility
+                from .model_assistant import category_compatibility
 
-                    category = category_decision
-                    if category is None:
-                        from .legacy_engine.category_engine.category_classifier import RuleCategoryClassifier
-
-                        category = RuleCategoryClassifier().classify(
-                            request.product_root,
-                            request.category,
-                        )
-                    result["category"] = asdict(category)
-                    result["suggested_exclusions"] = [
-                        decision.source
-                        for decision in decisions
-                        if decision.source_type in {"model", "model_detail"}
-                        and isinstance(decision.metadata, dict)
-                        and isinstance(decision.metadata.get("body_visibility"), dict)
-                        and category_compatibility(category.category, decision.metadata["body_visibility"])[0] == "incompatible"
-                    ]
+                result["category"] = asdict(category_decision)
+                result["suggested_exclusions"] = [
+                    decision.source
+                    for decision in decisions
+                    if decision.source_type in {"model", "model_detail"}
+                    and isinstance(decision.metadata, dict)
+                    and isinstance(decision.metadata.get("body_visibility"), dict)
+                    and category_compatibility(category_decision.category, decision.metadata["body_visibility"])[0] == "incompatible"
+                ]
                 self._emit(request_id, "done", {"result": result})
         except ClassificationCancelled:
             self._emit(request_id, "cancelled", {"phase": "分类"})
