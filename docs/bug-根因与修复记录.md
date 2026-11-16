@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-16 | **确认页快速滚动时预览传输重，其他窗口也跟着解析大 Base64** | 预览链路 | 无透明通道的图仍编码 PNG；前端用 `Uint8Array.from(atob)` 解码；Rust 把 preview 的 `done` 广播给所有窗口 | 见 3.37 |
 | 2026-11-16 | **每张白底图重复 512px 缩放与边缘采样；渲染后重读成品算 SHA-256** | 重复计算 | `_analyze_source` 调 3 次 512px 缩放、2 次 `_edge_color`；`_output_inventory` 从磁盘重读每个输出算 hash | 见 3.36 |
 | 2026-11-16 | **改了滑块 / 品类 / Logo 后输出不更新；勾强制重跑又全量重算** | 复用判据 | 复用只看 `is_file()`；现在按「源图 mtime/size + 完整请求 + Logo/边框指纹」签名，一致才复用 | 见 3.35 |
 | 2026-11-16 | **VIP 图重复合成、PNG 编码慢、ORT 线程互抢、预览校验阻塞任务指令** | 性能浪费 | VIP 请求漏传 `background` / `layout.scale` / `allow_mirror_extension` 导致 compose cache 不命中；无体积限制时 PNG 仍用 level 9；每个 ORT session 默认开满核线程；`worker_send` 在锁内做 `canonicalize` | 见 3.34 |
@@ -784,6 +785,14 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 - **复用 hash**：`Renderer` 写完 `encoded_bytes` 后直接算 SHA-256，挂到 `RenderResult.metadata["sha256"]`；`_render_sources` 收集成 `{path: sha256}` 传给 `_output_inventory`，命中就不再从磁盘重读成品。
 
 **验证**：合成图 `RenderResult` hash 与磁盘一致；Worker 234 项通过。
+
+### 3.37 预览链路减负：JPEG 缩略图 + 定向事件
+
+- **格式分流**：`_read_preview` 原来按后缀决定 PNG/JPEG，`.png` 一律走 PNG。现在看是否真有 alpha 通道：无 alpha 的图（包括白底 PNG）编码成 JPEG quality 82，透明图仍用 PNG。体积约小 75%，编码更快。
+- **前端解码**：`Uint8Array.from(binary, c => c.charCodeAt(0))` 改成 `fetch('data:${mime};base64,${data}').then(r => r.blob())`，交给浏览器原生解码，不再逐字符构造数组。
+- **Rust 定向**：`worker_send` 记录每个 preview `request_id` 对应的窗口 label；stdout reader 遇到 preview 的 `done` 时 `emit_to` 只发给该窗口，其他窗口不再解析几十段 Base64 大字符串。
+
+**验证**：无 alpha PNG → `image/jpeg`、透明 PNG → `image/png`；Rust 14、Worker 234、前端 build 全过。**滚动流畅度需实机复验**。
 
 ## 四、已知未闭环
 

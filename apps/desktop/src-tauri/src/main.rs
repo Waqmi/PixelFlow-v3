@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::OsString,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
@@ -44,6 +44,7 @@ struct WorkerSupervisor {
     restart_history: VecDeque<Instant>,
     active_task_id: Option<String>,
     preview_roots: Vec<PathBuf>,
+    preview_windows: HashMap<String, String>,
     shutting_down: bool,
 }
 
@@ -132,7 +133,7 @@ fn native_open_panel(app: &AppHandle, choose_directory: bool) -> Result<Option<S
 }
 
 #[tauri::command]
-fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String> {
+fn worker_send(line: String, window: tauri::Window, state: State<'_, WorkerState>) -> Result<(), String> {
     let parsed = serde_json::from_str::<Value>(&line).ok();
     if let Some(message) = &parsed {
         if message.get("type").and_then(Value::as_str) == Some("read_preview") {
@@ -152,6 +153,11 @@ fn worker_send(line: String, state: State<'_, WorkerState>) -> Result<(), String
             .get("request_id")
             .and_then(Value::as_str)
             .map(str::to_owned);
+        if message_type == Some("read_preview") {
+            if let Some(id) = &request_id {
+                guard.preview_windows.insert(id.clone(), window.label().to_string());
+            }
+        }
         if matches!(message_type, Some("start_generation" | "classify_materials" | "retry_failed")) {
             guard.active_task_id = request_id;
             if let Some(root) = message
@@ -1080,6 +1086,7 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
             }
             append_worker_event(line);
             persist_task_event(line);
+            let mut preview_target: Option<String> = None;
             if let Ok(message) = serde_json::from_str::<Value>(line) {
                 let request_id = message.get("request_id").and_then(Value::as_str);
                 let event_type = message.get("type").and_then(Value::as_str);
@@ -1090,9 +1097,20 @@ fn spawn_worker(app: &AppHandle) -> Result<WorkerProcess, String> {
                     {
                         guard.active_task_id = None;
                     }
+                    if event_type == Some("done") {
+                        if let Some(id) = request_id {
+                            preview_target = guard.preview_windows.remove(id);
+                        }
+                    }
                 };
             }
-            let _ = app.emit("worker-line", line.to_string());
+            if let Some(label) = preview_target {
+                // Preview payloads are large base64 lines; only the window that
+                // asked for them needs to parse this event.
+                let _ = app.emit_to(label.as_str(), "worker-line", line.to_string());
+            } else {
+                let _ = app.emit("worker-line", line.to_string());
+            }
         }
         let state = app.state::<WorkerState>();
         let (task_id, should_restart) = if let Ok(mut guard) = state.0.lock() {
@@ -1121,6 +1139,7 @@ fn main() {
         restart_history: VecDeque::new(),
         active_task_id: None,
         preview_roots: Vec::new(),
+        preview_windows: HashMap::new(),
         shutting_down: false,
     })));
     tauri::Builder::default()
@@ -1206,6 +1225,7 @@ mod tests {
             restart_history: VecDeque::new(),
             active_task_id: None,
             preview_roots: Vec::new(),
+            preview_windows: HashMap::new(),
             shutting_down: false,
         };
         let path = path.to_string_lossy().into_owned();

@@ -305,11 +305,12 @@ def _read_preview(payload: dict[str, Any], require_scope: bool = False) -> dict[
         except Exception:  # noqa: BLE001 - match v2.6 fallback to the decoded source image
             image = source.copy()
         output = BytesIO()
-        if path.suffix.lower() == ".png":
+        has_alpha = "A" in image.getbands() or image.mode in {"RGBA", "LA"}
+        if has_alpha:
             image.save(output, format="PNG", optimize=True)
             mime_type = "image/png"
         else:
-            image.convert("RGB").save(output, format="JPEG", quality=85, optimize=True)
+            image.convert("RGB").save(output, format="JPEG", quality=82, optimize=True)
             mime_type = "image/jpeg"
     result = {"mime_type": mime_type, "data": base64.b64encode(output.getvalue()).decode("ascii")}
     with _preview_cache_lock:

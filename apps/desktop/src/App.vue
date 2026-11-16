@@ -1197,10 +1197,9 @@ async function loadLogoPreview(key: string, path: string) {
   try {
     if (window.__TAURI_INTERNALS__) await invoke('authorize_logo_preview', { path, key })
     const preview = await requestPreview(path, [previewParent(path)])
-    const binary = atob(preview.data)
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const blob = await fetch(`data:${preview.mime_type};base64,${preview.data}`).then((response) => response.blob())
     const previous = logoPreviews.value[key]
-    logoPreviews.value[key] = URL.createObjectURL(new Blob([bytes], { type: preview.mime_type }))
+    logoPreviews.value[key] = URL.createObjectURL(blob)
     if (previous) URL.revokeObjectURL(previous)
   } catch { settingsNotice.value = 'Logo 无法预览，请重新选择' }
 }
@@ -2134,9 +2133,8 @@ async function loadMaterialPreview(material: MaterialDecision, session = preview
     ])
     if (session !== previewSession) return
     const target = currentMaterial() || material
-    const binary = atob(preview.data)
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-    const url = URL.createObjectURL(new Blob([bytes], { type: preview.mime_type }))
+    const blob = await fetch(`data:${preview.mime_type};base64,${preview.data}`).then((response) => response.blob())
+    const url = URL.createObjectURL(blob)
     previewUrls.add(url)
     previewLoadedSources.add(material.source)
     target.previewReady = false
