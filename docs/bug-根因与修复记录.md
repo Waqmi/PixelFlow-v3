@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-17 | **确认页细节图拖动滑块比例不变、预览比例与最终输出不一致** | 预览公式与渲染语义脱节 | detail 预览把 cover 尺寸的最小边再次夹到 1，缩放恒为 1；确认页仍显示原图缩略图而非输出画布 | 见 3.40 |
 | 2026-11-16 | **确认页与未确认兜底各跑一套分类器，同一张图可能被判成两种类型** | 重复实现 | `classification.py`（V26，封装 legacy 规则）与 `v3_classification.py`（V3）各维护一套规则、Pose 管线与品类解析；3.26 的 seg 键名不一致、3.31 的贴边判据不一致都是这个结构的产物 | 见 3.38 |
 | 2026-11-16 | **确认页快速滚动时预览传输重，其他窗口也跟着解析大 Base64** | 预览链路 | 无透明通道的图仍编码 PNG；前端用 `Uint8Array.from(atob)` 解码；Rust 把 preview 的 `done` 广播给所有窗口 | 见 3.37 |
 | 2026-11-16 | **每张白底图重复 512px 缩放与边缘采样；渲染后重读成品算 SHA-256** | 重复计算 | `_analyze_source` 调 3 次 512px 缩放、2 次 `_edge_color`；`_output_inventory` 从磁盘重读每个输出算 hash | 见 3.36 |
@@ -841,6 +842,22 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **坑 3：滑块「不能拖」不等于「看起来不可用」。** 满版图用 `:disabled` 只做到了功能禁用，用户反馈「滑块没有变灰，只是加了一行文字」。`:disabled` 必须同时压暗轨道和滑块（`::-webkit-slider-runnable-track` / `-thumb` 要单独覆盖，内联的 `--slider-track` 优先级更高）。
 
 **验证**：Worker 240 项（239 过 + 1 skip）、前端 `protocol:check` + `vue-tsc` build 通过；`tools/classifier_baseline.py` 对 368 张图复跑仍 `identical: true`。用真实素材数据生成静态页在无头 Chrome 里量过：3:4 的 0% 主体占高 74.8%、+50% 时超出画框、双尺寸时 1:1 外框与 3:4 内框位置正确、detail 铺满画框。
+
+### 3.40 确认页输出比例预览与细节图缩放修复
+
+**现象**：Windows 确认页中，细节图拖动缩小滑块时预览比例不变；确认页缩略图按原图比例显示，和最终生成的 1:1 / 3:4 输出比例不一致。
+
+**根因**：`buildScaleGuide()` 的 detail 分支先把 cover 后的宽高各自 `Math.max(..., 1)`，cover 语义保证其中一边恒为 1，随后 `1 / Math.min(width, height)` 恒为 1，导致预览缩放值始终被夹回 1。确认页原先只在悬停时挂载参考框，常态仍渲染原图缩略图，因此用户看不到输出画布。
+
+**修复**：
+
+- detail 预览直接使用滑块的 `scale`，舞台露出的区域由 `detail_background` 单色 RGB 元数据填充；该字段复用 renderer 的 `_detail_background_color()` 采样，并加入 `PREVIEW_ONLY_METADATA`，不影响输出缓存签名。
+- `.confirm-preview` 常驻使用输出比例舞台：商品图按 `baseline_canvas[size].image` / `origin` / `scale` 定位，细节图按 cover 尺寸和 `cut_sides` 定位。仅选一种尺寸显示对应舞台；同时选中方图与竖图时显示 3:4 外框、1:1 内框。
+- 保留 `.confirm-card` 的 `IntersectionObserver`、`observeCard()` 和 `data-visible` 绑定不变，并同步 `tools/check_ui_guards.mjs` 守卫。
+
+**顺带核对**：`scaleLocked()` 使用分类阶段源图 128px / 1.5% 边缘判据，renderer 则在 cover 后用 1% 边缘条重新判定。cover 裁切可能新增出画边，阈值也可能造成相反误判；本次只核对并记录，未擅自改变滑块锁定规则。Windows 实机需用一张 cover 后新增第二条出画边的细节图，在 1:1 与 3:4 下对照滑块状态和 -20% 输出。
+
+**验证**：Worker 240 项（239 过 + 1 skip）；`npm run protocol:check`、`npm run build`、`node tools/check_ui_guards.mjs`、`git diff --check` 通过。Windows x64 新包尚未构建，当前目录中的 Windows 包仍对应 `fc08eff`，不能作为本次修复的实测凭据。
 
 ## 四、已知未闭环
 

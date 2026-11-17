@@ -79,10 +79,15 @@ if (/"webviewInstallMode"[\s\S]{0,120}?"silent"\s*:\s*true/.test(conf)) {
   fail('tauri.conf.json', 'WebView2 installs silently; the install page shows no progress')
 }
 
-// 3.39 — the composition guide is mounted for one card at a time. Without the
-// identity check a single truthy model renders the same overlay on every card.
-if (!/v-if="scaleGuideModel && activeScaleSource === material\.source"/.test(app)) {
-  fail('App.vue', 'the composition guide is not gated per card; every card would render it')
+// Confirmation previews use the output canvas directly, so the selected ratio
+// and renderer-aligned photo placement remain visible without hovering.
+if (!/class="scale-guide-stage is-output-stage"/.test(app)
+  || !/baseline_canvas/.test(app)
+  || !/--detail-background/.test(app)) {
+  fail('App.vue', 'the confirmation preview no longer renders the output-ratio stage and sampled detail background')
+}
+if (!/transform: `scale\(\$\{scale\}\)`/.test(app)) {
+  fail('App.vue', 'detail preview scale is clamped instead of following the slider')
 }
 
 // 3.12 — the grid is blank without this wiring: cards start hidden and only the

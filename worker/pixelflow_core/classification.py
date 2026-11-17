@@ -204,12 +204,21 @@ def _source_measurements(source: Path) -> dict[str, object] | None:
             background, _ = edge_background(image)
             profile = foreground_profile(image, background)
             width, height = image.size
-            return {
+            measurements: dict[str, object] = {
                 "cut_sides": profile.cut_sides,
                 "subject_aspect": round(profile.box_aspect, 4),
                 "subject_box": [round(value, 4) for value in profile.box],
                 "image_aspect": round(width / max(1, height), 4),
             }
+            # Keep the confirm-page fill colour in lockstep with the
+            # renderer's pinned-detail background sampling.  This field is
+            # preview-only and never reaches the render signature.
+            from .renderer import _detail_background_color
+
+            measurements["detail_background"] = list(
+                _detail_background_color(image, profile.cut_sides)
+            )
+            return measurements
     except Exception:  # noqa: BLE001 - a preview helper must not stop classification
         return None
 

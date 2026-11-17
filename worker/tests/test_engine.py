@@ -887,6 +887,7 @@ class EngineAdapterTests(unittest.TestCase):
                         str(source): {
                             "subject_aspect": 0.4,
                             "baseline_canvas": {"1440x1440": [0.3, 0.75]},
+                            "detail_background": [240, 240, 240],
                         }
                     },
                 )

@@ -78,6 +78,9 @@ assert 'pixelflow_core.shoe_composition' not in sys.modules
         self.assertEqual(decision.source_type, "detail")
         cut = (decision.metadata or {}).get("cut_sides")
         self.assertEqual(cut, {"left": True, "right": True, "top": False, "bottom": False})
+        background = (decision.metadata or {}).get("detail_background")
+        self.assertEqual(len(background), 3)
+        self.assertTrue(all(isinstance(value, int) for value in background))
 
     def test_category_uses_the_nearest_path_level(self) -> None:
         """A two-category path keeps the closest folder instead of ``other``."""

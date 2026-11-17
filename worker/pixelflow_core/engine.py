@@ -117,7 +117,13 @@ def _file_fingerprint(raw: object) -> tuple[int, int] | None:
     return stat.st_mtime_ns, stat.st_size
 
 
-PREVIEW_ONLY_METADATA = ("subject_aspect", "subject_box", "image_aspect", "baseline_canvas")
+PREVIEW_ONLY_METADATA = (
+    "subject_aspect",
+    "subject_box",
+    "image_aspect",
+    "baseline_canvas",
+    "detail_background",
+)
 
 
 def _render_signature(request: RenderRequest) -> str:
