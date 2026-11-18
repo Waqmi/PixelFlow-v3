@@ -123,6 +123,7 @@ PREVIEW_ONLY_METADATA = (
     "image_aspect",
     "baseline_canvas",
     "detail_background",
+    "detail_cut_sides_by_size",
 )
 
 

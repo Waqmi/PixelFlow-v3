@@ -164,7 +164,10 @@ button{cursor:pointer}
    canvas; the photo inside it is the real preview scaled like the renderer. */
 .confirm-preview{position:relative}
 .confirm-preview .scale-guide-stage.is-output-stage{height:100%;max-width:100%;aspect-ratio:var(--guide-aspect,1/1);overflow:hidden;border:1.5px solid var(--guide-tone,var(--accent));border-radius:2px;background:var(--detail-background,var(--field))}
+.confirm-preview .scale-guide-stage.is-output-stage:not(.is-guide-visible){border-color:transparent}
 .confirm-preview .scale-guide-stage.is-output-stage.is-warning{border-color:#e08a1e}
+.confirm-preview .scale-guide-stage.is-output-stage:not(.is-guide-visible).is-warning{border-color:transparent}
+.confirm-preview .scale-guide-stage.is-output-stage:not(.is-guide-visible) .scale-guide-inner,.confirm-preview .scale-guide-stage.is-output-stage:not(.is-guide-visible) .scale-guide-label{display:none}
 .confirm-preview .scale-guide-stage.is-output-stage .scale-guide-photo{position:absolute;display:block;max-width:none;max-height:none;opacity:1;object-fit:fill;transition:transform .12s ease-out}
 .confirm-preview img.preview-loaded.is-guide-hidden,.confirm-preview img.is-guide-hidden{opacity:0}
 .scale-guide{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:2}

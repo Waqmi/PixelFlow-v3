@@ -17,6 +17,8 @@ from pixelflow_core.renderer import (
     RenderConfig,
     Renderer,
     _background_to_alpha,
+    _detail_cut_sides,
+    detail_cut_sides_by_size,
     _encode_png,
     _light_foreground_touches_edge,
     _orientation_factor,
@@ -31,6 +33,18 @@ TEMPLATE_FILE = REPO_RESOURCES / "templates" / "category_templates.json"
 
 
 class RendererTests(unittest.TestCase):
+    def test_full_bleed_fabric_is_locked_for_all_output_sizes(self) -> None:
+        image = Image.new("RGB", (800, 600), (24, 96, 190))
+        cuts = detail_cut_sides_by_size(image)
+        self.assertEqual(set(cuts), {"1440x1440", "1440x1920", "1125x1500"})
+        self.assertTrue(all(sum(side.values()) >= 2 for side in cuts.values()))
+
+    def test_white_background_with_one_product_edge_stays_shrinkable(self) -> None:
+        image = Image.new("RGB", (800, 600), "white")
+        ImageDraw.Draw(image).rectangle((0, 170, 430, 430), fill=(24, 96, 190))
+        cuts = detail_cut_sides_by_size(image)
+        self.assertTrue(any(sum(side.values()) < 2 for side in cuts.values()))
+
     def test_light_foreground_edge_detection_matches_cover_safety_rule(self) -> None:
         touching = Image.new("RGB", (100, 100), "white")
         touching.paste((30, 30, 30), (0, 25, 55, 75))

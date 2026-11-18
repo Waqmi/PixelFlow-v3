@@ -17,6 +17,7 @@ const css = read('apps/desktop/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '')
 const app = read('apps/desktop/src/App.vue')
 const host = read('apps/desktop/src-tauri/src/main.rs')
 const worker = read('worker/pixelflow_core/worker.py')
+const renderer = read('worker/pixelflow_core/renderer.py')
 
 // 3.13 — a global reduce rule silently disabled every animation while the
 // in-app checkbox still said they were on.
@@ -88,6 +89,12 @@ if (!/class="scale-guide-stage is-output-stage"/.test(app)
 }
 if (!/transform: `scale\(\$\{scale\}\)`/.test(app)) {
   fail('App.vue', 'detail preview scale is clamped instead of following the slider')
+}
+if (!/is-guide-visible/.test(app) || !/activeScaleSource === material\.source/.test(app)) {
+  fail('App.vue', 'output preview frame is not gated by the active scale source')
+}
+if (!/detail_cut_sides_by_size/.test(app) || !/detail_cut_sides_by_size/.test(renderer)) {
+  fail('App.vue', 'detail slider lock does not use renderer cut sides by output size')
 }
 
 // 3.12 — the grid is blank without this wiring: cards start hidden and only the

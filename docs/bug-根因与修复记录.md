@@ -14,6 +14,7 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-18 | **确认页预览线框默认常驻；四边出画的细节图仍可缩放** | 预览状态与渲染判据不一致 | 输出舞台一直显示边框；滑块只读源图分类期 `cut_sides`，没有按各输出尺寸 cover 后的 renderer 判据锁定 | 见 3.41 |
 | 2026-11-17 | **确认页细节图拖动滑块比例不变、预览比例与最终输出不一致** | 预览公式与渲染语义脱节 | detail 预览把 cover 尺寸的最小边再次夹到 1，缩放恒为 1；确认页仍显示原图缩略图而非输出画布 | 见 3.40 |
 | 2026-11-16 | **确认页与未确认兜底各跑一套分类器，同一张图可能被判成两种类型** | 重复实现 | `classification.py`（V26，封装 legacy 规则）与 `v3_classification.py`（V3）各维护一套规则、Pose 管线与品类解析；3.26 的 seg 键名不一致、3.31 的贴边判据不一致都是这个结构的产物 | 见 3.38 |
 | 2026-11-16 | **确认页快速滚动时预览传输重，其他窗口也跟着解析大 Base64** | 预览链路 | 无透明通道的图仍编码 PNG；前端用 `Uint8Array.from(atob)` 解码；Rust 把 preview 的 `done` 广播给所有窗口 | 见 3.37 |
@@ -858,6 +859,21 @@ base64 预览是单行几万字节，底层 `write` 会分多次系统调用。�
 **顺带核对**：`scaleLocked()` 使用分类阶段源图 128px / 1.5% 边缘判据，renderer 则在 cover 后用 1% 边缘条重新判定。cover 裁切可能新增出画边，阈值也可能造成相反误判；本次只核对并记录，未擅自改变滑块锁定规则。Windows 实机需用一张 cover 后新增第二条出画边的细节图，在 1:1 与 3:4 下对照滑块状态和 -20% 输出。
 
 **验证**：Worker 240 项（239 过 + 1 skip）；`npm run protocol:check`、`npm run build`、`node tools/check_ui_guards.mjs`、`git diff --check` 通过。Windows x64 新包尚未构建，当前目录中的 Windows 包仍对应 `fc08eff`，不能作为本次修复的实测凭据。
+
+### 3.41 确认页线框按需显示与细节图四边出画锁定
+
+**现象**：确认页打开后每张卡片都显示输出线框；部分四边都被产品填满的细节图仍能拖动缩小滑块。
+
+**根因**：输出舞台被常驻渲染时边框、内框和比例标签没有跟随 `activeScaleSource` 隐藏。滑块锁定只读取分类阶段源图的 `cut_sides`；renderer 实际会先对每个输出尺寸做 cover，再重新检测出画边，因此源图判据可能漏掉全幅布料等四边出画素材。
+
+**修复**：
+
+- 输出舞台照片继续常驻，但边框、内框和标签只在对应卡片的滑块悬停、按住或拖动期间显示，离开/松手 800ms 后清空。
+- renderer 新增 `detail_cut_sides_by_size()`，对三个标准输出尺寸执行 cover 后检测；确认页按已选输出尺寸任一出现两条以上出画边就禁用细节缩小滑块，并按当前舞台尺寸定位细节图。
+- 对四边颜色一致且无可靠背景样本的深色/高饱和布料，renderer 按 full-bleed 处理；新增白底单边素材回归，避免把常规可缩细节图一并锁死。
+- 新增 metadata 已加入 `PREVIEW_ONLY_METADATA`；同步 UI 守卫，未改确认卡片的 IntersectionObserver / `observeCard` / `data-visible`。
+
+**验证**：Worker 242 项（241 过 + 1 skip）；`npm run protocol:check`、`npm run build`、`node tools/check_ui_guards.mjs`、`git diff --check` 通过。Windows/macOS 新包实测待构建完成后执行。
 
 ## 四、已知未闭环
 

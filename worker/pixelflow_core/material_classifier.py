@@ -402,15 +402,21 @@ class MaterialClassifier:
                 needs_detail_background = (
                     item.source_type == "detail" and "detail_background" not in metadata
                 )
-                if "cut_sides" not in metadata or needs_aspect or needs_detail_background:
+                needs_detail_cut_sides = (
+                    item.source_type == "detail" and "detail_cut_sides_by_size" not in metadata
+                )
+                if "cut_sides" not in metadata or needs_aspect or needs_detail_background or needs_detail_cut_sides:
                     # One decode serves the slider lock, the guide frame and the
                     # detail cover clamp.
                     measured = _source_measurements(source)
                     if measured is not None:
                         metadata.setdefault("cut_sides", measured["cut_sides"])
                         metadata.setdefault("image_aspect", measured["image_aspect"])
-                        if item.source_type == "detail" and "detail_background" in measured:
-                            metadata.setdefault("detail_background", measured["detail_background"])
+                        if item.source_type == "detail":
+                            if "detail_background" in measured:
+                                metadata.setdefault("detail_background", measured["detail_background"])
+                            if "detail_cut_sides_by_size" in measured:
+                                metadata.setdefault("detail_cut_sides_by_size", measured["detail_cut_sides_by_size"])
                         if item.source_type == "main_product":
                             metadata.setdefault("subject_aspect", measured["subject_aspect"])
                             metadata.setdefault("subject_box", measured["subject_box"])

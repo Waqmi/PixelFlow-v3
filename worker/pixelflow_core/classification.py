@@ -213,11 +213,12 @@ def _source_measurements(source: Path) -> dict[str, object] | None:
             # Keep the confirm-page fill colour in lockstep with the
             # renderer's pinned-detail background sampling.  This field is
             # preview-only and never reaches the render signature.
-            from .renderer import _detail_background_color
+            from .renderer import _detail_background_color, detail_cut_sides_by_size
 
             measurements["detail_background"] = list(
                 _detail_background_color(image, profile.cut_sides)
             )
+            measurements["detail_cut_sides_by_size"] = detail_cut_sides_by_size(image)
             return measurements
     except Exception:  # noqa: BLE001 - a preview helper must not stop classification
         return None

@@ -479,6 +479,19 @@ def _detail_cut_sides(image: Image.Image) -> dict[str, bool]:
         "right": np.asarray(rgb.crop((width - band, 0, width, height)), dtype=np.int16),
     }
     samples = {name: strip.reshape(-1, 3) for name, strip in strips.items()}
+    medians = {
+        name: np.median(values, axis=0)
+        for name, values in samples.items()
+    }
+    # When every edge is the same saturated/dark colour there is no reliable
+    # background sample. Treat the image as a full-bleed detail shot so the
+    # shrink slider cannot invent a fake border around edge-to-edge fabric.
+    edge_medians = np.asarray(list(medians.values()), dtype=np.int16)
+    if (
+        np.max(np.ptp(edge_medians, axis=0)) <= 12
+        and int(np.max(edge_medians) - np.min(edge_medians)) > 28
+    ):
+        return {"top": True, "bottom": True, "left": True, "right": True}
     pool = np.concatenate([values[:: max(1, len(values) // 500)] for values in samples.values()])
     background = np.median(pool, axis=0)
     cut: dict[str, bool] = {}
@@ -487,6 +500,15 @@ def _detail_cut_sides(image: Image.Image) -> dict[str, bool]:
         difference = np.abs(values[::step] - background).max(axis=1)
         cut[name] = bool((difference > DETAIL_CUT_DIFFERENCE).mean() > DETAIL_CUT_SHARE)
     return cut
+
+
+def detail_cut_sides_by_size(image: Image.Image) -> dict[str, dict[str, bool]]:
+    """Return renderer cut-side decisions after cover for every output size."""
+    rgb = image.convert("RGB")
+    return {
+        size: _detail_cut_sides(_resize_cover(rgb, target))
+        for size, target in STANDARD_SIZES.items()
+    }
 
 
 def _detail_background_color(image: Image.Image, cut: dict[str, bool]) -> tuple[int, int, int]:

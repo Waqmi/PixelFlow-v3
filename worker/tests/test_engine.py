@@ -888,6 +888,9 @@ class EngineAdapterTests(unittest.TestCase):
                             "subject_aspect": 0.4,
                             "baseline_canvas": {"1440x1440": [0.3, 0.75]},
                             "detail_background": [240, 240, 240],
+                            "detail_cut_sides_by_size": {
+                                "1440x1440": {"top": True, "bottom": True, "left": False, "right": False},
+                            },
                         }
                     },
                 )
