@@ -14,6 +14,8 @@
 
 | 日期 | 现象 | 根因类别 | 一句话根因 | 修复 |
 |---|---|---|---|---|
+| 2026-11-19 | **状态栏显示「任务可恢复」，点「继续未完成」和「开始生成」都提示生成失败** | 路径处理 | 文件夹名结尾带空格（`XRPM005(6)-6 骄阳红 `），拖入时 `applyDroppedPaths` 用 `path.trim()` 删掉尾部空格，worker 收到的是另一个不存在的路径 | 见 3.44 |
+| 2026-11-19 | **macOS 关掉 App 再打开，状态栏还停在上次任务（「任务可恢复」+「继续未完成」）** | 退出未清理 | 恢复快照只写不删，正常退出也不清；3.42 又把状态区显示成「任务可恢复」，看起来就是上次状态没清 | 见 3.43 |
 | 2026-11-19 | **macOS 重开后生成状态显示「准备就绪」，仍有「继续未完成」且开始按钮不可用** | 状态提示覆盖 | Worker `ready` 握手无条件重置状态文案；恢复快照仍在，但输入/输出路径按 3.9 设计不自动回填，用户无法从状态区看出需要恢复或重新选目录 | 见 3.42 |
 | 2026-11-18 | **确认页预览线框默认常驻；四边出画的细节图仍可缩放** | 预览状态与渲染判据不一致 | 输出舞台一直显示边框；滑块只读源图分类期 `cut_sides`，没有按各输出尺寸 cover 后的 renderer 判据锁定 | 见 3.41 |
 | 2026-11-17 | **确认页细节图拖动滑块比例不变、预览比例与最终输出不一致** | 预览公式与渲染语义脱节 | detail 预览把 cover 尺寸的最小边再次夹到 1，缩放恒为 1；确认页仍显示原图缩略图而非输出画布 | 见 3.40 |
@@ -125,6 +127,7 @@
 
 26. **错误响应必须能被关联回原请求**。回 `request_id: "unknown"` 等于把错误丢进黑洞：前端匹配不上就整条丢弃，等待中的状态永远不会复位。解析失败时也要尽力从原始文本里抠出 `request_id`，并把原始行截断回显——否则这类问题只能靠猜。
 27. **前端每个「等待中」标记都要有超时释放**，包括 `isRunning` 这种看似不会丢的。守卫写成 `if (running) return` 时，一次丢失的响应就等于永久禁用，而且**不报错、不改状态**，用户只会说「点了没反应」。
+28. **跨进程残留的状态，先问「这份数据凭什么能活过退出」**。改文案、改显隐只是换一种方式显示旧数据（3.42 就是这么走偏的）。要区分「正常退出」和「崩溃/强退」别指望页面卸载钩子——`beforeunload` / `pagehide` 在 macOS 退出路径上不执行；由 Rust 在 `RunEvent::Exit` 写标记、前端启动时读一次即删，才是可测的。
 
 ## 三、重点案例
 
@@ -340,6 +343,56 @@ if (savedResume) {
 - 用户直接选新目录开始新任务时，`classifyMaterials()` 会 `clearResumeTask()`，提示随之消失。
 
 验证：`protocol:check` + `vue-tsc` + `vite build` 通过。待 Windows 实机确认：重启后输入框应为空、提示可见；点「继续未完成」后路径才出现；直接选新目录开始生成时提示消失。
+
+### 3.44 点「继续未完成」和「开始生成」都提示生成失败
+
+现象：状态区显示「任务可恢复」，点「继续未完成」或重新点「开始生成」，都只回一句「生成失败」，状态区提示 `product_root is not a directory: XRPM005(6)-6 骄阳红`。
+
+**根因**：素材目录的真实名字是 `XRPM005(6)-6 骄阳红 `——**结尾有一个空格**。`App.vue` 的 `applyDroppedPaths()` 对拖入的路径做了 `path.trim()`：
+
+```js
+const normalized = paths.map((path) => path.trim()).filter(Boolean)
+```
+
+尾部空格被删掉，`inputRoot` 就成了另一个不存在的路径。worker 的 `GenerationRequest.validate()` / 分类入口用 `is_dir()` 判定，直接报 `product_root is not a directory`。同一条坏路径又被写进恢复快照，所以「继续未完成」恢复出来的还是它，两条路一起失败。
+
+**为什么之前没发现**：Windows 不允许文件夹名以空格结尾，这个坑在 Windows 上根本不存在；macOS 允许，而拖放是 macOS 上最常用的加素材方式，点「选择…」（NSOpenPanel 原样返回路径）反而不会触发。
+
+**修复**：
+
+- `applyDroppedPaths()` 只去掉拖放数据可能带的控制字符（`\t` `\r` `\n`），不再动空格；空串判断改成 `length > 0`。
+- worker 的英文报错映射成「输入目录不存在或已被移动，请重新选择「产品素材文件夹」」，避免用户停在一句没法行动的「生成失败」上。
+
+**验证**（`worker/.venv` 直接喂协议行）：
+
+- `product_root` 带尾部空格 → 回 `status: started`（分类正常开始）。
+- 同一个路径去掉尾部空格 → 复现 `error: product_root is not a directory: ...骄阳红`，与用户看到的报错一字不差。
+
+### 3.43 macOS 退出 App 后生成状态没有清空
+
+现象：macOS ARM 上关掉 App 再打开，状态区仍然是上一次任务的样子（「任务可恢复」+「继续未完成」+ 上次的任务说明），用户要求「退出 App 就清空生成状态」。
+
+**根因**：恢复快照 `pixelflow.resume-task` 写在 `localStorage`，只有三种情况会删——任务跑完（`done`）、点开始新任务（`classifyMaterials`）、点继续后恢复完成。**正常退出 App 不删**，所以下次启动 `restoreResumeSnapshot()` 一定读回来。
+
+3.42 只统一了「状态文案」和「按钮显隐」，没有碰快照的生命周期：它把「快照还在」当成正常状态，改成显示「任务可恢复」。用户看到的是「状态没清」，上一轮却在修「提示不一致」，方向不对。
+
+**为什么之前没修好**：把「重启后状态残留」当成显示层问题（文案被覆盖），没有追问「这条状态的数据来源为什么能跨进程活着」。数据源没清，任何文案调整都只是换一种方式显示旧状态。
+
+**修复**（按「中途退出仍可续跑，只清已完成/已取消」）：
+
+- Rust：`RunEvent::Exit` 时写 `~/Library/Logs/PixelFlow/clean-exit.marker`（Windows 落在 `%LOCALAPPDATA%\PixelFlow\logs`），表示「这次是正常退出」；新增命令 `take_clean_exit_marker` 读一次即删。
+- 前端：主窗口启动时先问这个标记，命中时只有 `classifying` / `generating` / `interrupted`（真正的中途状态）才保留快照，其余（`cancelled`、`failed`）一律 `clearResumeTask()`；已完成的任务本来就在 `done` 时清快照，不涉及这里。
+- 之所以把 `failed` 也算「该清」：一次失败的运行不是「中途退出」，它的快照重启后基本是死路——3.44 里点「继续未完成」直接生成失败，就是这个状态在重启后被端出来。
+- 标记「读一次即删」，所以「清过一次之后又崩溃」不会被误判成正常退出。
+
+为什么不用 `beforeunload` / `pagehide`：macOS 上主窗口销毁后才走 `RunEvent::Exit`，那时 WebView 已经不执行 JS；退出钩子里做清理还会拖住退出。标记文件由 Rust 在退出路径上写，不依赖页面。
+
+验证：
+
+- `cargo test` 15 项通过，新增 `clean_exit_marker_is_consumed_once`（无标记→false；有标记→true 并删除；再读→false）。
+- `npm run protocol:check` + `npm run build`（含 `vue-tsc --noEmit`）通过。
+- macOS ARM 真机（`target/debug/bundle/macos/PixelFlow.app`，用成品包里的 worker 组装）：手工预置 `~/Library/Logs/PixelFlow/clean-exit.marker` 后启动，启动 10 秒内该文件被删除，说明前端确实在启动时消费了标记；随后 `SIGTERM` 结束进程（等价于强退）不再产生标记。
+- 真机正常退出：11:35:41 手工关窗后 `worker-events.jsonl` 收到 `host-shutdown` `done`，同时 `clean-exit.marker` 落盘，说明 `RunEvent::Exit` 的写标记分支在 macOS 上确实执行（终端没有自动化权限，`osascript quit` / 模拟 ⌘Q 被 TCC 拒绝，只能用人工关窗验证）。
 
 ### 3.42 macOS 重开后恢复任务提示被重置
 

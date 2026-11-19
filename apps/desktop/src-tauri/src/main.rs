@@ -554,6 +554,27 @@ fn worker_events_path() -> PathBuf {
     worker_log_path().with_file_name("worker-events.jsonl")
 }
 
+fn clean_exit_marker_path() -> PathBuf {
+    worker_log_path().with_file_name("clean-exit.marker")
+}
+
+// Written on `RunEvent::Exit`, which only fires when the app shuts down on its
+// own. A crash or force-quit leaves no marker, so the frontend can tell a clean
+// quit (drop the previous run's resume snapshot) from an interrupted one (keep
+// it and offer "继续未完成"). Consumed once per launch.
+#[tauri::command]
+fn take_clean_exit_marker() -> bool {
+    take_marker(&clean_exit_marker_path())
+}
+
+fn take_marker(path: &PathBuf) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    let _ = std::fs::remove_file(path);
+    true
+}
+
 fn diagnostics_cache_root() -> PathBuf {
     #[cfg(target_os = "macos")]
     return std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
@@ -1166,7 +1187,8 @@ fn main() {
             authorize_logo_preview,
             save_text_file,
             export_diagnostics,
-            open_path
+            open_path,
+            take_clean_exit_marker
         ])
         .build(tauri::generate_context!())
         .expect("error while building PixelFlow")
@@ -1184,6 +1206,11 @@ fn main() {
                 }
             }
             if matches!(event, RunEvent::Exit) {
+                let marker = clean_exit_marker_path();
+                if let Some(parent) = marker.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::write(&marker, b"1");
                 let state = app.state::<WorkerState>();
                 if let Ok(mut guard) = state.0.lock() {
                     guard.shutting_down = true;
@@ -1322,6 +1349,22 @@ mod tests {
         let redacted = String::from_utf8(redact_log_bytes(b"Traceback: File \"/Users/private/input/photo.jpg\", line 4\n")).unwrap();
         assert!(redacted.contains("photo.jpg"));
         assert!(!redacted.contains("/Users/private"));
+    }
+
+    #[test]
+    fn clean_exit_marker_is_consumed_once() {
+        let root = std::env::temp_dir().join(format!("pixelflow-marker-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("clean-exit.marker");
+        // No marker means the previous exit was not clean: keep the snapshot.
+        assert!(!take_marker(&path));
+        std::fs::write(&path, b"1").unwrap();
+        assert!(take_marker(&path));
+        // Consumed once, so a later crash is not mistaken for a clean exit.
+        assert!(!take_marker(&path));
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

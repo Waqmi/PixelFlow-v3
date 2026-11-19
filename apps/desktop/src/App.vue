@@ -1517,6 +1517,41 @@ async function revealMainWindow() {
   }
 }
 
+// A clean quit drops the snapshot unless the run was still going, so the status
+// bar cannot come back showing a finished, cancelled or failed task. Quitting
+// mid-run keeps it: that is exactly what 「继续未完成」 is for. The host writes
+// clean-exit.marker on RunEvent::Exit; a crash or force-quit leaves none, and
+// then the snapshot is restored either way.
+const RESUMABLE_PHASES: ResumePhase[] = ['classifying', 'generating', 'interrupted']
+
+async function restoreResumeSnapshot() {
+  const isMainWindow = !isSettingsWindow && !isReportWindow && !isConfirmWindow
+  let cleanExit = false
+  if (isMainWindow && window.__TAURI_INTERNALS__) {
+    try {
+      cleanExit = await invoke<boolean>('take_clean_exit_marker')
+    } catch {
+      // Older host without the command: fall back to the stored snapshot.
+    }
+  }
+  const savedResume = readResumeTask()
+  if (!savedResume) return
+  if (cleanExit && !RESUMABLE_PHASES.includes(savedResume.phase)) {
+    clearResumeTask()
+    return
+  }
+  resumeSnapshot.value = savedResume
+  if (!isMainWindow) return
+  // Only the snapshot is kept, not the paths. Writing them into the form made a
+  // new run inherit a directory the user never chose, and a stale path was
+  // indistinguishable from one they had just picked.
+  const sizes = savedResume.generation_payload?.selected_sizes
+  if (Array.isArray(sizes) && sizes.every((value) => typeof value === 'string')) selectedSizes.value = sizes as string[]
+  status.value = '检测到未完成任务，可点「继续未完成」恢复'
+  taskPhase.value = '任务可恢复'
+  taskDetail.value = '继续后会用上次的输入/输出目录重新开始。'
+}
+
 onMounted(() => {
   if (window.__TAURI_INTERNALS__ && (isSettingsWindow || isConfirmWindow || isReportWindow)) {
     const auxiliaryWindow = getCurrentWindow()
@@ -1528,20 +1563,7 @@ onMounted(() => {
     }).then((unlisten) => { stopAuxiliaryCloseListener = unlisten }).catch(() => {})
   }
   let hasSavedModelPath = false
-  const savedResume = readResumeTask()
-  if (savedResume) {
-    resumeSnapshot.value = savedResume
-    if (!isSettingsWindow && !isReportWindow && !isConfirmWindow) {
-      // Only the snapshot is kept, not the paths. Writing them into the form
-      // made a new run inherit a directory the user never chose, and a stale
-      // path was indistinguishable from one they had just picked.
-      const sizes = savedResume.generation_payload?.selected_sizes
-      if (Array.isArray(sizes) && sizes.every((value) => typeof value === 'string')) selectedSizes.value = sizes as string[]
-      status.value = '检测到未完成任务，可点「继续未完成」恢复'
-      taskPhase.value = '任务可恢复'
-      taskDetail.value = '继续后会用上次的输入/输出目录重新开始。'
-    }
-  }
+  void restoreResumeSnapshot()
   try {
     theme.value = readInitialTheme()
     reducedMotion.value = readInitialReducedMotion()
@@ -1985,7 +2007,12 @@ function handleWorkerMessage(message: WorkerMessage) {
     isCancelling.value = false
     if (message.request_id === classificationRequestId.value) setClassificationProgress(0, true)
     classificationRunning.value = false
-    status.value = String(payload.message || 'Worker 执行失败')
+    const failure = String(payload.message || 'Worker 执行失败')
+    // The worker reports a missing input folder in English and the run just
+    // stops there; say what to do about it.
+    status.value = /product_root is not a directory/.test(failure)
+      ? '输入目录不存在或已被移动，请重新选择「产品素材文件夹」'
+      : failure
     taskPhase.value = '生成失败'
     taskDetail.value = '任务未完成，请检查素材与输出位置后重试。'
   }
@@ -2525,7 +2552,13 @@ function cancelGeneration() {
 }
 
 function applyDroppedPaths(paths: string[]) {
-  const normalized = paths.map((path) => path.trim()).filter(Boolean)
+  // macOS folder names may legitimately end with a space ("XRPM005(6)-6 骄阳红 ").
+  // Trimming spaces turned that path into a different, non-existent one and the
+  // worker answered "product_root is not a directory"; only strip control
+  // whitespace that drag data can pick up.
+  const normalized = paths
+    .map((path) => path.replace(/^[\t\r\n]+|[\t\r\n]+$/g, ''))
+    .filter((path) => path.length > 0)
   if (!normalized.length) return
   const imageExtensions = new Set(['.jpg', '.jpeg', '.png'])
   const first = normalized[0]
