@@ -1802,6 +1802,10 @@ function handleWorkerMessage(message: WorkerMessage) {
       status.value = 'Worker 版本与当前 App 不匹配，请重新构建或更新资源'
       taskPhase.value = '版本不匹配'
       taskDetail.value = `Worker ${String(payload.worker_version || '未知')} / 规则 ${String(payload.rules_version || '未知')}`
+    } else if (resumeAvailable.value && !isSettingsWindow && !isReportWindow && !isConfirmWindow) {
+      status.value = '检测到未完成任务，可继续恢复或开始新任务'
+      taskPhase.value = '任务可恢复'
+      taskDetail.value = '点「继续未完成」恢复上次任务；或重新选择输入和输出目录后开始新任务。'
     } else {
       status.value = '准备就绪'
       taskPhase.value = '准备就绪'

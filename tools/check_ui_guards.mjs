@@ -67,6 +67,10 @@ if (!/_salvage_request_id/.test(worker)) {
 if (/inputRoot\.value\s*=\s*savedResume\.input_root/.test(app)) {
   fail('App.vue', 'startup overwrites the input path from the resume snapshot again')
 }
+if (!/resumeAvailable\.value\s*&&\s*!isSettingsWindow\s*&&\s*!isReportWindow\s*&&\s*!isConfirmWindow/.test(app)
+  || !/检测到未完成任务，可继续恢复或开始新任务/.test(app)) {
+  fail('App.vue', 'worker ready hides the available resume task behind a generic ready state')
+}
 
 // 3.13 — the checkbox is the only switch; an OS media query overrides it
 // without the user being able to tell why.
